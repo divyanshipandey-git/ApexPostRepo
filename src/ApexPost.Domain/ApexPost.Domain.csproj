@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ApexPost.Domain</AssemblyName>
+    <RootNamespace>ApexPost.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>

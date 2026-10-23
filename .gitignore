@@ -1,0 +1,17 @@
+# Build output
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local configuration and secrets
+appsettings.Local.json
+secrets.json
+.env
+.env.*
+
+# Runtime data (keep seed files in data/seed)
+data/runtime/
+*.audit.json

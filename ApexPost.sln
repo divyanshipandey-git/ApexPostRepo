@@ -1,0 +1,54 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Domain", "src\ApexPost.Domain\ApexPost.Domain.csproj", "{A9460F76-B144-45C1-ABC9-6019149584F3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Application", "src\ApexPost.Application\ApexPost.Application.csproj", "{BBD4373C-C935-46FB-A233-194C8FBD492C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Infrastructure", "src\ApexPost.Infrastructure\ApexPost.Infrastructure.csproj", "{1CC206A8-2DCA-41AD-9E40-B5CA7429C457}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Web", "src\ApexPost.Web\ApexPost.Web.csproj", "{540D1BB9-7E7D-4DCE-9F8C-0AA67D7AA0A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Domain.Tests", "tests\ApexPost.Domain.Tests\ApexPost.Domain.Tests.csproj", "{B4B4DE15-4C7E-43BF-9F0C-4ACF23A36911}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Application.Tests", "tests\ApexPost.Application.Tests\ApexPost.Application.Tests.csproj", "{484B7C70-E5BB-4A2F-8068-6C44799BA126}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Web.IntegrationTests", "tests\ApexPost.Web.IntegrationTests\ApexPost.Web.IntegrationTests.csproj", "{E23977DD-9DFF-4039-A96A-739B0CE724A2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A9460F76-B144-45C1-ABC9-6019149584F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9460F76-B144-45C1-ABC9-6019149584F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9460F76-B144-45C1-ABC9-6019149584F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9460F76-B144-45C1-ABC9-6019149584F3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BBD4373C-C935-46FB-A233-194C8FBD492C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBD4373C-C935-46FB-A233-194C8FBD492C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBD4373C-C935-46FB-A233-194C8FBD492C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBD4373C-C935-46FB-A233-194C8FBD492C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CC206A8-2DCA-41AD-9E40-B5CA7429C457}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CC206A8-2DCA-41AD-9E40-B5CA7429C457}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CC206A8-2DCA-41AD-9E40-B5CA7429C457}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CC206A8-2DCA-41AD-9E40-B5CA7429C457}.Release|Any CPU.Build.0 = Release|Any CPU
+		{540D1BB9-7E7D-4DCE-9F8C-0AA67D7AA0A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{540D1BB9-7E7D-4DCE-9F8C-0AA67D7AA0A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{540D1BB9-7E7D-4DCE-9F8C-0AA67D7AA0A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{540D1BB9-7E7D-4DCE-9F8C-0AA67D7AA0A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B4B4DE15-4C7E-43BF-9F0C-4ACF23A36911}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4B4DE15-4C7E-43BF-9F0C-4ACF23A36911}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4B4DE15-4C7E-43BF-9F0C-4ACF23A36911}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4B4DE15-4C7E-43BF-9F0C-4ACF23A36911}.Release|Any CPU.Build.0 = Release|Any CPU
+		{484B7C70-E5BB-4A2F-8068-6C44799BA126}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{484B7C70-E5BB-4A2F-8068-6C44799BA126}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{484B7C70-E5BB-4A2F-8068-6C44799BA126}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{484B7C70-E5BB-4A2F-8068-6C44799BA126}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

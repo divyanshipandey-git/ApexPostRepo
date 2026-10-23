@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ApexPost.Infrastructure</AssemblyName>
+    <RootNamespace>ApexPost.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ApexPost.Application\ApexPost.Application.csproj" />
+    <ProjectReference Include="..\ApexPost.Domain\ApexPost.Domain.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>
