@@ -1,5 +1,6 @@
 ﻿using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Domain.Entities;
+using ApexPost.Domain.ValueObjects;
 
 namespace ApexPost.Application.Services.Inventory;
 
@@ -18,14 +19,14 @@ public sealed class InventoryService
         string sku,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(branchCode);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sku);
+        var normalizedBranchCode = ValidateBranchCode(branchCode);
+        var normalizedSku = ValidateSku(sku);
 
         cancellationToken.ThrowIfCancellationRequested();
 
         return await _inventoryRepository.GetByBranchAndSkuAsync(
-            branchCode.Trim().ToUpperInvariant(),
-            sku.Trim().ToUpperInvariant(),
+            normalizedBranchCode,
+            normalizedSku,
             cancellationToken);
     }
 
@@ -33,12 +34,24 @@ public sealed class InventoryService
         string branchCode,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(branchCode);
+        var normalizedBranchCode = ValidateBranchCode(branchCode);
 
         cancellationToken.ThrowIfCancellationRequested();
 
         return await _inventoryRepository.GetByBranchAsync(
-            branchCode.Trim().ToUpperInvariant(),
+            normalizedBranchCode,
             cancellationToken);
+    }
+
+    private static string ValidateBranchCode(string branchCode)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(branchCode);
+        return new BranchCode(branchCode).Value;
+    }
+
+    private static string ValidateSku(string sku)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sku);
+        return new Sku(sku).Value;
     }
 }
