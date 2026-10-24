@@ -1,6 +1,7 @@
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Shipping;
+using ApexPost.Application.Services.MoneyOrders;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 
@@ -18,6 +19,8 @@ public sealed class CounterSaleService
     private readonly IShipmentRepository _shipmentRepository;
     private readonly IReadOnlyCollection<TaxRate> _taxRates;
     private readonly TimeProvider _timeProvider;
+    private readonly MoneyOrderService _moneyOrderService;
+    private readonly MoneyOrderSettings _moneyOrderSettings;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -28,6 +31,8 @@ public sealed class CounterSaleService
         ICounterRepository counterRepository,
         ShippingService shippingService,
         IShipmentRepository shipmentRepository,
+        MoneyOrderService moneyOrderService,
+        MoneyOrderSettings moneyOrderSettings,
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider)
     {
@@ -39,6 +44,8 @@ public sealed class CounterSaleService
         ArgumentNullException.ThrowIfNull(counterRepository);
         ArgumentNullException.ThrowIfNull(shippingService);
         ArgumentNullException.ThrowIfNull(shipmentRepository);
+        ArgumentNullException.ThrowIfNull(moneyOrderService);
+        ArgumentNullException.ThrowIfNull(moneyOrderSettings);
         ArgumentNullException.ThrowIfNull(taxRates);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
@@ -50,6 +57,8 @@ public sealed class CounterSaleService
         _counterRepository = counterRepository;
         _shippingService = shippingService;
         _shipmentRepository = shipmentRepository;
+        _moneyOrderService = moneyOrderService;
+        _moneyOrderSettings = moneyOrderSettings;
         _taxRates = taxRates.ToArray();
         _timeProvider = timeProvider;
     }
@@ -181,6 +190,40 @@ public sealed class CounterSaleService
 
         var transactionId = $"TXN-{Guid.NewGuid():N}";
         var shipmentId = request.Shipping is null ? null : $"SHP-{Guid.NewGuid():N}";
+        MoneyOrder? moneyOrder = null;
+        if (request.MoneyOrder is not null)
+        {
+            try
+            {
+                IdentityVerification? verification = request.MoneyOrder.IdentityVerification is { } suppliedVerification
+                    ? new IdentityVerification(
+                        $"IDV-{Guid.NewGuid():N}",
+                        suppliedVerification.DocumentType,
+                        suppliedVerification.MaskedDocumentNumber,
+                        suppliedVerification.IsVerified,
+                        _timeProvider.GetUtcNow())
+                    : null;
+
+                moneyOrder = _moneyOrderService.PrepareForTransaction(
+                    $"MO-{Guid.NewGuid():N}",
+                    new Money(request.MoneyOrder.Amount),
+                    request.MoneyOrder.SenderName,
+                    request.MoneyOrder.RecipientName,
+                    _moneyOrderSettings.Fee,
+                    verification,
+                    branchCode,
+                    transactionId);
+            }
+            catch (ArgumentException)
+            {
+                return new CounterSaleResult(CounterSaleStatus.InvalidRequest);
+            }
+            catch (InvalidOperationException)
+            {
+                return new CounterSaleResult(CounterSaleStatus.MoneyOrderVerificationRequired);
+            }
+        }
+
         var transaction = new CounterTransaction(
             transactionId,
             branchCode,
@@ -208,6 +251,16 @@ public sealed class CounterSaleService
                 shippingPrice,
                 TaxCategory.Standard,
                 shipmentId));
+        }
+
+        if (moneyOrder is not null)
+        {
+            transaction.AddLineItem(new TransactionLineItem(
+                $"Money order {moneyOrder.Id} for {moneyOrder.RecipientName}",
+                "Service",
+                1,
+                moneyOrder.TotalCost,
+                TaxCategory.Exempt));
         }
 
         try
@@ -240,6 +293,7 @@ public sealed class CounterSaleService
         }
 
         var shipmentPersisted = false;
+        var moneyOrderPersisted = false;
         try
         {
             if (request.Shipping is not null)
@@ -260,6 +314,12 @@ public sealed class CounterSaleService
                 shipmentPersisted = true;
             }
 
+            if (moneyOrder is not null)
+            {
+                await _moneyOrderService.SavePreparedAsync(moneyOrder, cancellationToken);
+                moneyOrderPersisted = true;
+            }
+
             await _transactionRepository.AddAsync(transaction, cancellationToken);
             if (inventoryReservation is not null)
             {
@@ -277,6 +337,11 @@ public sealed class CounterSaleService
                 if (shipmentPersisted)
                 {
                     await _shipmentRepository.DeleteAsync(shipmentId!, CancellationToken.None);
+                }
+
+                if (moneyOrderPersisted)
+                {
+                    await _moneyOrderService.DeleteAsync(moneyOrder!.Id, CancellationToken.None);
                 }
 
                 if (inventoryReservation is not null)
@@ -331,7 +396,9 @@ public sealed class CounterSaleService
 
         return new CounterSaleOptions(
             products,
-            counters.Where(counter => counter.IsActive).ToArray());
+            counters.Where(counter => counter.IsActive).ToArray(),
+            _moneyOrderSettings.Fee.Amount,
+            _moneyOrderSettings.VerificationThreshold.Amount);
     }
 
     public async Task<CounterSaleResult> GetReceiptAsync(
@@ -381,7 +448,7 @@ public sealed class CounterSaleService
         !string.IsNullOrWhiteSpace(request.CounterId) &&
         request.CounterId.Length <= 128 &&
         request.Products is { Count: <= 50 } &&
-        (request.Products.Count > 0 || request.Shipping is not null) &&
+        (request.Products.Count > 0 || request.Shipping is not null || request.MoneyOrder is not null) &&
         request.Products.All(line => line is not null &&
             !string.IsNullOrWhiteSpace(line.Sku) &&
             line.Sku.Length <= 20 &&
@@ -391,5 +458,17 @@ public sealed class CounterSaleService
          (!string.IsNullOrWhiteSpace(request.Shipping.ItemType) &&
           request.Shipping.ItemType.Length <= 16 &&
           !string.IsNullOrWhiteSpace(request.Shipping.DestinationZone) &&
-          request.Shipping.DestinationZone.Length <= 32));
+          request.Shipping.DestinationZone.Length <= 32)) &&
+        (request.MoneyOrder is null ||
+         (request.MoneyOrder.Amount > 0 &&
+          request.MoneyOrder.Amount <= 1_000_000_000m &&
+          !string.IsNullOrWhiteSpace(request.MoneyOrder.SenderName) &&
+          request.MoneyOrder.SenderName.Length <= 120 &&
+          !string.IsNullOrWhiteSpace(request.MoneyOrder.RecipientName) &&
+          request.MoneyOrder.RecipientName.Length <= 120 &&
+          (request.MoneyOrder.IdentityVerification is null ||
+           (!string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.DocumentType) &&
+            request.MoneyOrder.IdentityVerification.DocumentType.Length <= 80 &&
+            !string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.MaskedDocumentNumber) &&
+            request.MoneyOrder.IdentityVerification.MaskedDocumentNumber.Length <= 32))));
 }

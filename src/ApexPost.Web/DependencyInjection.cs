@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using ApexPost.Web.Filters;
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
+using ApexPost.Application.Services.MoneyOrders;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ApexPost.Web;
@@ -22,6 +23,32 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!decimal.TryParse(
+                configuration["MoneyOrder:Fee"],
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var moneyOrderFee))
+        {
+            moneyOrderFee = 10m;
+        }
+
+        if (!decimal.TryParse(
+                configuration["MoneyOrder:VerificationThreshold"],
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var verificationThreshold))
+        {
+            verificationThreshold = 10_000m;
+        }
+
+        var moneyOrderSettings = new MoneyOrderSettings(
+            new Money(moneyOrderFee),
+            new Money(verificationThreshold));
+        services.RemoveAll<MoneyOrderSettings>();
+        services.RemoveAll<MoneyOrderPolicy>();
+        services.TryAddSingleton(moneyOrderSettings);
+        services.TryAddSingleton(new MoneyOrderPolicy(moneyOrderSettings.VerificationThreshold));
 
         var shippingRules = new List<ShippingPricingRule>();
         foreach (var section in configuration.GetSection("Shipping:PricingRules").GetChildren())

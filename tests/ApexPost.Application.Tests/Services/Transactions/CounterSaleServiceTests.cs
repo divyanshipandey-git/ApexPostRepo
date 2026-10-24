@@ -2,6 +2,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Transactions;
+using ApexPost.Application.Services.MoneyOrders;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Infrastructure.Persistence;
@@ -42,6 +43,81 @@ public sealed class CounterSaleServiceTests
         Assert.Equal(result.Transaction.Id, shipment.CounterTransactionId);
         Assert.Single(await fixture.Shipments.GetByBranchAsync("IND01"));
         Assert.NotNull(await fixture.Transactions.GetByIdAsync(result.Transaction.Id));
+    }
+
+    [Fact]
+    public async Task CompleteAsync_RecordsHighValueMoneyOrderAndVerificationWithPaidTransaction()
+    {
+        using var fixture = new CounterSaleFixture();
+        await fixture.SeedAsync();
+
+        var result = await fixture.CreateService().CompleteAsync(
+            new CounterSaleRequest(
+                "C001",
+                [],
+                PaymentMethod.Cash,
+                MoneyOrder: new CounterMoneyOrderRequest(
+                    15_000m,
+                    "Sender",
+                    "Recipient",
+                    new CounterIdentityVerificationRequest("Government ID", "XXXX1234", true))),
+            fixture.StaffIdentity);
+
+        Assert.Equal(CounterSaleStatus.Completed, result.Status);
+        var transaction = Assert.IsType<CounterTransaction>(result.Transaction);
+        Assert.Equal(TransactionStatus.Paid, transaction.Status);
+        var serviceLine = Assert.Single(transaction.LineItems);
+        Assert.Equal("Service", serviceLine.ItemType);
+        Assert.Equal(15_010m, serviceLine.UnitPrice.Amount);
+
+        var moneyOrder = Assert.Single(await fixture.MoneyOrders.GetByBranchAsync("IND01"));
+        Assert.Equal("IND01", moneyOrder.BranchCode);
+        Assert.Equal(transaction.Id, moneyOrder.TransactionId);
+        Assert.Equal(15_000m, moneyOrder.Amount.Amount);
+        Assert.Equal(10m, moneyOrder.Fee.Amount);
+        Assert.Equal("XXXX1234", moneyOrder.IdentityVerification!.MaskedDocumentNumber);
+        Assert.True(moneyOrder.IdentityVerification.IsVerified);
+        Assert.Equal(transaction.Id, (await fixture.Transactions.GetByIdAsync(transaction.Id))!.Id);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_RejectsHighValueMoneyOrderWithoutVerificationBeforePersistence()
+    {
+        using var fixture = new CounterSaleFixture();
+        await fixture.SeedAsync();
+
+        var result = await fixture.CreateService().CompleteAsync(
+            new CounterSaleRequest(
+                "C001",
+                [],
+                PaymentMethod.Cash,
+                MoneyOrder: new CounterMoneyOrderRequest(15_000m, "Sender", "Recipient")),
+            fixture.StaffIdentity);
+
+        Assert.Equal(CounterSaleStatus.MoneyOrderVerificationRequired, result.Status);
+        Assert.Empty(await fixture.MoneyOrders.GetByBranchAsync("IND01"));
+        Assert.Empty(await fixture.Transactions.GetByBranchAsync("IND01"));
+    }
+
+    [Fact]
+    public async Task CompleteAsync_CompensatesMoneyOrderAndStockWhenTransactionPersistenceFails()
+    {
+        using var fixture = new CounterSaleFixture(stockQuantity: 5);
+        await fixture.SeedAsync();
+        var service = fixture.CreateService(new FailingAddTransactionRepository(fixture.Transactions));
+
+        var result = await service.CompleteAsync(
+            new CounterSaleRequest(
+                "C001",
+                [new CounterSaleProductRequest("ENV001", 2)],
+                PaymentMethod.Cash,
+                MoneyOrder: new CounterMoneyOrderRequest(500m, "Sender", "Recipient")),
+            fixture.StaffIdentity);
+
+        Assert.Equal(CounterSaleStatus.PersistenceFailure, result.Status);
+        Assert.Empty(await fixture.MoneyOrders.GetByBranchAsync("IND01"));
+        Assert.Empty(await fixture.Transactions.GetByBranchAsync("IND01"));
+        Assert.Equal(5, (await fixture.Inventory.GetByBranchAndSkuAsync("IND01", "ENV001"))!.Quantity);
     }
 
     [Fact]
@@ -194,6 +270,7 @@ public sealed class CounterSaleServiceTests
             Inventory = new JsonInventoryRepository(_options);
             Transactions = new JsonCounterTransactionRepository(_options);
             Shipments = new JsonShipmentRepository(_options);
+            MoneyOrders = new JsonMoneyOrderRepository(_options);
         }
 
         public JsonBranchRepository Branches { get; }
@@ -203,6 +280,7 @@ public sealed class CounterSaleServiceTests
         public JsonInventoryRepository Inventory { get; }
         public JsonCounterTransactionRepository Transactions { get; }
         public JsonShipmentRepository Shipments { get; }
+        public JsonMoneyOrderRepository MoneyOrders { get; }
         public JsonPersistenceOptions Options => _options;
         public AuthenticatedStaff StaffIdentity { get; } = new("clerk-sale-1", StaffRole.CounterClerk, "IND01");
 
@@ -232,7 +310,9 @@ public sealed class CounterSaleServiceTests
                 Counters,
                 shipping,
                 Shipments,
-                [new TaxRate(TaxCategory.Standard, 0.18m)],
+                new MoneyOrderService(MoneyOrders, new MoneyOrderPolicy(new Money(10_000m))),
+                new MoneyOrderSettings(new Money(10m), new Money(10_000m)),
+                [new TaxRate(TaxCategory.Standard, 0.18m), new TaxRate(TaxCategory.Exempt, 0m)],
                 TimeProvider.System);
         }
 

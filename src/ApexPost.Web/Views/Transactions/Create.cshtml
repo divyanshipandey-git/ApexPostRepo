@@ -123,5 +123,49 @@
         </div>
     </section>
 
+    <section class="card shadow-sm surface-card" aria-labelledby="money-order-section-title">
+        <div class="card-body">
+            <h2 id="money-order-section-title" class="section-title">Money order (optional)</h2>
+            <div class="form-check mb-3">
+                <input asp-for="IncludeMoneyOrder" class="form-check-input" />
+                <label asp-for="IncludeMoneyOrder" class="form-check-label">Issue a money order in this transaction</label>
+            </div>
+            <p class="form-hint">The configured fee is @Model.MoneyOrderFee.ToString("C"). Orders above @Model.MoneyOrderVerificationThreshold.ToString("C") require a successful staff-recorded identity check. Enter only a masked document number; never enter the full number.</p>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="MoneyOrderAmount" class="form-label">Money order amount</label>
+                    <input asp-for="MoneyOrderAmount" class="form-control" type="number" min="0.01" max="1000000000" step="0.01" />
+                    <span asp-validation-for="MoneyOrderAmount" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="MoneyOrderSenderName" class="form-label">Sender name</label>
+                    <input asp-for="MoneyOrderSenderName" class="form-control" maxlength="120" autocomplete="name" />
+                </div>
+                <div>
+                    <label asp-for="MoneyOrderRecipientName" class="form-label">Recipient name</label>
+                    <input asp-for="MoneyOrderRecipientName" class="form-control" maxlength="120" />
+                </div>
+            </div>
+            <fieldset class="identity-verification-fields mt-3">
+                <legend class="form-label">Identity check, when required</legend>
+                <div class="form-grid">
+                    <div>
+                        <label asp-for="IdentityDocumentType" class="form-label">Document type</label>
+                        <input asp-for="IdentityDocumentType" class="form-control" maxlength="80" />
+                    </div>
+                    <div>
+                        <label asp-for="IdentityMaskedDocumentNumber" class="form-label">Masked number (XXXX1234)</label>
+                        <input asp-for="IdentityMaskedDocumentNumber" class="form-control" maxlength="8" placeholder="XXXX1234" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="form-check mt-3">
+                    <input asp-for="IdentityVerified" class="form-check-input" />
+                    <label asp-for="IdentityVerified" class="form-check-label">I checked the document in person and verified the customer's identity</label>
+                </div>
+                <span asp-validation-for="IdentityMaskedDocumentNumber" class="field-validation-error"></span>
+            </fieldset>
+        </div>
+    </section>
+
     <button class="button button-primary" type="submit">Complete transaction</button>
 </form>

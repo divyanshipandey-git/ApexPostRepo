@@ -15,5 +15,6 @@ public enum CounterSaleStatus
     CounterInactive,
     InsufficientStock,
     ShippingUnavailable,
+    MoneyOrderVerificationRequired,
     PersistenceFailure
 }

@@ -1,4 +1,5 @@
 ﻿
+using System.Text.Json.Serialization;
 using ApexPost.Domain.ValueObjects;
 
 namespace ApexPost.Domain.Entities;
@@ -10,6 +11,15 @@ public sealed class MoneyOrder
     public string SenderName { get; }
     public string RecipientName { get; }
     public Money Fee { get; }
+
+    [JsonInclude]
+    public string? BranchCode { get; private set; }
+
+    [JsonInclude]
+    public string? TransactionId { get; private set; }
+
+    [JsonInclude]
+    public IdentityVerification? IdentityVerification { get; private set; }
 
     public MoneyOrder(
         string id,
@@ -46,4 +56,22 @@ public sealed class MoneyOrder
     }
 
     public Money TotalCost => Amount.Add(Fee);
+
+    public void AttachToTransaction(
+        BranchCode branchCode,
+        string transactionId,
+        IdentityVerification? identityVerification)
+    {
+        ArgumentNullException.ThrowIfNull(branchCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
+
+        if (TransactionId is not null || BranchCode is not null)
+        {
+            throw new InvalidOperationException("A money order can only be attached to one counter transaction.");
+        }
+
+        BranchCode = branchCode.Value;
+        TransactionId = transactionId.Trim();
+        IdentityVerification = identityVerification;
+    }
 }

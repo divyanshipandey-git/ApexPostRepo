@@ -860,6 +860,8 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("Envelope (ENV001)", html);
         Assert.Contains("name=\"__RequestVerificationToken\"", html);
         Assert.Contains("Shipping service (optional)", html);
+        Assert.Contains("Money order (optional)", html);
+        Assert.Contains("Identity check, when required", html);
     }
 
     [Fact]
@@ -921,6 +923,99 @@ public sealed class WebApplicationIntegrationTests
         Assert.Equal(3, stock!.Quantity);
         Assert.NotNull(shipment);
         Assert.Contains("Create", await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl")));
+    }
+
+    [Fact]
+    public async Task HighValueMoneyOrderWithIdentityVerificationIsRecordedWithPaidTransactionAndPrg()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedCounterSaleDataAsync();
+        using var client = await factory.CreateAuthenticatedClientAsync(
+            options: new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Create");
+
+        using var response = await client.PostAsync("/Transactions/Create", CreateCounterSaleForm(token,
+            ("Products[0].Sku", ""),
+            ("Products[0].Quantity", ""),
+            ("IncludeMoneyOrder", "true"),
+            ("MoneyOrderAmount", "15000"),
+            ("MoneyOrderSenderName", "Test Sender"),
+            ("MoneyOrderRecipientName", "Test Recipient"),
+            ("IdentityDocumentType", "Government ID"),
+            ("IdentityMaskedDocumentNumber", "XXXX1234"),
+            ("IdentityVerified", "true")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/Transactions/Receipt/", response.Headers.Location!.ToString());
+        var transactions = await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByBranchAsync("IND01");
+        var transaction = Assert.Single(transactions);
+        var moneyOrders = await factory.Services.GetRequiredService<IMoneyOrderRepository>()
+            .GetByBranchAsync("IND01");
+        var moneyOrder = Assert.Single(moneyOrders);
+
+        Assert.Equal(TransactionStatus.Paid, transaction.Status);
+        Assert.Equal(transaction.Id, moneyOrder.TransactionId);
+        Assert.Equal("IND01", moneyOrder.BranchCode);
+        Assert.Equal(15_000m, moneyOrder.Amount.Amount);
+        Assert.Equal(10m, moneyOrder.Fee.Amount);
+        Assert.True(moneyOrder.IdentityVerification!.IsVerified);
+        Assert.Equal("XXXX1234", moneyOrder.IdentityVerification.MaskedDocumentNumber);
+
+        using var receipt = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, receipt.StatusCode);
+        Assert.Contains("Money order", await receipt.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task HighValueMoneyOrderWithoutSuccessfulVerificationDoesNotPersistAnything()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedCounterSaleDataAsync();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Create");
+
+        using var response = await client.PostAsync("/Transactions/Create", CreateCounterSaleForm(token,
+            ("Products[0].Sku", ""),
+            ("Products[0].Quantity", ""),
+            ("IncludeMoneyOrder", "true"),
+            ("MoneyOrderAmount", "15000"),
+            ("MoneyOrderSenderName", "Test Sender"),
+            ("MoneyOrderRecipientName", "Test Recipient")));
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("requires successful identity verification", html);
+        Assert.Empty(await factory.Services.GetRequiredService<IMoneyOrderRepository>()
+            .GetByBranchAsync("IND01"));
+        Assert.Empty(await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByBranchAsync("IND01"));
+    }
+
+    [Fact]
+    public async Task MoneyOrderRejectsUnmaskedIdentityDocumentNumberWithoutPersistence()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedCounterSaleDataAsync();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Create");
+
+        using var response = await client.PostAsync("/Transactions/Create", CreateCounterSaleForm(token,
+            ("Products[0].Sku", ""),
+            ("Products[0].Quantity", ""),
+            ("IncludeMoneyOrder", "true"),
+            ("MoneyOrderAmount", "100"),
+            ("MoneyOrderSenderName", "Test Sender"),
+            ("MoneyOrderRecipientName", "Test Recipient"),
+            ("IdentityDocumentType", "Government ID"),
+            ("IdentityMaskedDocumentNumber", "123456789012"),
+            ("IdentityVerified", "true")));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(await factory.Services.GetRequiredService<IMoneyOrderRepository>()
+            .GetByBranchAsync("IND01"));
+        Assert.Empty(await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByBranchAsync("IND01"));
     }
 
     [Fact]

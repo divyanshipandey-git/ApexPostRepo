@@ -30,6 +30,20 @@ public sealed class CounterSaleViewModel
 
     public string? ShippingServiceLevel { get; set; }
 
+    public bool IncludeMoneyOrder { get; set; }
+
+    public decimal? MoneyOrderAmount { get; set; }
+
+    public string? MoneyOrderSenderName { get; set; }
+
+    public string? MoneyOrderRecipientName { get; set; }
+
+    public string? IdentityDocumentType { get; set; }
+
+    public string? IdentityMaskedDocumentNumber { get; set; }
+
+    public bool IdentityVerified { get; set; }
+
     public string? Message { get; set; }
 
     [ValidateNever]
@@ -37,6 +51,12 @@ public sealed class CounterSaleViewModel
 
     [ValidateNever]
     public IReadOnlyList<CounterSaleProductOptionViewModel> ProductOptions { get; set; } = [];
+
+    [ValidateNever]
+    public decimal MoneyOrderFee { get; set; }
+
+    [ValidateNever]
+    public decimal MoneyOrderVerificationThreshold { get; set; }
 }
 
 public sealed class CounterSaleProductLineViewModel

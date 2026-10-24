@@ -38,9 +38,8 @@ public sealed class IdentityVerification
     {
         var masked = value.Trim();
 
-        return masked.Length >= 5
+        return masked.Length == 8
             && masked.StartsWith("XXXX", StringComparison.OrdinalIgnoreCase)
-            && masked.Length > 4
             && masked[4..].All(char.IsAsciiLetterOrDigit);
     }
 }

@@ -20,4 +20,8 @@ public interface IMoneyOrderRepository
     Task UpdateAsync(
         MoneyOrder moneyOrder,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        string moneyOrderId,
+        CancellationToken cancellationToken = default);
 }

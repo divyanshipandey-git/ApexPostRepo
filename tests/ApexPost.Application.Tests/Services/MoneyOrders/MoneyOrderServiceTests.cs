@@ -39,10 +39,14 @@ public sealed class MoneyOrderServiceTests
             "Sender",
             "Recipient",
             new Money(10m),
-            null);
+            null,
+            new BranchCode("IND01"),
+            "TXN001");
 
         Assert.NotNull(result);
         Assert.Same(result, repository.AddedMoneyOrder);
+        Assert.Equal("IND01", result.BranchCode);
+        Assert.Equal("TXN001", result.TransactionId);
     }
 
     [Fact]
@@ -57,10 +61,14 @@ public sealed class MoneyOrderServiceTests
             "Sender",
             "Recipient",
             new Money(10m),
-            null);
+            null,
+            new BranchCode("IND01"),
+            "TXN002");
 
         Assert.NotNull(result);
         Assert.Same(result, repository.AddedMoneyOrder);
+        Assert.Equal("IND01", result.BranchCode);
+        Assert.Equal("TXN002", result.TransactionId);
     }
 
     [Fact]
@@ -76,7 +84,9 @@ public sealed class MoneyOrderServiceTests
                 "Sender",
                 "Recipient",
                 new Money(10m),
-                null));
+                null,
+                new BranchCode("IND01"),
+                "TXN003"));
 
         Assert.Null(repository.AddedMoneyOrder);
     }
@@ -95,7 +105,9 @@ public sealed class MoneyOrderServiceTests
                 "Sender",
                 "Recipient",
                 new Money(10m),
-                verification));
+                verification,
+                new BranchCode("IND01"),
+                "TXN004"));
 
         Assert.Null(repository.AddedMoneyOrder);
     }
@@ -113,10 +125,15 @@ public sealed class MoneyOrderServiceTests
             "Sender",
             "Recipient",
             new Money(10m),
-            verification);
+            verification,
+            new BranchCode("IND01"),
+            "TXN005");
 
         Assert.NotNull(result);
         Assert.Same(result, repository.AddedMoneyOrder);
+        Assert.Equal("IND01", result.BranchCode);
+        Assert.Equal("TXN005", result.TransactionId);
+        Assert.Equal("XXXX1234", result.IdentityVerification!.MaskedDocumentNumber);
     }
 
     [Theory]
@@ -135,7 +152,9 @@ public sealed class MoneyOrderServiceTests
                 sender,
                 recipient,
                 new Money(10m),
-                null));
+                null,
+                new BranchCode("IND01"),
+                "TXN006"));
     }
 
     [Fact]
@@ -153,6 +172,8 @@ public sealed class MoneyOrderServiceTests
                 "Recipient",
                 new Money(10m),
                 null,
+                new BranchCode("IND01"),
+                "TXN007",
                 cancellation.Token));
     }
 
@@ -194,6 +215,11 @@ public sealed class MoneyOrderServiceTests
 
         public Task UpdateAsync(
             MoneyOrder moneyOrder,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteAsync(
+            string moneyOrderId,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }

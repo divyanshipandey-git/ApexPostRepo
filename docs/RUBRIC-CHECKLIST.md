@@ -6,7 +6,7 @@ Track each item as `Not started`, `In progress`, or `Verified`. Mark an item ver
 - [ ] Branches, counters, staff and role/status rules
 - [ ] Products and branch-level inventory; no negative stock
 - [ ] Shipping pricing and maximum service-level weight
-- [ ] Money-order threshold and same-transaction successful verification
+- [x] Money-order threshold and same-transaction successful verification
 - [ ] Void/refund manager authorization and reason
 - [ ] Closed branch rejection
 - [ ] Four required reports with exact expected-value tests
@@ -27,7 +27,7 @@ Track each item as `Not started`, `In progress`, or `Verified`. Mark an item ver
 
 ## MVC (10)
 - [ ] Login, dashboard, catalogue/stock, counter transaction, shipping label
-- [ ] Money order/identity verification and report pages
+- [ ] Money order/identity verification and report pages (counter sale form covers transaction-linked issuance and verification; standalone pages and reports are absent)
 - [ ] Conventional routing, PRG and correct action results
 - [ ] Thin controllers and ViewModels
 

@@ -60,4 +60,12 @@ public sealed class JsonMoneyOrderRepository : IMoneyOrderRepository
         ArgumentNullException.ThrowIfNull(moneyOrder);
         return _store.UpdateAsync(moneyOrder, cancellationToken);
     }
+
+    public Task DeleteAsync(
+        string moneyOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moneyOrderId);
+        return _store.DeleteAsync(moneyOrderId, cancellationToken);
+    }
 }

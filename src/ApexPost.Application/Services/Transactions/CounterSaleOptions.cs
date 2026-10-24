@@ -4,4 +4,6 @@ namespace ApexPost.Application.Services.Transactions;
 
 public sealed record CounterSaleOptions(
     IReadOnlyList<Product> Products,
-    IReadOnlyList<Counter> Counters);
+    IReadOnlyList<Counter> Counters,
+    decimal MoneyOrderFee,
+    decimal MoneyOrderVerificationThreshold);

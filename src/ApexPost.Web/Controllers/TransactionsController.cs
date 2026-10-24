@@ -75,9 +75,59 @@ public sealed class TransactionsController(
             ModelState.AddModelError(string.Empty, "A transaction can contain no more than 50 product lines.");
         }
 
-        if (productLines.Count == 0 && !model.IncludeShipping)
+        if (productLines.Count == 0 && !model.IncludeShipping && !model.IncludeMoneyOrder)
         {
-            ModelState.AddModelError(string.Empty, "Add at least one product or shipping service.");
+            ModelState.AddModelError(string.Empty, "Add at least one product, shipping service, or money order.");
+        }
+
+        CounterMoneyOrderRequest? moneyOrder = null;
+        var hasVerificationInput = model.IdentityVerified ||
+            !string.IsNullOrWhiteSpace(model.IdentityDocumentType) ||
+            !string.IsNullOrWhiteSpace(model.IdentityMaskedDocumentNumber);
+        if (model.IncludeMoneyOrder)
+        {
+            if (model.MoneyOrderAmount is null or <= 0 or > 1_000_000_000m ||
+                string.IsNullOrWhiteSpace(model.MoneyOrderSenderName) ||
+                model.MoneyOrderSenderName.Length > 120 ||
+                string.IsNullOrWhiteSpace(model.MoneyOrderRecipientName) ||
+                model.MoneyOrderRecipientName.Length > 120)
+            {
+                ModelState.AddModelError(nameof(model.MoneyOrderAmount), "Enter a positive amount and sender and recipient names.");
+            }
+            else
+            {
+                CounterIdentityVerificationRequest? verification = null;
+                if (hasVerificationInput)
+                {
+                    if (string.IsNullOrWhiteSpace(model.IdentityDocumentType) ||
+                        model.IdentityDocumentType.Length > 80 ||
+                        string.IsNullOrWhiteSpace(model.IdentityMaskedDocumentNumber) ||
+                        model.IdentityMaskedDocumentNumber.Length > 32)
+                    {
+                        ModelState.AddModelError(nameof(model.IdentityMaskedDocumentNumber), "Enter the document type and a masked number ending in four characters.");
+                    }
+                    else
+                    {
+                        verification = new CounterIdentityVerificationRequest(
+                            model.IdentityDocumentType,
+                            model.IdentityMaskedDocumentNumber,
+                            model.IdentityVerified);
+                    }
+                }
+
+                moneyOrder = new CounterMoneyOrderRequest(
+                    model.MoneyOrderAmount.Value,
+                    model.MoneyOrderSenderName,
+                    model.MoneyOrderRecipientName,
+                    verification);
+            }
+        }
+        else if (model.MoneyOrderAmount.HasValue ||
+                 !string.IsNullOrWhiteSpace(model.MoneyOrderSenderName) ||
+                 !string.IsNullOrWhiteSpace(model.MoneyOrderRecipientName) ||
+                 hasVerificationInput)
+        {
+            ModelState.AddModelError(nameof(model.IncludeMoneyOrder), "Select money order to include its details.");
         }
 
         CounterShippingRequest? shipping = null;
@@ -124,7 +174,7 @@ public sealed class TransactionsController(
         }
 
         var result = await counterSaleService.CompleteAsync(
-            new CounterSaleRequest(model.CounterId!, productLines, paymentMethod, shipping),
+            new CounterSaleRequest(model.CounterId!, productLines, paymentMethod, shipping, moneyOrder),
             staff,
             cancellationToken);
 
@@ -140,6 +190,7 @@ public sealed class TransactionsController(
             CounterSaleStatus.InsufficientStock => SaleConflict(model, "There is not enough stock to complete this sale."),
             CounterSaleStatus.BranchClosed => SaleConflict(model, "This branch is closed and cannot accept transactions."),
             CounterSaleStatus.ShippingUnavailable => SaleValidationError(model, "The selected shipping service is unavailable or its details are invalid."),
+            CounterSaleStatus.MoneyOrderVerificationRequired => SaleValidationError(model, "This money order amount requires successful identity verification. No order was issued."),
             CounterSaleStatus.CounterNotFound or CounterSaleStatus.CounterInactive => SaleValidationError(model, "Select an active counter assigned to this branch."),
             CounterSaleStatus.StaffInactive or CounterSaleStatus.StaffNotFound or CounterSaleStatus.Forbidden => StatusCode(StatusCodes.Status403Forbidden),
             CounterSaleStatus.BranchNotFound => NotFound(),
@@ -341,6 +392,8 @@ public sealed class TransactionsController(
                         0m,
                         string.Empty)))
             .ToArray();
+        model.MoneyOrderFee = options?.MoneyOrderFee ?? 0m;
+        model.MoneyOrderVerificationThreshold = options?.MoneyOrderVerificationThreshold ?? 0m;
     }
 
     private static CounterSaleViewModel CreateViewModel(CounterSaleOptions? options) => new()
@@ -357,7 +410,9 @@ public sealed class TransactionsController(
                 product.Name,
                 product.UnitPrice.Amount,
                 product.TaxCategory.ToString()))
-            .ToArray() ?? []
+            .ToArray() ?? [],
+        MoneyOrderFee = options?.MoneyOrderFee ?? 0m,
+        MoneyOrderVerificationThreshold = options?.MoneyOrderVerificationThreshold ?? 0m
     };
 
     private IActionResult SaleValidationError(CounterSaleViewModel model, string message)
