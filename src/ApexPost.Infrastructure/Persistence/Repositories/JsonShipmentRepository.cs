@@ -38,8 +38,8 @@ public sealed class JsonShipmentRepository : IShipmentRepository
         var shipments = await _store.GetAllAsync(cancellationToken);
 
         return shipments
-            .Where(shipment => string.Equals(
-                JsonEntityPropertyReader.GetBranchCode(shipment),
+            .Where(shipment => shipment.BranchCode is not null && string.Equals(
+                shipment.BranchCode.Value,
                 branchCode.Trim(),
                 StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -59,5 +59,11 @@ public sealed class JsonShipmentRepository : IShipmentRepository
     {
         ArgumentNullException.ThrowIfNull(shipment);
         return _store.UpdateAsync(shipment, cancellationToken);
+    }
+
+    public Task DeleteAsync(string shipmentId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(shipmentId);
+        return _store.DeleteAsync(shipmentId, cancellationToken);
     }
 }

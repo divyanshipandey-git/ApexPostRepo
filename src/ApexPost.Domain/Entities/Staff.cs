@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Domain.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
 
@@ -10,6 +11,7 @@ public sealed class Staff
     public string Email { get; }
     public StaffRole Role { get; }
     public BranchCode HomeBranchCode { get; }
+    [JsonInclude]
     public bool IsActive { get; private set; }
 
     public Staff(

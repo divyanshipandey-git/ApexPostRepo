@@ -109,6 +109,7 @@ public sealed class InventoryServiceTests
     private sealed class FakeInventoryRepository : IInventoryRepository
     {
         private readonly List<InventoryStock> _stocks;
+        private readonly Dictionary<Guid, InventoryReservation> _reservations = [];
 
         public string? LastBranchCode { get; private set; }
         public string? LastSku { get; private set; }
@@ -172,6 +173,71 @@ public sealed class InventoryServiceTests
             else
             {
                 _stocks.Add(entity);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<InventoryReservationResult> TryReserveAsync(
+            string branchCode,
+            IReadOnlyDictionary<string, int> skuQuantities,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var (sku, quantity) in skuQuantities)
+            {
+                var stock = _stocks.FirstOrDefault(item =>
+                    item.BranchCode.Value == branchCode && item.Sku.Value == sku);
+                if (stock is null || stock.Quantity < quantity)
+                {
+                    return Task.FromResult(new InventoryReservationResult(InventoryReservationStatus.StockUnavailable));
+                }
+            }
+
+            foreach (var (sku, quantity) in skuQuantities)
+            {
+                _stocks.Single(item => item.BranchCode.Value == branchCode && item.Sku.Value == sku)
+                    .RemoveStock(quantity);
+            }
+
+            var reservation = new InventoryReservation(
+                Guid.NewGuid(),
+                branchCode,
+                skuQuantities.ToDictionary(
+                    pair => pair.Key,
+                    pair => pair.Value,
+                    StringComparer.OrdinalIgnoreCase));
+            _reservations.Add(reservation.Id, reservation);
+            return Task.FromResult(new InventoryReservationResult(InventoryReservationStatus.Reserved, reservation));
+        }
+
+        public Task RestoreReservationAsync(
+            InventoryReservation reservation,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_reservations.Remove(reservation.Id, out var pending) || pending != reservation)
+            {
+                throw new InvalidOperationException("Reservation not found.");
+            }
+
+            foreach (var (sku, quantity) in reservation.SkuQuantities)
+            {
+                _stocks.Single(item => item.BranchCode.Value == reservation.BranchCode && item.Sku.Value == sku)
+                    .AddStock(quantity);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task CommitReservationAsync(
+            InventoryReservation reservation,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_reservations.Remove(reservation.Id))
+            {
+                throw new InvalidOperationException("Reservation not found.");
             }
 
             return Task.CompletedTask;

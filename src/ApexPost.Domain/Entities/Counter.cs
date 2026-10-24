@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Domain.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
 
@@ -8,6 +9,7 @@ public sealed class Counter
     public string Id { get; }
     public BranchCode BranchCode { get; }
     public string Name { get; }
+    [JsonInclude]
     public bool IsActive { get; private set; }
 
     public Counter(

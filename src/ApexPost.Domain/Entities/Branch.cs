@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Domain.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
 
@@ -10,6 +11,7 @@ public sealed class Branch
     public string Region { get; }
     public TimeOnly OpeningTime { get; }
     public TimeOnly ClosingTime { get; }
+    [JsonInclude]
     public bool IsActive { get; private set; }
 
     public Branch(

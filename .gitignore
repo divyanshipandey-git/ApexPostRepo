@@ -15,3 +15,7 @@ secrets.json
 # Runtime data (keep seed files in data/seed)
 data/runtime/
 *.audit.json
+*.jsonl
+/App_Data/
+
+.fake

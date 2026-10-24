@@ -161,5 +161,17 @@ public sealed class ShippingServiceTests
             Shipment shipment,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task DeleteAsync(
+            string shipmentId,
+            CancellationToken cancellationToken = default)
+        {
+            if (AddedShipment?.Id == shipmentId)
+            {
+                AddedShipment = null;
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

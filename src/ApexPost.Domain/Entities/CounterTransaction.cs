@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Domain.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
 
@@ -13,12 +14,28 @@ public sealed class CounterTransaction
     public string CounterId { get; }
     public string ClerkId { get; }
 
-    public IReadOnlyCollection<TransactionLineItem> LineItems =>
-        _lineItems.AsReadOnly();
+    [JsonInclude]
+    public IReadOnlyCollection<TransactionLineItem> LineItems
+    {
+        get => _lineItems.AsReadOnly();
+        private set
+        {
+            _lineItems.Clear();
+            _lineItems.AddRange(value);
+        }
+    }
 
+    [JsonInclude]
     public PaymentMethod? PaymentMethod { get; private set; }
+
+    [JsonInclude]
     public TransactionStatus Status { get; private set; }
+
+    [JsonInclude]
     public string? Reason { get; private set; }
+
+    [JsonInclude]
+    public IEnumerable<TaxRate> TaxRates => _taxRates.Values;
 
     public Money Subtotal => new(
         _lineItems.Sum(item => item.LineTotal.Amount));

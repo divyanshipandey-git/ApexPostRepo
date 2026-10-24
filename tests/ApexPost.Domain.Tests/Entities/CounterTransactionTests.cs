@@ -129,6 +129,29 @@ public sealed class CounterTransactionTests
     }
 
     [Fact]
+    public void Void_OpenTransaction_ThrowsAndLeavesStateOpen()
+    {
+        var transaction = CreateTransaction();
+
+        Assert.Throws<InvalidOperationException>(() => transaction.Void("Duplicate transaction"));
+        Assert.Equal(TransactionStatus.Open, transaction.Status);
+        Assert.Null(transaction.Reason);
+    }
+
+    [Fact]
+    public void Void_AlreadyVoidedTransaction_ThrowsAndPreservesOriginalReason()
+    {
+        var transaction = CreateTransaction();
+        transaction.AddLineItem(CreateLineItem());
+        transaction.CompletePayment(PaymentMethod.Cash);
+        transaction.Void("Original reason");
+
+        Assert.Throws<InvalidOperationException>(() => transaction.Void("Second reason"));
+        Assert.Equal(TransactionStatus.Voided, transaction.Status);
+        Assert.Equal("Original reason", transaction.Reason);
+    }
+
+    [Fact]
     public void Refund_OpenTransaction_ThrowsException()
     {
         var transaction = CreateTransaction();

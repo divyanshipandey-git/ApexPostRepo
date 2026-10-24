@@ -20,4 +20,8 @@ public interface IShipmentRepository
     Task UpdateAsync(
         Shipment shipment,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        string shipmentId,
+        CancellationToken cancellationToken = default);
 }

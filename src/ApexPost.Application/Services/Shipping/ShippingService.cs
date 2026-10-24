@@ -71,7 +71,9 @@ public sealed class ShippingService
         decimal heightCm,
         string destinationZone,
         ShippingServiceLevel serviceLevel,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        BranchCode? branchCode = null,
+        string? counterTransactionId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemType);
@@ -90,7 +92,9 @@ public sealed class ShippingService
             widthCm,
             heightCm,
             destinationZone.Trim(),
-            serviceLevel);
+            serviceLevel,
+            branchCode,
+            counterTransactionId);
 
         await _shipmentRepository.AddAsync(
             shipment,

@@ -5,6 +5,19 @@ namespace ApexPost.Application.Abstractions.Repositories;
 
 public interface IInventoryRepository
 {
+    Task<InventoryReservationResult> TryReserveAsync(
+        string branchCode,
+        IReadOnlyDictionary<string, int> skuQuantities,
+        CancellationToken cancellationToken = default);
+
+    Task RestoreReservationAsync(
+        InventoryReservation reservation,
+        CancellationToken cancellationToken = default);
+
+    Task CommitReservationAsync(
+        InventoryReservation reservation,
+        CancellationToken cancellationToken = default);
+
     Task<InventoryStock?> GetByBranchAndSkuAsync(
         string branchCode,
         string sku,
@@ -22,3 +35,18 @@ public interface IInventoryRepository
         InventoryStock stock,
         CancellationToken cancellationToken = default);
 }
+
+public enum InventoryReservationStatus
+{
+    Reserved,
+    StockUnavailable
+}
+
+public sealed record InventoryReservationResult(
+    InventoryReservationStatus Status,
+    InventoryReservation? Reservation = null);
+
+public sealed record InventoryReservation(
+    Guid Id,
+    string BranchCode,
+    IReadOnlyDictionary<string, int> SkuQuantities);

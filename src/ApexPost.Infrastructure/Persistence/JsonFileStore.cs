@@ -1,12 +1,14 @@
 ﻿
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Collections.Concurrent;
 
 namespace ApexPost.Infrastructure.Persistence;
 
 public sealed class JsonFileStore<TEntity>
     where TEntity : class
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> FileGates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -16,7 +18,7 @@ public sealed class JsonFileStore<TEntity>
 
     private readonly string _filePath;
     private readonly Func<TEntity, string> _keySelector;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _gate;
 
     public JsonFileStore(
         string filePath,
@@ -27,6 +29,30 @@ public sealed class JsonFileStore<TEntity>
 
         _filePath = Path.GetFullPath(filePath);
         _keySelector = keySelector;
+        _gate = FileGates.GetOrAdd(_filePath, static _ => new SemaphoreSlim(1, 1));
+    }
+
+    public async Task<TResult> MutateAllAsync<TResult>(
+        Func<IReadOnlyList<TEntity>, (bool ShouldWrite, TResult Result)> mutation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutation);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var items = (await ReadAllCoreAsync(cancellationToken)).ToList();
+            var (shouldWrite, result) = mutation(items);
+            if (shouldWrite)
+            {
+                await WriteAllCoreAsync(items, cancellationToken);
+            }
+
+            return result;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task<IReadOnlyList<TEntity>> GetAllAsync(
@@ -120,6 +146,32 @@ public sealed class JsonFileStore<TEntity>
 
             items[index] = entity;
             await WriteAllCoreAsync(items, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task DeleteAsync(
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var items = (await ReadAllCoreAsync(cancellationToken)).ToList();
+            var removed = items.RemoveAll(item => string.Equals(
+                _keySelector(item),
+                key.Trim(),
+                StringComparison.OrdinalIgnoreCase));
+            if (removed > 0)
+            {
+                await WriteAllCoreAsync(items, cancellationToken);
+            }
         }
         finally
         {

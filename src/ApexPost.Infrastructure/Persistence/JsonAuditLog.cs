@@ -1,11 +1,12 @@
 ﻿
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ApexPost.Application.Abstractions.Persistence;
+using ApexPost.Application.Services.Auditing;
 
 namespace ApexPost.Infrastructure.Persistence;
 
-public sealed class JsonAuditLog
+public sealed class JsonAuditLog : IAuditStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -30,6 +31,20 @@ public sealed class JsonAuditLog
         ArgumentNullException.ThrowIfNull(entry);
 
         ValidateEntry(entry);
+        await AppendAsync(entry, cancellationToken);
+    }
+
+    public async Task WriteAsync(
+        AuditActionRecord record,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ValidateRecord(record);
+        await AppendAsync(record, cancellationToken);
+    }
+
+    private async Task AppendAsync<T>(T entry, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
 
         await _gate.WaitAsync(cancellationToken);
@@ -65,6 +80,25 @@ public sealed class JsonAuditLog
         finally
         {
             _gate.Release();
+        }
+    }
+
+    private static void ValidateRecord(AuditActionRecord record)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(record.Controller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(record.Action);
+        ArgumentOutOfRangeException.ThrowIfNegative(record.StatusCode);
+        ArgumentOutOfRangeException.ThrowIfNegative(record.DurationMilliseconds);
+
+        if ((record.StaffId?.Length ?? 0) > 128 ||
+            (record.Role?.Length ?? 0) > 64 ||
+            (record.BranchCode?.Length ?? 0) > 10 ||
+            record.Controller.Length > 128 ||
+            record.Action.Length > 128 ||
+            (record.CorrelationId?.Length ?? 0) > 128 ||
+            record.RouteValues.Any(pair => pair.Key.Length > 128 || (pair.Value?.Length ?? 0) > 256))
+        {
+            throw new ArgumentException("An audit field exceeds its permitted length.", nameof(record));
         }
     }
 
