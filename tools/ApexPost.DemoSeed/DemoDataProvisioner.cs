@@ -27,7 +27,7 @@ public sealed class DemoDataProvisioner
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        var directory = Path.GetFullPath(dataDirectory);
+        var directory = JsonPersistenceOptions.ResolveDataDirectory(dataDirectory);
         if (!Directory.Exists(directory))
         {
             throw new ArgumentException("The selected data directory must already exist.", nameof(dataDirectory));

@@ -15,7 +15,7 @@ public sealed class JsonBranchRepository : IBranchRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         _store = new JsonFileStore<Branch>(
-            Path.Combine(dataDirectory, "branches.json"),
+            Path.Combine(JsonPersistenceOptions.ResolveDataDirectory(dataDirectory), "branches.json"),
             branch => branch.Code.Value);
     }
 

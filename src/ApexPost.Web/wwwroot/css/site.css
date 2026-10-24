@@ -6,6 +6,9 @@
     --blue-700: #1d5b94;
     --blue-600: #2875b9;
     --blue-100: #e9f2fa;
+    --postal-orange: #a8420b;
+    --postal-orange-hover: #873507;
+    --postal-orange-soft: #fff0e5;
     --ink-900: #172535;
     --ink-700: #405267;
     --ink-500: #65768a;
@@ -44,6 +47,9 @@
     --navy-950: #edf3f8;
     --navy-800: #cfdeeb;
     --blue-100: #213a52;
+    --postal-orange: #ffb37e;
+    --postal-orange-hover: #ffd0ae;
+    --postal-orange-soft: #392a22;
     --ink-900: #edf3f8;
     --ink-700: #c5d1dc;
     --ink-500: #9aabba;
@@ -100,7 +106,7 @@ input {
 }
 
 a {
-    color: var(--blue-700);
+    color: var(--bs-link-color);
 }
 
 a:focus-visible,
@@ -853,6 +859,285 @@ h2 {
     margin-bottom: 1.1rem;
 }
 
+/* Shared postal-enterprise accents and consistent component surfaces. */
+.brand-mark {
+    position: relative;
+    overflow: hidden;
+    background: var(--postal-orange);
+    color: #241409;
+}
+
+.brand-mark::after {
+    position: absolute;
+    right: -.25rem;
+    bottom: .28rem;
+    width: 1.25rem;
+    height: .22rem;
+    background: currentColor;
+    content: "";
+    opacity: .45;
+    transform: rotate(-35deg);
+}
+
+.button-primary,
+.btn-primary {
+    border-color: var(--postal-orange);
+    background: var(--postal-orange);
+    color: #241409;
+}
+
+.button-primary:hover,
+.btn-primary:hover {
+    border-color: var(--postal-orange-hover);
+    background: var(--postal-orange-hover);
+    color: #fff;
+}
+
+.button-primary:focus-visible,
+.btn-primary:focus-visible {
+    outline-color: var(--postal-orange);
+}
+
+.navigation-link.is-active {
+    box-shadow: inset 3px 0 0 var(--postal-orange);
+}
+
+.surface-card,
+.login-card,
+.message-card {
+    box-shadow: var(--shadow-card);
+}
+
+.table {
+    --bs-table-bg: var(--surface);
+    --bs-table-color: var(--ink-900);
+    --bs-table-border-color: var(--line);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--blue-600);
+    box-shadow: 0 0 0 .22rem rgb(40 117 185 / 20%);
+}
+
+.login-shell {
+    display: grid;
+    width: min(100%, 62rem);
+    min-height: 34rem;
+    grid-template-columns: minmax(0, .94fr) minmax(23rem, 1.06fr);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 1.15rem;
+    background: var(--surface);
+    box-shadow: 0 24px 70px rgb(16 36 58 / 13%);
+}
+
+.login-aside {
+    position: relative;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    background: linear-gradient(150deg, #10243a, #173a59 72%, #1b4568);
+    color: #fff;
+}
+
+.login-brand {
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+}
+
+.login-brand .brand-mark {
+    border-color: rgb(255 255 255 / 22%);
+}
+
+.login-aside-copy {
+    position: relative;
+    z-index: 1;
+    max-width: 23rem;
+    margin-top: auto;
+    padding-top: 16rem;
+}
+
+.login-aside-copy .eyebrow {
+    color: #ffc394;
+}
+
+.login-aside-copy h2 {
+    margin-bottom: .85rem;
+    color: #fff;
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    letter-spacing: -.03em;
+}
+
+.login-aside-copy p:last-child {
+    margin-bottom: 0;
+    color: #d2dfeb;
+    font-size: .94rem;
+}
+
+.logistics-art {
+    position: absolute;
+    inset: 6.5rem 1.5rem auto;
+    height: 14rem;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 1rem;
+    background: radial-gradient(ellipse at 52% 50%, rgb(255 255 255 / 11%), transparent 69%);
+}
+
+.route-line {
+    position: absolute;
+    height: 2px;
+    background: rgb(255 179 126 / 70%);
+    transform-origin: left center;
+}
+
+.route-line-one {
+    top: 4.25rem;
+    left: 2.5rem;
+    width: 8rem;
+    transform: rotate(22deg);
+}
+
+.route-line-two {
+    top: 7.1rem;
+    left: 8.9rem;
+    width: 7rem;
+    transform: rotate(-33deg);
+}
+
+.route-node {
+    position: absolute;
+    z-index: 1;
+    width: .85rem;
+    height: .85rem;
+    border: 3px solid #ffc394;
+    border-radius: 50%;
+    background: #173a59;
+}
+
+.route-node-one { top: 3.9rem; left: 2.1rem; }
+.route-node-two { top: 6.7rem; left: 10rem; }
+.route-node-three { top: 3rem; right: 2.5rem; }
+
+.parcel-illustration {
+    position: absolute;
+    top: 4.8rem;
+    left: 50%;
+    display: block;
+    width: 5.4rem;
+    height: 4.3rem;
+    border: 2px solid #ffca9e;
+    border-radius: .4rem;
+    background: linear-gradient(145deg, #f4a66e 0 48%, #dd8150 49% 100%);
+    box-shadow: 0 12px 28px rgb(0 0 0 / 20%);
+    transform: translateX(-50%) rotate(-7deg);
+}
+
+.parcel-illustration::before,
+.parcel-illustration::after {
+    position: absolute;
+    top: -.12rem;
+    bottom: -.12rem;
+    width: .75rem;
+    border-right: 2px solid rgb(91 47 23 / 35%);
+    border-left: 2px solid rgb(91 47 23 / 35%);
+    content: "";
+}
+
+.parcel-illustration::before { left: 1.45rem; }
+.parcel-illustration::after { right: 1.45rem; }
+
+.parcel-illustration > span {
+    position: absolute;
+    top: .9rem;
+    right: .45rem;
+    width: .9rem;
+    height: 1.25rem;
+    border: 1px solid rgb(91 47 23 / 45%);
+    background: #fff5e9;
+}
+
+.login-card {
+    width: auto;
+    align-self: center;
+    margin: 1.5rem;
+    border: 0;
+    border-radius: .9rem;
+    box-shadow: none;
+}
+
+.login-heading .eyebrow {
+    color: var(--postal-orange);
+}
+
+.password-control {
+    position: relative;
+}
+
+.password-control .text-input {
+    padding-right: 4.5rem;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: .65rem;
+    min-width: 3rem;
+    padding: .35rem .45rem;
+    border: 0;
+    border-radius: .35rem;
+    background: transparent;
+    color: var(--bs-link-color);
+    cursor: pointer;
+    font-size: .8rem;
+    font-weight: 700;
+    transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+    background: var(--postal-orange-soft);
+    color: var(--postal-orange);
+}
+
+#login-submit[aria-busy="true"] .submit-pending {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: login-spin .65s linear infinite;
+}
+
+[data-bs-theme="dark"] .login-shell {
+    background: var(--surface);
+    box-shadow: 0 24px 70px rgb(0 0 0 / 32%);
+}
+
+[data-bs-theme="dark"] .login-aside {
+    background: linear-gradient(150deg, #0a1520, #102a40 72%, #173651);
+}
+
+[data-bs-theme="dark"] .button-primary,
+[data-bs-theme="dark"] .btn-primary {
+    border-color: #e58a4b;
+    background: #e58a4b;
+    color: #241409;
+}
+
+[data-bs-theme="dark"] .button-primary:hover,
+[data-bs-theme="dark"] .btn-primary:hover {
+    border-color: #f6a66d;
+    background: #f6a66d;
+    color: #241409;
+}
+
+@keyframes login-spin {
+    to { transform: rotate(360deg); }
+}
+
 @keyframes result-appear {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
@@ -946,6 +1231,46 @@ h2 {
     .page-badge {
         align-self: flex-start;
     }
+
+    .login-shell {
+        width: min(100%, 38rem);
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .login-aside {
+        min-height: 14rem;
+        padding: 1.5rem;
+    }
+
+    .logistics-art {
+        top: 1rem;
+        right: 1rem;
+        left: auto;
+        width: 12rem;
+        height: 11rem;
+        opacity: .65;
+    }
+
+    .login-aside-copy {
+        max-width: 19rem;
+        padding-top: 5rem;
+    }
+
+    .login-aside-copy h2 {
+        max-width: 13rem;
+        font-size: 1.45rem;
+    }
+
+    .login-aside-copy p:last-child {
+        max-width: 18rem;
+        font-size: .82rem;
+    }
+
+    .login-card {
+        width: auto;
+        margin: 0;
+        padding: clamp(1.5rem, 6vw, 2.5rem);
+    }
 }
 
 @media (max-width: 540px) {
@@ -998,5 +1323,49 @@ h2 {
     .welcome-card {
         gap: .9rem;
         padding: 1.2rem;
+    }
+
+    .auth-content {
+        align-items: start;
+        padding: 1rem .75rem 2rem;
+    }
+
+    .login-shell {
+        border-radius: .85rem;
+    }
+
+    .login-aside {
+        min-height: 12rem;
+        padding: 1.1rem;
+    }
+
+    .login-brand .brand-copy span {
+        font-size: .68rem;
+    }
+
+    .logistics-art {
+        top: 1.25rem;
+        right: .75rem;
+        width: 8.5rem;
+        height: 8.5rem;
+    }
+
+    .route-line-one { left: 1rem; width: 4rem; }
+    .route-line-two { top: 5.1rem; left: 4.3rem; width: 3.5rem; }
+    .route-node-one { top: 3.9rem; left: .65rem; }
+    .route-node-two { top: 4.7rem; left: 5rem; }
+    .route-node-three { top: 2rem; right: 1rem; }
+
+    .parcel-illustration {
+        top: 3.8rem;
+        width: 3.5rem;
+        height: 2.8rem;
+    }
+
+    .parcel-illustration::before { left: .9rem; }
+    .parcel-illustration::after { right: .9rem; }
+
+    .login-aside-copy {
+        padding-top: 3.25rem;
     }
 }

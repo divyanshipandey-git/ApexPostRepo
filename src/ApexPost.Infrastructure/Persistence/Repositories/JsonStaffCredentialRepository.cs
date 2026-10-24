@@ -11,7 +11,7 @@ public sealed class JsonStaffCredentialRepository : IStaffCredentialRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         _store = new JsonFileStore<StaffCredential>(
-            Path.Combine(dataDirectory, "staff-credentials.json"),
+            Path.Combine(JsonPersistenceOptions.ResolveDataDirectory(dataDirectory), "staff-credentials.json"),
             credential => credential.StaffId);
     }
 

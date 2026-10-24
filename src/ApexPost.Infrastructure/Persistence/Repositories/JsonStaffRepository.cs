@@ -14,7 +14,7 @@ public sealed class JsonStaffRepository : IStaffRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         _store = new JsonFileStore<Staff>(
-            Path.Combine(dataDirectory, "staff.json"),
+            Path.Combine(JsonPersistenceOptions.ResolveDataDirectory(dataDirectory), "staff.json"),
             staff => staff.Id);
     }
 

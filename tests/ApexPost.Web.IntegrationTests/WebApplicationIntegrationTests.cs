@@ -204,6 +204,9 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("login-card", content);
         Assert.Contains("id=\"theme-toggle\"", content);
         Assert.Contains("aria-pressed=\"false\"", content);
+        Assert.Contains("id=\"password-toggle\"", content);
+        Assert.Contains("aria-controls=\"Password\"", content);
+        Assert.Contains("/js/login.js", content);
         Assert.DoesNotContain("href=\"/Inventory/Index\"", content);
     }
 
@@ -219,14 +222,22 @@ public sealed class WebApplicationIntegrationTests
         using var page = await client.GetAsync("/Account/Login");
         var html = await page.Content.ReadAsStringAsync();
         using var bootstrap = await client.GetAsync("/lib/bootstrap/bootstrap.min.css");
+        using var siteCss = await client.GetAsync("/css/site.css");
         using var themeScript = await client.GetAsync("/js/theme.js");
+        using var loginScript = await client.GetAsync("/js/login.js");
         var bootstrapCss = await bootstrap.Content.ReadAsStringAsync();
+        var applicationCss = await siteCss.Content.ReadAsStringAsync();
         var script = await themeScript.Content.ReadAsStringAsync();
+        var login = await loginScript.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Equal(HttpStatusCode.OK, bootstrap.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, siteCss.StatusCode);
         Assert.Equal(HttpStatusCode.OK, themeScript.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, loginScript.StatusCode);
         Assert.Contains("Bootstrap  v5.3.3", bootstrapCss, StringComparison.Ordinal);
+        Assert.Contains("--postal-orange", applicationCss, StringComparison.Ordinal);
+        Assert.Contains("[data-bs-theme=\"dark\"] .login-shell", applicationCss, StringComparison.Ordinal);
         Assert.Contains("localStorage.getItem", html, StringComparison.Ordinal);
         Assert.True(
             html.IndexOf("localStorage.getItem", StringComparison.Ordinal)
@@ -236,6 +247,33 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("localStorage.setItem", script, StringComparison.Ordinal);
         Assert.Contains("aria-pressed", script, StringComparison.Ordinal);
         Assert.Contains("addEventListener(\"storage\"", script, StringComparison.Ordinal);
+        Assert.Contains("password.type = reveal ? \"text\" : \"password\"", login, StringComparison.Ordinal);
+        Assert.Contains("aria-busy", login, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task JsonFilesInConfiguredDataDirectoryAreNotPubliclyServed()
+    {
+        using var factory = new TestWebApplicationFactory();
+        const string marker = "private-integration-data-marker";
+        await File.WriteAllTextAsync(
+            Path.Combine(factory.DataDirectory, "staff.json"),
+            $$"""[{"marker":"{{marker}}"}]""");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false
+        });
+
+        using var direct = await client.GetAsync("/staff.json");
+        using var appData = await client.GetAsync("/App_Data/staff.json");
+        using var audit = await client.GetAsync("/audit.jsonl");
+
+        Assert.Equal(HttpStatusCode.NotFound, direct.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, appData.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, audit.StatusCode);
+        Assert.DoesNotContain(marker, await direct.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(marker, await appData.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

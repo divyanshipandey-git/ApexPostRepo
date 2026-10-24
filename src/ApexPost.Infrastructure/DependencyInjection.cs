@@ -35,7 +35,7 @@ public static class DependencyInjection
         configure?.Invoke(options);
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
-        options.DataDirectory = Path.GetFullPath(options.DataDirectory);
+        options.DataDirectory = JsonPersistenceOptions.ResolveDataDirectory(options.DataDirectory);
 
         services.TryAddSingleton(options);
         services.TryAddSingleton<JsonAuditLog>();

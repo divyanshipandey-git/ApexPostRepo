@@ -16,6 +16,8 @@ secrets.json
 data/runtime/
 *.audit.json
 *.jsonl
+*.log
+/logs/
 /App_Data/
 
 .fake

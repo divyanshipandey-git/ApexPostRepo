@@ -14,7 +14,7 @@ public sealed class JsonProductRepository : IProductRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         _store = new JsonFileStore<Product>(
-            Path.Combine(dataDirectory, "products.json"),
+            Path.Combine(JsonPersistenceOptions.ResolveDataDirectory(dataDirectory), "products.json"),
             product => product.Sku.Value);
     }
 

@@ -3,8 +3,35 @@ namespace ApexPost.Infrastructure.Persistence;
 
 public sealed class JsonPersistenceOptions
 {
-    public string DataDirectory { get; set; } =
-        Path.Combine(AppContext.BaseDirectory, "App_Data");
+    public string DataDirectory { get; set; } = ResolveDataDirectory("App_Data");
+
+    public static string ResolveDataDirectory(string dataDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+
+        if (Path.IsPathRooted(dataDirectory))
+        {
+            return Path.GetFullPath(dataDirectory);
+        }
+
+        return Path.GetFullPath(Path.Combine(FindSolutionRootDirectory(), dataDirectory));
+    }
+
+    public static string FindSolutionRootDirectory()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "ApexPost.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return Path.GetFullPath(AppContext.BaseDirectory);
+    }
 
     public string GetFilePath(string fileName)
     {
@@ -29,7 +56,7 @@ public sealed class JsonPersistenceOptions
         }
 
         return Path.Combine(
-            Path.GetFullPath(DataDirectory),
+            ResolveDataDirectory(DataDirectory),
             fileName);
     }
 }

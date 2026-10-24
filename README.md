@@ -23,17 +23,32 @@ Run the web application:
 dotnet run --project src/ApexPost.Web
 ```
 
-The application uses JSON files in its configured data directory. It does not ship production data. A development-only console tool can provision synthetic demo records in a separate, explicitly chosen empty directory.
+The application uses JSON files in its configured data directory. It does not ship production data. A development-only console tool can provision synthetic demo records in an explicitly chosen empty directory.
 
-By default, JSON files are stored in `App_Data` under the Web process's application base directory (for a development build, `src/ApexPost.Web/bin/Debug/net10.0/App_Data`). Set `JsonPersistence:DataDirectory` through environment configuration or user-secrets to select a different location; use an absolute path for deployments. Missing files are treated as empty collections and are created on the first write. Root `App_Data` and JSONL audit logs are ignored by Git.
+By default, JSON files are stored in `<solution-root>\App_Data` (for this checkout: `C:\DotNetTraining\Day1\ApexPost.CounterPlatform\App_Data`), outside `bin` and `obj`. The solution root is discovered from the running assembly location, so Web, test, and seed-tool processes do not depend on the shell's current directory. In Visual Studio, open the solution folder and browse to `App_Data`; JSON files appear there as the application writes them. Missing files are treated as empty collections and are created on the first write. The directory and runtime logs are ignored by Git, and Web static-file serving is limited to `wwwroot`.
+
+`JsonPersistence:DataDirectory` remains an explicit override. Use the same directory for the seed tool and Web application. For a new local demo dataset, inspect the target first. If `App_Data` does not exist, create it; if it already exists, inspect and back it up before proceeding. Run from the solution root:
 
 ```powershell
+if (-not (Test-Path .\App_Data)) { New-Item -ItemType Directory -Path .\App_Data }
+Get-ChildItem .\App_Data -Force
+# Continue only when this is a new, empty directory or the seed tool can verify its unchanged manifest.
+dotnet run --project tools/ApexPost.DemoSeed -- --data-directory App_Data
+dotnet run --project src/ApexPost.Web
+```
+
+Both commands now resolve relative `App_Data` to the solution root, which is also the Web default. If using a different directory, supply that same absolute path to both sides:
+
+```powershell
+dotnet run --project tools/ApexPost.DemoSeed -- --data-directory C:\ApexPostData
 dotnet user-secrets set "JsonPersistence:DataDirectory" "C:\ApexPostData" --project src/ApexPost.Web
 ```
 
+You can inspect or change the Web override in Visual Studio's project User Secrets, or set the equivalent environment variable `JsonPersistence__DataDirectory`. If you previously used the old development output path, select it explicitly with User Secrets, for example `C:\DotNetTraining\Day1\ApexPost.CounterPlatform\src\ApexPost.Web\bin\Debug\net10.0\App_Data`. Existing files are never moved, merged, replaced, or deleted automatically. Before changing directories, back up both locations and decide which dataset is authoritative; do not seed a non-empty directory unless the tool verifies its existing seed manifest.
+
 ### Provision isolated demo data
 
-Create and select a new empty directory, then run the local-only seed tool. Do not point it at an existing application data directory:
+`App_Data` is the default target. The seed tool refuses a non-empty directory unless it verifies that directory's own seed manifest, so inspect/backup existing data first. To seed in a separate location, use the same path for the tool and Web:
 
 ```powershell
 New-Item -ItemType Directory -Path C:\ApexPostDemoData
@@ -43,6 +58,8 @@ dotnet run --project src/ApexPost.Web
 ```
 
 The tool provisions 5 synthetic branches, 20 synthetic staff accounts across all four roles, 30 products, branch stock, and 40 paid sample transactions. `src/ApexPost.Web/appsettings.json` supplies 10 destination zones (12 zone/service-level pricing rules total). The transaction entity currently has no occurrence timestamp, so the 40 sample transactions are useful for listings and workflow testing but cannot be treated as date-accurate history for daily reports.
+
+The login page is for provisioned staff only. Public self-registration and password recovery are not implemented. Administrator-only staff management (add, update, deactivate) remains an assignment requirement and is not yet available; do not use a public account-creation flow.
 
 Demo sign-in uses the following synthetic accounts. These are local training credentials only; change them before any shared or deployed use. All demo accounts use the password `ApexPost-Demo-Only-2026!`.
 
