@@ -1,0 +1,46 @@
+@model IReadOnlyList<ApexPost.Web.Models.Transactions.TransactionSummaryViewModel>
+@{
+    ViewData["Title"] = "Counter transactions";
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Branch operations</p>
+    <h1>Counter transactions</h1>
+    <p>Review transactions recorded for your assigned branch.</p>
+</section>
+
+<section class="card shadow-sm surface-card">
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <p class="empty-state">There are no transactions for this branch.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <caption class="visually-hidden">Transactions for the assigned branch</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Transaction</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Total</th>
+                            <th scope="col"><span class="visually-hidden">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var transaction in Model)
+                    {
+                        <tr>
+                            <th scope="row">@transaction.TransactionId</th>
+                            <td>@transaction.Status</td>
+                            <td>@transaction.Total.ToString("C")</td>
+                            <td><a asp-action="Details" asp-route-id="@transaction.TransactionId">Review</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>

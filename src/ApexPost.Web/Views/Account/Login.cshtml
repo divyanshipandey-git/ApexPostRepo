@@ -1,0 +1,28 @@
+@model ApexPost.Web.Models.Account.LoginViewModel
+@{
+    ViewData["Title"] = "Staff login";
+}
+
+<section class="card shadow-sm login-card" aria-labelledby="login-title">
+    <div class="login-heading">
+        <p class="eyebrow">Staff workspace</p>
+        <h1 id="login-title">Welcome back</h1>
+        <p>Sign in with your staff account to continue to the counter platform.</p>
+    </div>
+    <form asp-controller="Account" asp-action="Login" method="post" class="login-form">
+        <input asp-for="ReturnUrl" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger validation-summary" role="alert"></div>
+        <div class="form-field">
+            <label asp-for="Email">Email address</label>
+            <input asp-for="Email" class="form-control text-input" autocomplete="username" inputmode="email" placeholder="name@apexpost.example" autofocus />
+            <span asp-validation-for="Email" class="invalid-feedback field-error"></span>
+        </div>
+        <div class="form-field">
+            <label asp-for="Password"></label>
+            <input asp-for="Password" class="form-control text-input" autocomplete="current-password" />
+            <span asp-validation-for="Password" class="invalid-feedback field-error"></span>
+        </div>
+        <button type="submit" class="btn btn-primary button button-primary button-wide">Sign in securely</button>
+    </form>
+    <p class="login-support">Access is restricted to authorized ApexPost staff.</p>
+</section>

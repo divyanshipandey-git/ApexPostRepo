@@ -2,7 +2,18 @@
     ViewData["Title"] = "ApexPost Counter Platform";
 }
 
-<main class="container py-5">
-    <h1>ApexPost Counter Platform</h1>
-    <p>The architecture scaffold is ready. Business features will be delivered through feature branches.</p>
-</main>
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">Staff workspace</p>
+        <h1 id="page-title">ApexPost Counter Platform</h1>
+        <p class="page-description">Your tools for dependable service at the counter.</p>
+    </div>
+</section>
+<section class="card surface-card welcome-card">
+    <span class="welcome-icon" aria-hidden="true">▦</span>
+    <div>
+        <h2>Inventory is ready</h2>
+        <p>Look up available products and stock for your branch.</p>
+        <a class="btn btn-primary button button-primary" asp-controller="Inventory" asp-action="Index">Open inventory</a>
+    </div>
+</section>

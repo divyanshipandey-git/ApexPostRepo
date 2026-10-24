@@ -1,0 +1,127 @@
+@model ApexPost.Web.Models.Transactions.CounterSaleViewModel
+@{
+    ViewData["Title"] = "New counter transaction";
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Counter operations</p>
+    <h1>New counter transaction</h1>
+    <p>Build a basket from the current catalogue. Product prices, tax, branch and staff identity are taken from server data.</p>
+</section>
+
+<form asp-action="Create" method="post" class="form-stack transaction-form">
+    <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <div class="alert alert-danger" role="alert">@Model.Message</div>
+    }
+
+    <section class="card shadow-sm surface-card" aria-labelledby="counter-section-title">
+        <div class="card-body">
+            <h2 id="counter-section-title" class="section-title">Counter and payment</h2>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="CounterId" class="form-label">Counter</label>
+                    <select asp-for="CounterId" class="form-select">
+                        <option value="">Select a counter</option>
+                        @foreach (var counter in Model.CounterOptions)
+                        {
+                            <option value="@counter.Id">@counter.Name</option>
+                        }
+                    </select>
+                    <span asp-validation-for="CounterId" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="PaymentMethod" class="form-label">Payment method</label>
+                    <select asp-for="PaymentMethod" class="form-select">
+                        <option value="">Select payment method</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Upi">UPI</option>
+                    </select>
+                    <span asp-validation-for="PaymentMethod" class="field-validation-error"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card shadow-sm surface-card" aria-labelledby="product-section-title">
+        <div class="card-body">
+            <h2 id="product-section-title" class="section-title">Retail products</h2>
+            <p class="section-copy">Choose up to five product lines. Quantities are checked against this branch's available stock.</p>
+            @for (var index = 0; index < Model.Products.Count; index++)
+            {
+                <div class="form-grid transaction-line">
+                    <div>
+                        <label asp-for="Products[index].Sku" class="form-label">Product @(index + 1)</label>
+                        <select asp-for="Products[index].Sku" class="form-select">
+                            <option value="">No product</option>
+                            @foreach (var product in Model.ProductOptions)
+                            {
+                                <option value="@product.Sku">@product.Name (@product.Sku) · @product.UnitPrice.ToString("C") · @product.TaxCategory tax</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Products[index].Sku" class="field-validation-error"></span>
+                    </div>
+                    <div>
+                        <label asp-for="Products[index].Quantity" class="form-label">Quantity</label>
+                        <input asp-for="Products[index].Quantity" class="form-control" type="number" min="1" max="1000" />
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card shadow-sm surface-card" aria-labelledby="shipping-section-title">
+        <div class="card-body">
+            <h2 id="shipping-section-title" class="section-title">Shipping service (optional)</h2>
+            <div class="form-check mb-3">
+                <input asp-for="IncludeShipping" class="form-check-input" />
+                <label asp-for="IncludeShipping" class="form-check-label">Add a parcel or letter shipment to this transaction</label>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="ItemType" class="form-label">Item type</label>
+                    <select asp-for="ItemType" class="form-select">
+                        <option value="">Select type</option>
+                        <option value="Parcel">Parcel</option>
+                        <option value="Letter">Letter</option>
+                    </select>
+                </div>
+                <div>
+                    <label asp-for="ShippingServiceLevel" class="form-label">Service level</label>
+                    <select asp-for="ShippingServiceLevel" class="form-select">
+                        <option value="">Select level</option>
+                        <option value="Standard">Standard</option>
+                        <option value="Express">Express</option>
+                        <option value="Registered">Registered</option>
+                    </select>
+                </div>
+                <div>
+                    <label asp-for="DestinationZone" class="form-label">Destination zone</label>
+                    <input asp-for="DestinationZone" class="form-control" maxlength="32" autocomplete="off" />
+                </div>
+                <div>
+                    <label asp-for="WeightKg" class="form-label">Weight (kg)</label>
+                    <input asp-for="WeightKg" class="form-control" type="number" min="0.01" step="0.01" />
+                </div>
+                <div>
+                    <label asp-for="LengthCm" class="form-label">Length (cm)</label>
+                    <input asp-for="LengthCm" class="form-control" type="number" min="0.01" step="0.01" />
+                </div>
+                <div>
+                    <label asp-for="WidthCm" class="form-label">Width (cm)</label>
+                    <input asp-for="WidthCm" class="form-control" type="number" min="0.01" step="0.01" />
+                </div>
+                <div>
+                    <label asp-for="HeightCm" class="form-label">Height (cm)</label>
+                    <input asp-for="HeightCm" class="form-control" type="number" min="0.01" step="0.01" />
+                </div>
+            </div>
+            <span asp-validation-for="IncludeShipping" class="field-validation-error"></span>
+            <p class="form-hint">Shipping charges use configured zone and service-level pricing. The server validates the weight and dimensions.</p>
+        </div>
+    </section>
+
+    <button class="button button-primary" type="submit">Complete transaction</button>
+</form>

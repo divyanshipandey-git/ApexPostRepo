@@ -1,0 +1,45 @@
+@model ApexPost.Web.Models.Transactions.TransactionVoidViewModel
+@{
+    ViewData["Title"] = "Transaction details";
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Branch operations · @Model.BranchCode</p>
+    <h1>Transaction @Model.TransactionId</h1>
+    <p>Review transaction state and void a paid transaction when required.</p>
+</section>
+
+<section class="card shadow-sm surface-card">
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-4">Branch</dt>
+            <dd class="col-sm-8">@Model.BranchCode</dd>
+            <dt class="col-sm-4">Status</dt>
+            <dd class="col-sm-8">@Model.Status</dd>
+            <dt class="col-sm-4">Total</dt>
+            <dd class="col-sm-8">@Model.Total.ToString("C")</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.ExistingReason))
+            {
+                <dt class="col-sm-4">Recorded reason</dt>
+                <dd class="col-sm-8">@Model.ExistingReason</dd>
+            }
+        </dl>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Message))
+        {
+            <div class="alert alert-warning" role="status">@Model.Message</div>
+        }
+
+        @if (Model.Status == "Paid")
+        {
+            <form asp-action="Void" method="post" class="form-stack">
+                <input asp-for="TransactionId" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
+                <label asp-for="VoidReason" class="form-label"></label>
+                <textarea asp-for="VoidReason" class="form-control" rows="3" autocomplete="off"></textarea>
+                <span asp-validation-for="VoidReason" class="field-validation-error"></span>
+                <button class="button button-primary" type="submit">Void transaction</button>
+            </form>
+        }
+    </div>
+</section>

@@ -1,0 +1,57 @@
+@model ApexPost.Web.Models.Transactions.TransactionReceiptViewModel
+@{
+    ViewData["Title"] = "Transaction receipt";
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Payment complete · @Model.BranchCode</p>
+    <h1>Transaction receipt</h1>
+    <p>The sale was saved and payment was recorded.</p>
+</section>
+
+<section class="card shadow-sm surface-card">
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-4">Transaction</dt>
+            <dd class="col-sm-8">@Model.TransactionId</dd>
+            <dt class="col-sm-4">Counter</dt>
+            <dd class="col-sm-8">@Model.CounterId</dd>
+            <dt class="col-sm-4">Status</dt>
+            <dd class="col-sm-8">@Model.Status</dd>
+            <dt class="col-sm-4">Payment</dt>
+            <dd class="col-sm-8">@Model.PaymentMethod</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.ShipmentId))
+            {
+                <dt class="col-sm-4">Shipment reference</dt>
+                <dd class="col-sm-8">@Model.ShipmentId</dd>
+            }
+        </dl>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <caption class="visually-hidden">Items and services in this transaction</caption>
+                <thead>
+                    <tr><th scope="col">Item or service</th><th scope="col">Type</th><th scope="col">Qty</th><th scope="col">Unit price</th><th scope="col">Tax category</th><th scope="col">Line total</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var line in Model.Lines)
+                {
+                    <tr>
+                        <th scope="row">@line.Description</th>
+                        <td>@line.ItemType</td>
+                        <td>@line.Quantity</td>
+                        <td>@line.UnitPrice.ToString("C")</td>
+                        <td>@line.TaxCategory</td>
+                        <td>@line.LineTotal.ToString("C")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <dl class="row receipt-totals">
+            <dt class="col-sm-8">Subtotal</dt><dd class="col-sm-4">@Model.Subtotal.ToString("C")</dd>
+            <dt class="col-sm-8">Tax</dt><dd class="col-sm-4">@Model.Tax.ToString("C")</dd>
+            <dt class="col-sm-8">Total paid</dt><dd class="col-sm-4"><strong>@Model.Total.ToString("C")</strong></dd>
+        </dl>
+        <a class="button button-primary" asp-action="Create">Start another transaction</a>
+    </div>
+</section>
