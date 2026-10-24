@@ -3,6 +3,8 @@ using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Services.MoneyOrders;
+using ApexPost.Application.Services.Notifications;
+using ApexPost.Application.Notifications;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Infrastructure.Persistence;
@@ -43,6 +45,8 @@ public sealed class CounterSaleServiceTests
         Assert.Equal(result.Transaction.Id, shipment.CounterTransactionId);
         Assert.Single(await fixture.Shipments.GetByBranchAsync("IND01"));
         Assert.NotNull(await fixture.Transactions.GetByIdAsync(result.Transaction.Id));
+        Assert.Contains(fixture.Notifications.GetPublishedNotifications(), notification =>
+            notification.Type == NotificationType.LowStock && notification.BranchCode == "IND01");
     }
 
     [Fact]
@@ -78,6 +82,8 @@ public sealed class CounterSaleServiceTests
         Assert.Equal("XXXX1234", moneyOrder.IdentityVerification!.MaskedDocumentNumber);
         Assert.True(moneyOrder.IdentityVerification.IsVerified);
         Assert.Equal(transaction.Id, (await fixture.Transactions.GetByIdAsync(transaction.Id))!.Id);
+        Assert.Contains(fixture.Notifications.GetPublishedNotifications(), notification =>
+            notification.Type == NotificationType.HighValueMoneyOrder && notification.BranchCode == "IND01");
     }
 
     [Fact]
@@ -271,6 +277,7 @@ public sealed class CounterSaleServiceTests
             Transactions = new JsonCounterTransactionRepository(_options);
             Shipments = new JsonShipmentRepository(_options);
             MoneyOrders = new JsonMoneyOrderRepository(_options);
+            Notifications = new SimulatedNotificationService();
         }
 
         public JsonBranchRepository Branches { get; }
@@ -281,6 +288,7 @@ public sealed class CounterSaleServiceTests
         public JsonCounterTransactionRepository Transactions { get; }
         public JsonShipmentRepository Shipments { get; }
         public JsonMoneyOrderRepository MoneyOrders { get; }
+        public SimulatedNotificationService Notifications { get; }
         public JsonPersistenceOptions Options => _options;
         public AuthenticatedStaff StaffIdentity { get; } = new("clerk-sale-1", StaffRole.CounterClerk, "IND01");
 
@@ -312,6 +320,7 @@ public sealed class CounterSaleServiceTests
                 Shipments,
                 new MoneyOrderService(MoneyOrders, new MoneyOrderPolicy(new Money(10_000m))),
                 new MoneyOrderSettings(new Money(10m), new Money(10_000m)),
+                Notifications,
                 [new TaxRate(TaxCategory.Standard, 0.18m), new TaxRate(TaxCategory.Exempt, 0m)],
                 TimeProvider.System);
         }

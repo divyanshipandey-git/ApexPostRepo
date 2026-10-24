@@ -12,6 +12,7 @@ namespace ApexPost.Web.Controllers;
 [Authorize]
 public sealed class TransactionsController(
     TransactionVoidService transactionVoidService,
+    TransactionRefundService transactionRefundService,
     CounterSaleService counterSaleService) : Controller
 {
     [Authorize(Policy = AuthorizationPolicies.CounterSales)]
@@ -333,6 +334,61 @@ public sealed class TransactionsController(
         };
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Refund(
+        TransactionRefundViewModel model,
+        CancellationToken cancellationToken)
+    {
+        var staffId = User.FindFirstValue("StaffId");
+        if (!ModelState.IsValid)
+        {
+            var accessible = await transactionVoidService.GetAccessibleAsync(
+                model.TransactionId,
+                staffId,
+                cancellationToken);
+            if (accessible.Status == TransactionVoidStatus.Forbidden)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            if (accessible.Status == TransactionVoidStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (accessible.Status != TransactionVoidStatus.Available)
+            {
+                return BadRequest();
+            }
+
+            var invalidViewModel = ToViewModel(accessible.Transaction!);
+            invalidViewModel.RefundReason = model.RefundReason;
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            return View("Details", invalidViewModel);
+        }
+
+        var result = await transactionRefundService.RefundAsync(
+            model.TransactionId,
+            model.RefundReason,
+            staffId,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            TransactionRefundStatus.Refunded => RedirectToAction(
+                nameof(Details),
+                new { id = result.Transaction!.Id }),
+            TransactionRefundStatus.Forbidden => StatusCode(StatusCodes.Status403Forbidden),
+            TransactionRefundStatus.NotFound => NotFound(),
+            TransactionRefundStatus.InvalidReason => InvalidRefundView(
+                WithRefundReason(result.Transaction!, model.RefundReason)),
+            TransactionRefundStatus.InvalidState => InvalidRefundStateView(
+                WithRefundReason(result.Transaction!, model.RefundReason)),
+            _ => BadRequest()
+        };
+    }
+
     private IActionResult InvalidReasonView(TransactionVoidViewModel model)
     {
         ModelState.AddModelError(nameof(model.VoidReason), "Enter a reason for voiding this transaction.");
@@ -343,6 +399,20 @@ public sealed class TransactionsController(
     private IActionResult InvalidStateView(TransactionVoidViewModel model)
     {
         model.Message = "Only paid transactions can be voided.";
+        Response.StatusCode = StatusCodes.Status409Conflict;
+        return View("Details", model);
+    }
+
+    private IActionResult InvalidRefundView(TransactionVoidViewModel model)
+    {
+        ModelState.AddModelError(nameof(model.RefundReason), "Enter a reason for refunding this transaction.");
+        Response.StatusCode = StatusCodes.Status400BadRequest;
+        return View("Details", model);
+    }
+
+    private IActionResult InvalidRefundStateView(TransactionVoidViewModel model)
+    {
+        model.Message = "Only paid transactions can be refunded. This workflow records a full refund state and does not process a payment reversal.";
         Response.StatusCode = StatusCodes.Status409Conflict;
         return View("Details", model);
     }
@@ -451,6 +521,15 @@ public sealed class TransactionsController(
     {
         var viewModel = ToViewModel(transaction);
         viewModel.VoidReason = reason;
+        return viewModel;
+    }
+
+    private static TransactionVoidViewModel WithRefundReason(
+        CounterTransaction transaction,
+        string? reason)
+    {
+        var viewModel = ToViewModel(transaction);
+        viewModel.RefundReason = reason;
         return viewModel;
     }
 }

@@ -1,4 +1,5 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using StaffEntity = ApexPost.Domain.Entities.Staff;
@@ -9,15 +10,18 @@ public sealed class TransactionVoidService
 {
     private readonly ICounterTransactionRepository _repository;
     private readonly IStaffRepository _staffRepository;
+    private readonly INotificationService? _notifications;
 
     public TransactionVoidService(
         ICounterTransactionRepository repository,
-        IStaffRepository staffRepository)
+        IStaffRepository staffRepository,
+        INotificationService? notifications = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(staffRepository);
         _repository = repository;
         _staffRepository = staffRepository;
+        _notifications = notifications;
     }
 
     public async Task<TransactionVoidResult> GetAccessibleAsync(
@@ -106,6 +110,15 @@ public sealed class TransactionVoidService
         }
 
         await _repository.UpdateAsync(transaction, cancellationToken);
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyTransactionVoidAsync(
+                transaction.BranchCode.Value,
+                transaction.Id,
+                transaction.Reason!,
+                CancellationToken.None);
+        }
+
         return new TransactionVoidResult(TransactionVoidStatus.Voided, transaction);
     }
 

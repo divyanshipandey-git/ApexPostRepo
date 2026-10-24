@@ -1,4 +1,5 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.MoneyOrders;
@@ -9,6 +10,7 @@ namespace ApexPost.Application.Services.Transactions;
 
 public sealed class CounterSaleService
 {
+    private const int LowStockReorderLevel = 5;
     private readonly ICounterTransactionRepository _transactionRepository;
     private readonly IInventoryRepository _inventoryRepository;
     private readonly IProductRepository _productRepository;
@@ -21,6 +23,7 @@ public sealed class CounterSaleService
     private readonly TimeProvider _timeProvider;
     private readonly MoneyOrderService _moneyOrderService;
     private readonly MoneyOrderSettings _moneyOrderSettings;
+    private readonly INotificationService _notifications;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -33,6 +36,7 @@ public sealed class CounterSaleService
         IShipmentRepository shipmentRepository,
         MoneyOrderService moneyOrderService,
         MoneyOrderSettings moneyOrderSettings,
+        INotificationService notifications,
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider)
     {
@@ -46,6 +50,7 @@ public sealed class CounterSaleService
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(moneyOrderService);
         ArgumentNullException.ThrowIfNull(moneyOrderSettings);
+        ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(taxRates);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
@@ -59,6 +64,7 @@ public sealed class CounterSaleService
         _shipmentRepository = shipmentRepository;
         _moneyOrderService = moneyOrderService;
         _moneyOrderSettings = moneyOrderSettings;
+        _notifications = notifications;
         _taxRates = taxRates.ToArray();
         _timeProvider = timeProvider;
     }
@@ -328,7 +334,6 @@ public sealed class CounterSaleService
                     CancellationToken.None);
             }
 
-            return new CounterSaleResult(CounterSaleStatus.Completed, transaction, shipmentId);
         }
         catch (Exception persistenceException)
         {
@@ -365,6 +370,39 @@ public sealed class CounterSaleService
 
             return new CounterSaleResult(CounterSaleStatus.PersistenceFailure);
         }
+
+        if (moneyOrder is not null &&
+            moneyOrder.Amount.Amount > _moneyOrderSettings.VerificationThreshold.Amount)
+        {
+            await _notifications.NotifyHighValueMoneyOrderAsync(
+                branchCode.Value,
+                moneyOrder.Id,
+                moneyOrder.Amount.Amount,
+                _moneyOrderSettings.VerificationThreshold.Amount,
+                CancellationToken.None);
+        }
+
+        if (inventoryReservation is not null)
+        {
+            await Task.WhenAll(inventoryReservation.SkuQuantities.Keys.Select(async sku =>
+            {
+                var current = await _inventoryRepository.GetByBranchAndSkuAsync(
+                    branchCode.Value,
+                    sku,
+                    CancellationToken.None);
+                if (current is not null)
+                {
+                    await _notifications.NotifyLowStockAsync(
+                        branchCode.Value,
+                        current.Sku.Value,
+                        current.Quantity,
+                        LowStockReorderLevel,
+                        CancellationToken.None);
+                }
+            }));
+        }
+
+        return new CounterSaleResult(CounterSaleStatus.Completed, transaction, shipmentId);
     }
 
     public async Task<CounterSaleOptions?> GetOptionsAsync(

@@ -5,8 +5,10 @@ using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Services.MoneyOrders;
+using ApexPost.Application.Services.Notifications;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Domain.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -35,6 +37,10 @@ public static class DependencyInjection
             Array.Empty<ShippingPricingRule>()));
         services.TryAddScoped<CounterSaleService>();
         services.TryAddScoped<TransactionVoidService>();
+        services.TryAddScoped<TransactionRefundService>();
+        services.TryAddSingleton<SimulatedNotificationService>();
+        services.TryAddSingleton<INotificationService>(provider =>
+            provider.GetRequiredService<SimulatedNotificationService>());
 
         return services;
     }

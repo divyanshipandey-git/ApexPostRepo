@@ -17,5 +17,7 @@ public sealed class TransactionVoidViewModel
     [DataType(DataType.MultilineText)]
     public string? VoidReason { get; set; }
 
+    public string? RefundReason { get; set; }
+
     public string? Message { get; set; }
 }

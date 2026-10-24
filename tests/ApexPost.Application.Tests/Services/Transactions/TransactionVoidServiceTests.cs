@@ -1,5 +1,7 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Transactions;
+using ApexPost.Application.Notifications;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using Xunit;
@@ -9,6 +11,93 @@ namespace ApexPost.Application.Tests.Services.Transactions;
 
 public sealed class TransactionVoidServiceTests
 {
+    [Fact]
+    public async Task RefundAsync_WhenPaidByManager_PersistsFullRefundAndPublishesNotification()
+    {
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var access = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+        var notifications = new SimulatedNotificationService();
+        var service = new TransactionRefundService(repository, access, notifications);
+
+        var result = await service.RefundAsync("TXN-APP-1", "Customer return", "staff-test-1");
+
+        Assert.Equal(TransactionRefundStatus.Refunded, result.Status);
+        Assert.Equal(TransactionStatus.Refunded, repository.Transaction!.Status);
+        Assert.Equal("Customer return", repository.Transaction.Reason);
+        Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(NotificationType.TransactionRefund,
+            Assert.Single(notifications.GetPublishedNotifications()).Type);
+    }
+
+    [Fact]
+    public async Task RefundAsync_AllowsAdministratorAcrossBranches()
+    {
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction("IND02"));
+        var access = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.Administrator, "IND01")));
+        var service = new TransactionRefundService(
+            repository,
+            access,
+            new SimulatedNotificationService());
+
+        var result = await service.RefundAsync("TXN-APP-1", "Approved refund", "staff-test-1");
+
+        Assert.Equal(TransactionRefundStatus.Refunded, result.Status);
+        Assert.Equal(TransactionStatus.Refunded, repository.Transaction!.Status);
+        Assert.Equal(1, repository.UpdateCount);
+    }
+
+    [Theory]
+    [InlineData(StaffRole.CounterClerk, "IND01", "IND01")]
+    [InlineData(StaffRole.BranchManager, "IND02", "IND01")]
+    public async Task RefundAsync_WhenCallerIsUnauthorizedOrWrongBranch_DoesNotMutate(
+        StaffRole role,
+        string staffBranch,
+        string transactionBranch)
+    {
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction(transactionBranch));
+        var access = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(role, staffBranch)));
+        var service = new TransactionRefundService(
+            repository,
+            access,
+            new SimulatedNotificationService());
+
+        var result = await service.RefundAsync("TXN-APP-1", "Customer return", "staff-test-1");
+
+        Assert.Equal(TransactionRefundStatus.Forbidden, result.Status);
+        Assert.Equal(TransactionStatus.Paid, repository.Transaction!.Status);
+        Assert.Equal(0, repository.UpdateCount);
+    }
+
+    [Fact]
+    public async Task RefundAsync_WhenReasonMissingOrTransactionNotPaid_DoesNotPersist()
+    {
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var access = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+        var service = new TransactionRefundService(
+            repository,
+            access,
+            new SimulatedNotificationService());
+
+        var missingReason = await service.RefundAsync("TXN-APP-1", " ", "staff-test-1");
+        Assert.Equal(TransactionRefundStatus.InvalidReason, missingReason.Status);
+        Assert.Equal(TransactionStatus.Paid, repository.Transaction!.Status);
+
+        repository.Transaction.Void("Already voided");
+        var invalidState = await service.RefundAsync("TXN-APP-1", "Customer return", "staff-test-1");
+
+        Assert.Equal(TransactionRefundStatus.InvalidState, invalidState.Status);
+        Assert.Equal(TransactionStatus.Voided, repository.Transaction.Status);
+        Assert.Equal(0, repository.UpdateCount);
+    }
+
     [Fact]
     public async Task VoidAsync_WhenPaidBySameBranchManager_PersistsVoidedStateAndReason()
     {

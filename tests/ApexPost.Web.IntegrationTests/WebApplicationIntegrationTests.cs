@@ -1,4 +1,6 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Notifications;
+using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Inventory;
 using ApexPost.Application.Abstractions.Security;
 using ApexPost.Domain.Entities;
@@ -757,6 +759,8 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("Voided", page);
         Assert.Contains("Duplicate sale", page);
         Assert.DoesNotContain("Void transaction", page);
+        Assert.Contains(factory.Services.GetRequiredService<SimulatedNotificationService>()
+            .GetPublishedNotifications(), notification => notification.Type == NotificationType.TransactionVoid);
 
         var audit = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"));
         Assert.Contains("Transactions", audit);
@@ -841,6 +845,52 @@ public sealed class WebApplicationIntegrationTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(TransactionStatus.Voided, saved!.Status);
+    }
+
+    [Fact]
+    public async Task BranchManagerCanRecordFullRefundWithReasonAndNotificationThroughPrg()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedTransactionAsync("TXN-REFUND-WEB-1");
+        using var client = await factory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Details/TXN-REFUND-WEB-1");
+
+        using var response = await PostRefundAsync(client, token, "TXN-REFUND-WEB-1", "Customer return");
+        var saved = await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByIdAsync("TXN-REFUND-WEB-1");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/Transactions/Details/TXN-REFUND-WEB-1", response.Headers.Location!.ToString());
+        Assert.Equal(TransactionStatus.Refunded, saved!.Status);
+        Assert.Equal("Customer return", saved.Reason);
+        using var details = await client.GetAsync(response.Headers.Location);
+        Assert.Contains("Recorded reason", await details.Content.ReadAsStringAsync());
+        Assert.Contains(factory.Services.GetRequiredService<SimulatedNotificationService>()
+            .GetPublishedNotifications(), notification => notification.Type == NotificationType.TransactionRefund);
+    }
+
+    [Fact]
+    public async Task ClerkCannotRefundAndInvalidStateDoesNotMutate()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedTransactionAsync("TXN-REFUND-CLERK-1");
+        using var clerk = await factory.CreateAuthenticatedClientAsync(StaffRole.CounterClerk);
+        var clerkToken = await GetAntiforgeryTokenAsync(clerk, "/Account/Login");
+        using var forbidden = await PostRefundAsync(clerk, clerkToken, "TXN-REFUND-CLERK-1", "Not allowed");
+        var paid = await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByIdAsync("TXN-REFUND-CLERK-1");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(TransactionStatus.Paid, paid!.Status);
+
+        using var stateFactory = new TestWebApplicationFactory();
+        await stateFactory.SeedTransactionAsync("TXN-REFUND-VOIDED-1", status: TransactionStatus.Voided);
+        using var manager = await stateFactory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var managerToken = await GetAntiforgeryTokenAsync(manager, "/Transactions/Details/TXN-REFUND-VOIDED-1");
+        using var conflict = await PostRefundAsync(manager, managerToken, "TXN-REFUND-VOIDED-1", "Already voided");
+        var voided = await stateFactory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByIdAsync("TXN-REFUND-VOIDED-1");
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal(TransactionStatus.Voided, voided!.Status);
     }
 
     [Fact]
@@ -1262,6 +1312,19 @@ public sealed class WebApplicationIntegrationTests
             {
                 ["TransactionId"] = transactionId,
                 ["VoidReason"] = reason,
+                ["__RequestVerificationToken"] = token
+            }));
+
+    private static Task<HttpResponseMessage> PostRefundAsync(
+        HttpClient client,
+        string token,
+        string transactionId,
+        string reason) => client.PostAsync(
+            "/Transactions/Refund",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["TransactionId"] = transactionId,
+                ["RefundReason"] = reason,
                 ["__RequestVerificationToken"] = token
             }));
 

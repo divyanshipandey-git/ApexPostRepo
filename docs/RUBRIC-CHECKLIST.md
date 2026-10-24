@@ -7,7 +7,7 @@ Track each item as `Not started`, `In progress`, or `Verified`. Mark an item ver
 - [ ] Products and branch-level inventory; no negative stock
 - [ ] Shipping pricing and maximum service-level weight
 - [x] Money-order threshold and same-transaction successful verification
-- [ ] Void/refund manager authorization and reason
+- [ ] Void/refund manager authorization and reason (full refund state transition now implemented; no payment reversal or partial refund)
 - [ ] Closed branch rejection
 - [ ] Four required reports with exact expected-value tests
 
