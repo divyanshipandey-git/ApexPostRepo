@@ -4,15 +4,15 @@ Audit basis: the supplied `apexpost.txt`, current implementation and tests on `f
 
 ## Security and Git findings
 
-- **No real secret found in the scanned working-tree configuration/source.** `src/ApexPost.Web/appsettings.json` contains non-secret development settings and demonstration shipping/tax values; it does not configure a production API key or staff password. Integration-test credential values are synthetic test fixtures. `UserSecretsId` is configured and README documents local API-key user-secrets. No production staff credentials or identity documents are seeded.
-- Pattern scans of current tracked/untracked files and available Git history found no private-key blocks or common provider-token signatures. The credential-pattern matches are confined to test fixtures. This is not exhaustive secret detection; no secret values are included in this report.
+- **No real secret found in the scanned working-tree configuration/source.** `src/ApexPost.Web/appsettings.json` contains non-secret development settings and demonstration shipping/tax values; it does not configure a production API key or staff password. Integration-test credentials and the separately isolated demo seed credentials are synthetic. `UserSecretsId` is configured and README documents local API-key user-secrets. The Web application does not automatically seed credentials.
+- Pattern scans of current tracked/untracked files and available Git history found no private-key blocks or common provider-token signatures. Credential-pattern matches are limited to synthetic test fixtures and the opt-in local demo seed account documented in README. This is not exhaustive secret detection; no secret values are included in this report.
 - **Runtime-data ignore coverage was incomplete (fixed in this audit).** The default data directory is under the Web output directory, which is ignored as build output, but a configured repository-root `App_Data` or JSONL audit file could otherwise be added accidentally. `.gitignore` now ignores root `App_Data/` and `*.jsonl`, while retaining the pre-existing ignore entries.
 - The working tree contained numerous modified and untracked implementation, documentation, test, `.gitignore`, and `.vscode` files during the initial audit. The implementation was finalized in reviewed dependency groups; `apexpost.txt` and `.vscode/settings.json` remain uncommitted. No branch switch, push, reset, or history rewrite occurred.
 - A pattern-based scan is a useful check, not proof that arbitrary secrets or personal data are absent. No secret values are included in this report. If an actual credential is discovered later, rotate it; do not rewrite shared history without explicit authorization.
 
 ## JSON persistence behavior
 
-`JsonPersistenceOptions.DataDirectory` defaults to `AppContext.BaseDirectory/App_Data`. Web composition now binds the optional `JsonPersistence:DataDirectory` configuration key; an absolute path is recommended. `AddInfrastructure(Action<JsonPersistenceOptions>)` also supports explicit configuration. Entity files are created only when the first write occurs; a missing file reads as an empty collection. There is no production seed dataset.
+`JsonPersistenceOptions.DataDirectory` defaults to `AppContext.BaseDirectory/App_Data`. Web composition now binds the optional `JsonPersistence:DataDirectory` configuration key; an absolute path is recommended. `AddInfrastructure(Action<JsonPersistenceOptions>)` also supports explicit configuration. Entity files are created only when the first write occurs; a missing file reads as an empty collection. The opt-in `tools/ApexPost.DemoSeed` console project can populate an operator-selected existing empty directory; it is not called by Web startup and contains only synthetic accounts.
 
 | Repository data | File under the configured data directory |
 |---|---|
@@ -54,9 +54,9 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 
 | Assignment requirement | Status | Evidence and remaining gap |
 |---|---|---|
-| Branches, counters, staff roles/status and lifecycle | Partial | Domain entities and JSON repositories exist; staff status service exists. No branch/counter/staff administration MVC screens; no provisioned records. |
+| Branches, counters, staff roles/status and lifecycle | Partial | Domain entities and JSON repositories exist; staff status service exists and the demo tool provisions synthetic records. No branch/counter/staff administration MVC screens. |
 | Product catalogue and branch stock; no negative inventory | Partial | Domain rules, repositories, inventory inquiry, atomic in-process reservations and tests exist. No catalogue management/stock adjustment workflow. |
-| Shipping pricing, service levels, weight limits | Partial | Rule/entity/service and counter-sale validation exist; one demonstration zone only. No label-preview page or operational rate provider/zone dataset. |
+| Shipping pricing, service levels, weight limits | Partial | Rule/entity/service and counter-sale validation exist; appsettings contains 10 demonstration zones/12 pricing rules. No label-preview page or operational rate provider. |
 | Money order threshold and same-transaction successful identity verification | Partial | Domain policy and standalone application services/tests exist. No transaction-basket integration or MVC forms; full same-transaction rule is not implemented. |
 | Mixed counter transactions, payment, state | Partial | Paid retail and optional shipping sale, receipt, and persistence are implemented. Money orders/identity verification are not basket lines; refunds are absent. |
 | Inactive staff, assigned branch and closed-branch transaction rules | Complete and verified | Counter-sale service checks staff/branch/counter state and branch access; Application/Web tests cover relevant rejects. |
@@ -78,18 +78,18 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 | API key, IP restrictions, cookie claims/roles, antiforgery, rate limiting, CORS | Partial | Courier integration and login paths have tests for API key/IP/CORS/rate limits; cookie auth/role tests exist. Partner limiter partitions by IP, not partner key. No admin IP-protected route exists. |
 | Three filters and audit protection | Partial | Audit, validation, performance filters and append-only store exist; audit tests verify safe metadata. Slow-action threshold and audit coverage for absent workflows are missing. |
 | Required xUnit domain tests and >=6 Web integration tests | Complete and verified | Domain/application suites plus 56 Web integration cases currently pass; see final verification below. |
-| Required seed volume (5 branches, 20 staff, 30 products, 10 rates, 40 transactions) | Missing | No seed dataset found. |
-| README, DESIGN, six new ADRs, audit sample and diagrams | Partial | README, DESIGN and eight ADR files exist; seven ADRs are still marked Proposed. DESIGN has an architecture diagram but no domain/pipeline diagram or updated SOLID mapping. No `AUDIT-SAMPLE.json` is present, and README correctly cannot list demo accounts because none are provisioned. |
+| Opt-in demo seed volume (5 branches, 20 staff, 30 products, 10 zones/rates, 40 transactions) | Partial | A guarded console tool and tests provision the requested counts into an isolated directory with synthetic credentials. Transactions lack occurrence timestamps, so the rows cannot truthfully serve as historical report data. |
+| README, DESIGN, six new ADRs, audit sample and diagrams | Partial | README, DESIGN, eight ADR files, and `AUDIT-SAMPLE.json` exist. Seven ADRs remain Proposed. DESIGN has an architecture diagram but no domain/pipeline diagram or updated SOLID mapping. |
 | Git workflow and zero-warning .NET 10 build | Not yet verified | Current branch is `feature/application-layer`; no history actions were taken. Build/test verification is recorded after this audit's changes. |
 
 ## Remaining-work estimate and next step
 
-The foundation and three implemented vertical slices are testable, but the original assignment is not complete. The largest remaining work is several distinct workflows (money order with same-transaction verification, reports/dashboard, staff/catalogue administration, shipping preview, refund), seed data, notification wiring, and the missing C# 14/performance demonstrations. Treat this as multiple feature-sized tasks plus integration/documentation work, not as one small patch. The next recommended slice is **money order plus identity verification in one counter transaction**, because it closes a key cross-aggregate business invariant and can establish the missing UI flow without expanding JSON persistence guarantees.
+The foundation and implemented counter/security slices are testable, but the original assignment is not complete. Remaining work includes money orders with same-transaction verification, reports/dashboard, staff/catalogue administration, shipping preview, refunds, dated sample transactions, notification wiring, and missing C# 14/performance demonstrations. Treat this as multiple feature-sized tasks plus integration/documentation work. The next recommended slice is **money order plus identity verification in one counter transaction**, because it closes a key cross-aggregate business invariant and can establish the missing UI flow without expanding JSON persistence guarantees.
 
 ## Audit verification
 
 - Web integration suite: 56 discovered and executed, 56 passed, 0 failed, 0 skipped; exit code 0.
-- Full `dotnet test`: 311 discovered and executed (Domain 110, Application 145, Web integration 56), 311 passed, 0 failed, 0 skipped; exit code 0.
+- Full `dotnet test`: 314 discovered and executed (Domain 110, Application 148, Web integration 56), 314 passed, 0 failed, 0 skipped; exit code 0.
 - `dotnet build ApexPost.sln --no-restore`: succeeded, 0 warnings and 0 errors; exit code 0.
 - `git diff --check`: exit code 0. Git emitted line-ending conversion notices for existing CRLF/LF working-copy differences; no whitespace errors were reported.
 

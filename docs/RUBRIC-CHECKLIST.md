@@ -58,8 +58,9 @@ Track each item as `Not started`, `In progress`, or `Verified`. Mark an item ver
 - [ ] Cache strategy and evidence
 
 ## Tests/docs/Git (10)
-- [ ] Required domain unit tests with exact assertions
-- [ ] At least six `WebApplicationFactory` integration tests
-- [ ] At least five branches, 20 staff, 30 products, 10 zones/rates, 40 historical transactions
+- [x] Required domain unit tests with exact assertions
+- [x] At least six `WebApplicationFactory` integration tests
+- [x] Opt-in seed tool provisions at least five branches, 20 staff, 30 products, 10 zones/rates, and 40 paid sample transactions in isolated JSON storage
+- [ ] Date-accurate historical transactions (blocked by missing transaction occurrence timestamp)
 - [ ] README, DESIGN, at least six new ADRs, audit sample
 - [ ] Feature branches, reviewed PRs, no secrets, clean .NET 10 build with zero warnings
