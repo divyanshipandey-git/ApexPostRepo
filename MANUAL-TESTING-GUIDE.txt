@@ -1,0 +1,194 @@
+APEXPOST COUNTER PLATFORM — LOCAL MANUAL TEST GUIDE
+==================================================
+
+Use this guide with a fresh clone on Windows. The demo records are synthetic and
+are created only in the separate directory selected below. Do not point the seed
+tool at an existing App_Data directory or any directory that contains data you
+need to keep.
+
+1. PREREQUISITES
+----------------
+- Windows PowerShell 5.1 or PowerShell 7.
+- .NET 10 SDK (`dotnet --version` should report 10.x).
+- Git and a browser.
+- HTTPS development certificate for the local login cookie. If one is not
+  installed, run `dotnet dev-certs https --trust` and accept the Windows prompt.
+
+Open PowerShell in the cloned repository root, the directory containing
+ApexPost.sln. Restore, build, and run the existing tests:
+
+    dotnet restore ApexPost.sln
+    dotnet build ApexPost.sln --no-restore
+    dotnet test ApexPost.sln --no-build
+
+Expected: build succeeds without warnings or errors and all tests pass.
+
+2. CREATE AN ISOLATED DEMO DATASET
+---------------------------------
+Choose a brand-new path. This example stops if the path already exists, so it
+cannot seed over an existing dataset:
+
+    $demoData = Join-Path $env:LOCALAPPDATA 'ApexPostCounterPlatform-Demo'
+    if (Test-Path $demoData) { throw "Choose another fresh path; existing data was left untouched: $demoData" }
+    New-Item -ItemType Directory -Path $demoData | Out-Null
+    dotnet run --project tools/ApexPost.DemoSeed -- --data-directory $demoData
+
+Expected: the tool provisions five branches, 20 staff, 30 products, stock, and
+40 sample paid transactions, then reports that it provisioned the dataset. It
+refuses non-empty unmarked folders and verifies an unchanged marked seed on
+rerun. It does not delete or replace files.
+
+3. CONFIGURE LOCAL USER SECRETS AND ADMIN IP ACCESS
+--------------------------------------------------
+The Web project already has a `UserSecretsId`, so `dotnet user-secrets init` is
+not required. Keep using the same `$demoData` variable in this PowerShell
+session. These commands store development configuration in the local user
+secrets store, not in the repository:
+
+    dotnet user-secrets set "JsonPersistence:DataDirectory" $demoData --project src/ApexPost.Web
+    dotnet user-secrets set "Integration:ApiKey" (Read-Host 'Enter a local-only courier test key') --project src/ApexPost.Web
+    dotnet user-secrets set "Integration:AllowedOrigin" 'https://localhost:57559' --project src/ApexPost.Web
+    $env:Security__AdminAllowedIps__0 = '127.0.0.1'
+    $env:Security__AdminAllowedIps__1 = '::1'
+    $env:Integration__AllowedIps__0 = '127.0.0.1'
+    $env:Integration__AllowedIps__1 = '::1'
+
+Enter an arbitrary test-only value when prompted for the courier key. Do not
+reuse a production key. CORS origin is an origin (scheme, host, and optional
+port), not a URL path. The admin allowlist fails closed if it is missing; the
+two local loopback addresses cover browsers that resolve `localhost` to IPv4
+or IPv6. Keep these environment variables in the same shell used to start the
+app.
+
+4. RUN THE APPLICATION
+----------------------
+Start from the repository root:
+
+    dotnet run --project src/ApexPost.Web
+
+Open `https://localhost:57559` (the launch profile also serves
+`http://localhost:57560` and normally opens a browser). Use HTTPS for sign-in;
+the authentication cookie is marked Secure. If prompted, trust the local
+development certificate. Stop the application with Ctrl+C in the PowerShell
+window running it.
+
+5. VERIFIED SYNTHETIC DEMO ACCOUNTS
+-----------------------------------
+Each account below is active in the explicit demo seed and can sign in through
+the existing `StaffAuthenticationService` using the password shown. The ID,
+role, email, and home branch were checked against a fresh isolated seed; all
+four successfully authenticated with the seed's PBKDF2 hashes.
+
+Role             Staff ID                    Username / email                   Home branch
+---------------  --------------------------  ---------------------------------  -----------
+Counter Clerk    DEMO-counterclerk-01        counterclerk01@example.test        AP001
+Branch Manager   DEMO-branchmanager-02       branchmanager02@example.test       AP002
+Auditor          DEMO-auditor-03              auditor03@example.test             AP003
+Administrator    DEMO-administrator-04       administrator04@example.test       AP004
+
+Password for all four: `ApexPost-Demo-Only-2026!`
+
+These are intentionally public local-training credentials. Never use them for
+a shared or deployed environment. The Administrator is
+`administrator04@example.test` / `DEMO-administrator-04`; it can reach staff
+administration at `/Staff` only when its role is Administrator and the client
+IP is in `Security:AdminAllowedIps`.
+
+6. WORKFLOW CHECKS
+------------------
+Sign in as the indicated role and use the navigation links or paths below.
+Record Pass/Fail for each check.
+
+[ ] Login: each account above signs in; invalid password is rejected; logout
+    returns to the login page.
+[ ] Clerk sale: as Counter Clerk at AP001, open `/Transactions/Create`, create a
+    mixed sale using a demo SKU such as DEMO001, choose payment, and submit.
+    Expect a paid transaction receipt with a UTC timestamp and reduced stock.
+[ ] Stock validation: as Branch Manager, use `/Stock` to adjust stock for AP002.
+    A valid adjustment is saved; a request that would make stock negative is
+    rejected. The low-stock notification/report uses configured thresholds.
+[ ] Catalogue: open `/Products` and `/Inventory/Index`. Expect the seeded
+    catalogue and branch stock to display.
+[ ] Branch scope: as the AP002 Branch Manager, open `/Reports` and
+    `/Transactions`. Expect AP002-scoped data. Try to open a known AP001 receipt
+    or perform an AP001 transaction action; expect access to be denied. A
+    manager cannot administer staff.
+[ ] Auditor: open `/Reports` and confirm cross-branch reports are visible. Try
+    `/Transactions/Create`, `/Stock`, and `/Staff`; expect authorization denial
+    for workflows outside the Auditor role.
+[ ] Administrator: with the loopback allowlist configured, open `/Staff`, add
+    or update a synthetic staff record, and verify it appears. Remove the
+    `Security__AdminAllowedIps__*` environment variables and retry in a new app
+    process; the staff endpoint should fail closed with 403. Restore them after
+    this check.
+[ ] Money order: as a Counter Clerk, open `/MoneyOrders/Create` and issue an
+    order. Confirm its fee appears on the transaction receipt. Issue an amount
+    above the configured 10,000 threshold and verify identity check is required
+    in the same order flow; use a masked document identifier in `XXXX1234` form.
+    Invalid/unmasked identifiers should be rejected.
+[ ] Void and refund: as a Branch Manager at the transaction's branch, open
+    `/Transactions`, then use separate Paid transactions to exercise void and
+    full refund, each with a reason. Verify state and reason update. Repeat
+    across branches and expect denial. A refund only records platform state; it
+    does not send money through a provider.
+[ ] Reports: create or adjust data, refresh `/Reports`, and verify daily sales,
+    low-stock, shipping-volume, and money-order/identity-verification sections
+    reflect repository data and the selected branch scope.
+[ ] Shipping label: create a parcel shipment from a counter sale, follow the
+    receipt's label preview link, and verify zone, service level, weight, and
+    calculated price are shown. This is a preview, not a carrier-ready label.
+[ ] Health and headers: open `/health` and expect a healthy response. Browser
+    developer tools can confirm security response headers are present.
+[ ] Maintenance: only if deliberately testing, set
+    `Maintenance__Enabled=true` in the local process environment and restart.
+    Expect the maintenance response and configured Retry-After; remove the
+    setting and restart to restore normal operation.
+
+7. COURIER INTEGRATION SECURITY CHECKS
+--------------------------------------
+The endpoint is `POST /api/integrations/courier/shipments/{shipmentId}/status`.
+It requires the locally configured `Integration:ApiKey`, a source address in
+`Integration:AllowedIps`, and uses `Integration:AllowedOrigin` for browser CORS.
+The API key is a secret and should be supplied through User Secrets or a secure
+deployment secret store, never committed. CORS limits browsers; it does not
+authenticate callers. The app uses the direct connection IP unless a trusted
+proxy setup is explicitly configured.
+
+After creating a shipment, obtain its ID from the local JSON data or the
+shipment view, then submit a local request using the same local-only key you
+entered above:
+
+    $key = Read-Host 'Enter the same local-only courier test key'
+    $headers = @{ 'X-Api-Key' = $key; 'Content-Type' = 'application/json' }
+    Invoke-RestMethod -Method Post -Uri 'https://localhost:57559/api/integrations/courier/shipments/<shipment-id>/status' -Headers $headers -Body '{"status":"In transit"}'
+
+Expected security outcomes: valid key and allowed IP update status; missing or
+wrong key returns 401; an address outside the allowlist returns 403; a
+protected endpoint with no configured server key fails closed with 500; an
+unapproved browser origin receives no CORS permission. Rate limiting may return
+429. Default simulated tracking completes quickly; setting
+`Shipping__SimulatedTrackingDelayMilliseconds` above the configured
+`Shipping__CourierTrackingTimeoutSeconds` limit demonstrates the 504 timeout.
+Restore defaults after this check.
+
+8. KNOWN LIMITATIONS
+--------------------
+- Courier tracking, payments, and notifications are simulations. Notifications
+  are process-local and are not persisted to a queue or inbox.
+- Refunds are full transaction-state changes only; there is no partial refund
+  or payment-provider reversal.
+- Shipping preview has no recipient postal-address model and is not carrier
+  ready.
+- JSON file locking and stock reservation coordinate one running process only.
+  Multi-file workflows are not crash-atomic; run a single application instance
+  and keep backups.
+- Existing legacy transactions without timestamps remain readable but are
+  excluded from date-based reports rather than assigned invented dates.
+
+RESULT RECORD
+-------------
+Date: __________________________    Tester: ______________________________
+
+Passed: ______    Failed: ______    Notes / issue references:
+___________________________________________________________________________
+___________________________________________________________________________
