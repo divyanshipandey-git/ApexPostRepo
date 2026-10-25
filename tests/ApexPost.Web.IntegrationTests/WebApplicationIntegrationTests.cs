@@ -449,6 +449,9 @@ public sealed class WebApplicationIntegrationTests
     public async Task CrossCuttingHeadersAndCorrelationIdAreApplied()
     {
         using var factory = new TestWebApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<IConfiguration>();
+        Assert.True(bool.Parse(configuration["Logging:Console:FormatterOptions:IncludeScopes"]!));
+
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
