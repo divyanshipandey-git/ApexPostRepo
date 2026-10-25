@@ -1,0 +1,78 @@
+@model ApexPost.Web.Models.Inventory.InventoryInquiryViewModel
+@{
+    ViewData["Title"] = "Inventory";
+}
+
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">Stock management</p>
+        <h1 id="page-title">Inventory inquiry</h1>
+        <p class="page-description">Check available stock at your branch by entering a branch code and product SKU.</p>
+    </div>
+    <span class="badge rounded-pill page-badge"><span class="status-dot" aria-hidden="true"></span> Stock lookup</span>
+</section>
+
+<section class="content-section" aria-labelledby="search-heading">
+    <div class="section-heading">
+        <h2 id="search-heading">Find an item</h2>
+        <p>Enter the branch and SKU exactly as shown in the product catalogue.</p>
+    </div>
+    <form asp-controller="Inventory" asp-action="Search" method="post" class="card shadow-sm surface-card inquiry-form">
+        <div asp-validation-summary="All" class="alert alert-danger validation-summary" role="alert"></div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Message))
+        {
+            <div class="alert alert-danger notice notice-error" role="alert">
+                <span class="notice-icon" aria-hidden="true">!</span>
+                <p>@Model.Message</p>
+            </div>
+        }
+
+        <div class="form-grid">
+            <div class="form-field">
+                <label asp-for="BranchCode"></label>
+                <input asp-for="BranchCode" class="form-control text-input" autocomplete="off" placeholder="e.g. IND01" />
+                <span asp-validation-for="BranchCode" class="invalid-feedback field-error"></span>
+            </div>
+            <div class="form-field">
+                <label asp-for="Sku"></label>
+                <input asp-for="Sku" class="form-control text-input" autocomplete="off" placeholder="e.g. ENV001" />
+                <span asp-validation-for="Sku" class="invalid-feedback field-error"></span>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary button button-primary">
+                <span aria-hidden="true">⌕</span> Check stock
+            </button>
+        </div>
+    </form>
+</section>
+
+@if (Model.Result is not null)
+{
+    <section class="content-section result-section" aria-labelledby="inventory-result-heading" aria-live="polite">
+        <div class="section-heading result-heading">
+            <div>
+                <p class="eyebrow">Inquiry complete</p>
+                <h2 id="inventory-result-heading">Stock result</h2>
+            </div>
+            <span class="badge rounded-pill availability-pill"><span class="status-dot" aria-hidden="true"></span> Record found</span>
+        </div>
+        <div class="card shadow-sm surface-card result-card">
+            <dl class="result-grid">
+                <div class="result-item">
+                    <dt>Branch</dt>
+                    <dd>@Model.Result.BranchName <span class="secondary-value">(@Model.Result.BranchCode)</span></dd>
+                </div>
+                <div class="result-item">
+                    <dt>Product</dt>
+                    <dd>@Model.Result.ProductName <span class="secondary-value">(@Model.Result.Sku)</span></dd>
+                </div>
+                <div class="result-item quantity-result">
+                    <dt>Quantity on hand</dt>
+                    <dd>@Model.Result.Quantity</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+}

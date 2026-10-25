@@ -1,0 +1,17 @@
+@model ApexPost.Web.Models.Stock.StockManagementViewModel
+@{
+    ViewData["Title"] = "Stock management";
+}
+<section class="page-heading"><p class="eyebrow">Branch operations</p><h1>Stock management</h1><p>Adjust branch stock quantities. Reductions cannot take stock below zero.</p></section>
+<section class="card surface-card mb-4"><div class="card-body">
+    <form asp-action="Adjust" method="post" class="row g-3">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <div class="col-md-4"><label for="BranchCode" class="form-label">Branch</label><select id="BranchCode" name="BranchCode" class="form-select">@foreach (var branch in Model.BranchCodes) { <option value="@branch" selected="@(branch == Model.BranchCode)">@branch</option> }</select></div>
+        <div class="col-md-4"><label for="Sku" class="form-label">Product</label><select id="Sku" name="Sku" class="form-select">@foreach (var product in Model.Products) { <option value="@product.Sku">@product.Name (@product.Sku)</option> }</select></div>
+        <div class="col-md-2"><label for="Adjustment" class="form-label">Change quantity</label><input id="Adjustment" name="Adjustment" type="number" min="-100000" max="100000" required class="form-control" value="@Model.Adjustment" /></div>
+        <div class="col-md-2 d-flex align-items-end"><button class="button button-primary" type="submit">Adjust stock</button></div>
+    </form>
+</div></section>
+<section class="card surface-card"><div class="card-body"><h2 class="section-title">On hand at @Model.BranchCode</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>SKU</th><th>Product</th><th>Quantity</th></tr></thead><tbody>
+@foreach (var row in Model.Rows) { <tr><th>@row.Sku</th><td>@row.ProductName</td><td>@row.Quantity</td></tr> }
+</tbody></table></div></div></section>

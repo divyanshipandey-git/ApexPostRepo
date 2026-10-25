@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10243a" />
+    <title>@ViewData["Title"] · ApexPost Counter Platform</title>
+    <script nonce="@Context.Items[ApexPost.Web.Middleware.SecurityHeadersMiddleware.CspNonceItemKey]">
+        (() => {
+            const key = "apexpost-theme";
+            let theme = null;
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved === "light" || saved === "dark") theme = saved;
+            } catch { /* Storage can be disabled by the browser. */ }
+
+            if (!theme) {
+                try {
+                    // Light is the fallback when system preference cannot be read.
+                    theme = window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                } catch { theme = "light"; }
+            }
+
+            document.documentElement.setAttribute("data-bs-theme", theme || "light");
+        })();
+    </script>
+    <link rel="stylesheet" href="~/lib/bootstrap/bootstrap.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="~/js/theme.js" asp-append-version="true" defer></script>
+</head>
+<body class="@(User.Identity?.IsAuthenticated == true ? "app-body" : "auth-body")">
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <header class="navbar navbar-expand-lg navbar-dark topbar" data-bs-theme="dark">
+            <a class="brand" asp-controller="Inventory" asp-action="Index" aria-label="ApexPost home">
+                <span class="brand-mark" aria-hidden="true">A</span>
+                <span class="brand-copy">
+                    <strong>ApexPost</strong>
+                    <span>Counter Platform</span>
+                </span>
+            </a>
+            <div class="staff-tools">
+                <div class="staff-identity" aria-label="Signed-in staff identity">
+                    <span class="identity-label">Signed in as</span>
+                    <strong>@User.FindFirst("StaffId")?.Value</strong>
+                    <span>@User.FindFirst("Role")?.Value · @User.FindFirst("BranchCode")?.Value</span>
+                </div>
+                <form asp-controller="Account" asp-action="Logout" method="post">
+                    <button class="button button-quiet" type="submit">Sign out</button>
+                </form>
+                <partial name="_ThemeToggle" />
+            </div>
+        </header>
+        <div class="app-frame">
+            <aside class="sidebar" aria-label="Staff navigation">
+                <details class="mobile-navigation">
+                    <summary>Navigation</summary>
+                    <partial name="_StaffNavigation" />
+                </details>
+                <div class="desktop-navigation">
+                    <p class="navigation-heading">Workspace</p>
+                    <partial name="_StaffNavigation" />
+                </div>
+            </aside>
+            <main class="page-content" id="main-content" tabindex="-1">
+                @RenderBody()
+            </main>
+        </div>
+        <footer class="app-footer">ApexPost Counter Platform <span>·</span> Staff workspace</footer>
+    }
+    else
+    {
+        <header class="auth-header">
+            <a class="brand brand-dark" asp-controller="Home" asp-action="Index" aria-label="ApexPost Counter Platform">
+                <span class="brand-mark" aria-hidden="true">A</span>
+                <span class="brand-copy">
+                    <strong>ApexPost</strong>
+                    <span>Counter Platform</span>
+                </span>
+            </a>
+            <partial name="_ThemeToggle" />
+        </header>
+        <main class="auth-content" id="main-content">
+            @RenderBody()
+        </main>
+        <footer class="auth-footer">Secure staff access</footer>
+    }
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

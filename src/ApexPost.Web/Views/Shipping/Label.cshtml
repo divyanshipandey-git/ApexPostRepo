@@ -1,0 +1,12 @@
+@model ApexPost.Domain.Entities.Shipment
+@{
+    ViewData["Title"] = "Shipping label preview";
+}
+<section class="page-heading"><p class="eyebrow">Shipping</p><h1>Label preview</h1><p>Review shipment details before printing the label.</p></section>
+<section class="card surface-card shipping-label"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-start"><div><p class="eyebrow">ApexPost Logistics</p><h2>@Model.ServiceLevel shipping</h2></div><div class="text-end"><strong>@Model.Id</strong><div>@Model.CreatedAtUtc?.ToString("u")</div></div></div>
+    <hr />
+    <dl class="row"><dt class="col-sm-3">Origin branch</dt><dd class="col-sm-9">@Model.BranchCode?.Value</dd><dt class="col-sm-3">Destination zone</dt><dd class="col-sm-9">@Model.DestinationZone</dd><dt class="col-sm-3">Item</dt><dd class="col-sm-9">@Model.ItemType</dd><dt class="col-sm-3">Weight</dt><dd class="col-sm-9">@Model.Weight.Kilograms.ToString("0.###") kg</dd><dt class="col-sm-3">Dimensions</dt><dd class="col-sm-9">@Model.LengthCm × @Model.WidthCm × @Model.HeightCm cm</dd></dl>
+    <div class="label-barcode" aria-label="Shipment identifier">@Model.Id</div>
+    <button class="button button-primary no-print" type="button" onclick="window.print()">Print label</button>
+</div></section>

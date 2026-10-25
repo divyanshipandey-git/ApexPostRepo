@@ -1,0 +1,22 @@
+@model ApexPost.Web.Models.MoneyOrders.MoneyOrderCreateViewModel
+@{
+    ViewData["Title"] = "Issue money order";
+}
+<section class="page-heading"><p class="eyebrow">Financial services</p><h1>Issue money order</h1><p>The order and any identity check are recorded with a paid counter transaction.</p></section>
+@if (Model.Message is not null) { <div class="alert alert-warning" role="alert">@Model.Message</div> }
+<section class="card surface-card"><div class="card-body">
+    <form asp-action="Create" method="post" class="row g-3">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <div class="col-md-6"><label asp-for="CounterId" class="form-label">Counter</label><select asp-for="CounterId" class="form-select"><option value="">Select counter</option>@foreach (var counter in Model.CounterOptions) { <option value="@counter.Id">@counter.Name</option> }</select><span asp-validation-for="CounterId" class="text-danger"></span></div>
+        <div class="col-md-6"><label asp-for="PaymentMethod" class="form-label">Payment method</label><select asp-for="PaymentMethod" class="form-select"><option>Cash</option><option>Card</option><option>Upi</option></select></div>
+        <div class="col-md-4"><label asp-for="Amount" class="form-label">Order amount</label><input asp-for="Amount" type="number" min="0.01" step="0.01" class="form-control" /><span asp-validation-for="Amount" class="text-danger"></span></div>
+        <div class="col-md-4"><label asp-for="SenderName" class="form-label">Sender</label><input asp-for="SenderName" class="form-control" /><span asp-validation-for="SenderName" class="text-danger"></span></div>
+        <div class="col-md-4"><label asp-for="RecipientName" class="form-label">Recipient</label><input asp-for="RecipientName" class="form-control" /><span asp-validation-for="RecipientName" class="text-danger"></span></div>
+        <div class="col-12"><h2 class="section-title">Identity verification</h2><p>Required above @Model.VerificationThreshold.ToString("C"). Record only a masked number.</p></div>
+        <div class="col-md-4"><label asp-for="DocumentType" class="form-label">Document type</label><input asp-for="DocumentType" class="form-control" /></div>
+        <div class="col-md-4"><label asp-for="MaskedDocumentNumber" class="form-label">Masked document number</label><input asp-for="MaskedDocumentNumber" placeholder="XXXX1234" class="form-control" /></div>
+        <div class="col-md-4 d-flex align-items-end"><div class="form-check mb-2"><input asp-for="IdentityVerified" class="form-check-input" /><label asp-for="IdentityVerified" class="form-check-label">Identity checked successfully</label></div></div>
+        <p class="form-hint">Fee: @Model.Fee.ToString("C"). The server applies the configured fee and verification policy.</p>
+        <div class="col-12"><button class="button button-primary" type="submit">Issue money order</button></div>
+    </form>
+</div></section>

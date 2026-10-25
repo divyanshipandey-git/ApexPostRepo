@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Application.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Web.IntegrationTests", "tests\ApexPost.Web.IntegrationTests\ApexPost.Web.IntegrationTests.csproj", "{E23977DD-9DFF-4039-A96A-739B0CE724A2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.DemoSeed", "tools\ApexPost.DemoSeed\ApexPost.DemoSeed.csproj", "{18987A99-BBA1-416F-A7AE-8EC41FF53F8B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,5 +52,9 @@ Global
 		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E23977DD-9DFF-4039-A96A-739B0CE724A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18987A99-BBA1-416F-A7AE-8EC41FF53F8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18987A99-BBA1-416F-A7AE-8EC41FF53F8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18987A99-BBA1-416F-A7AE-8EC41FF53F8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18987A99-BBA1-416F-A7AE-8EC41FF53F8B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

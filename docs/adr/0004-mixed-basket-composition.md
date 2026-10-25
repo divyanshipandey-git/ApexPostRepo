@@ -1,6 +1,6 @@
 # ADR-0004: Represent mixed baskets using composition
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Context:** One transaction can contain retail goods and services with different pricing and fulfillment rules.
-- **Decision:** Model transaction line items through composition and a common line-item abstraction/value contract rather than making all business concepts inherit from one deep class hierarchy.
-- **Consequences:** A basket can contain product and service lines while each type retains its own domain-specific data and pricing behavior. Serialization shape must be explicit.
+- **Decision:** Model a transaction as a collection of composed `TransactionLineItem` values with a retail/service discriminator. Keep shipment and money-order domain records separate and link them to the transaction by identifier.
+- **Consequences:** A basket can contain goods and services without a deep inheritance tree. Persisted line items have one explicit JSON shape; product/shipping/money-order policy remains in its owning service/domain type.

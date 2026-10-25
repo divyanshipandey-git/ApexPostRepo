@@ -1,6 +1,6 @@
 # ADR-0005: Use explicit pricing strategies and tax rules
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Context:** Shipping prices vary by weight, destination zone and service level; retail items have tax categories.
-- **Decision:** Use a shipping pricing strategy/rule abstraction and explicit tax calculation rules. Pattern matching and delegates may be used where they make the rule selection clearer; money arithmetic must be centralized and rounded consistently.
-- **Consequences:** Pricing can be unit-tested with exact expected values and extended without placing pricing logic in controllers.
+- **Decision:** Load destination/service shipping prices and tax rates from configuration into validated rule objects. `ShippingService` selects the exact destination/service rule and enforces the configured weight limit; transaction line items retain their tax category and tax-rate snapshot. `Money` centralizes two-decimal rounding.
+- **Consequences:** Controllers do not calculate prices. Domain/Application tests assert exact totals, and tariff/tax configuration can change without moving pricing rules into MVC.
