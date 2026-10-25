@@ -25,6 +25,16 @@ public sealed class JsonStaffCredentialRepository : IStaffCredentialRepository
         return credential?.PasswordHash;
     }
 
+    public Task AddPasswordHashAsync(
+        string staffId,
+        string passwordHash,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(staffId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
+        return _store.AddAsync(new StaffCredential(staffId.Trim(), passwordHash), cancellationToken);
+    }
+
     public Task AddAsync(
         StaffCredential credential,
         CancellationToken cancellationToken = default) =>

@@ -9,18 +9,21 @@ public sealed class MoneyOrderService
 {
     private readonly IMoneyOrderRepository _moneyOrderRepository;
     private readonly MoneyOrderPolicy _moneyOrderPolicy;
+    private readonly TimeProvider _timeProvider;
 
     public Money VerificationThreshold => _moneyOrderPolicy.VerificationThreshold;
 
     public MoneyOrderService(
         IMoneyOrderRepository moneyOrderRepository,
-        MoneyOrderPolicy moneyOrderPolicy)
+        MoneyOrderPolicy moneyOrderPolicy,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(moneyOrderRepository);
         ArgumentNullException.ThrowIfNull(moneyOrderPolicy);
 
         _moneyOrderRepository = moneyOrderRepository;
         _moneyOrderPolicy = moneyOrderPolicy;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<MoneyOrder> CreateAsync(
@@ -80,7 +83,11 @@ public sealed class MoneyOrderService
             recipientName,
             fee,
             identityVerification);
-        moneyOrder.AttachToTransaction(branchCode, transactionId, identityVerification);
+        moneyOrder.AttachToTransaction(
+            branchCode,
+            transactionId,
+            identityVerification,
+            _timeProvider.GetUtcNow());
         return moneyOrder;
     }
 

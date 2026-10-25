@@ -100,7 +100,8 @@ public sealed class DemoDataProvisioner
                 branchCode,
                 CounterId(branchCode.Value),
                 clerk.Id,
-                rates);
+                rates,
+                new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-(39 - index)), TimeSpan.Zero));
             transaction.AddLineItem(new TransactionLineItem(
                 product.Name,
                 "Retail",

@@ -5,6 +5,7 @@ using ApexPost.Infrastructure.Persistence;
 using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Infrastructure.Security;
 using ApexPost.Application.Abstractions.Security;
+using ApexPost.Application.Abstractions.Reports;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -61,6 +62,7 @@ public static class DependencyInjection
         services.TryAddSingleton<ICounterTransactionRepository, JsonCounterTransactionRepository>();
         services.TryAddSingleton<IShipmentRepository, JsonShipmentRepository>();
         services.TryAddSingleton<IMoneyOrderRepository, JsonMoneyOrderRepository>();
+        services.TryAddScoped<IReportDataSource, JsonReportDataSource>();
 
         return services;
     }

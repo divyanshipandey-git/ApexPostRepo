@@ -35,6 +35,9 @@ public sealed class CounterTransaction
     public string? Reason { get; private set; }
 
     [JsonInclude]
+    public DateTimeOffset? OccurredAtUtc { get; private set; }
+
+    [JsonInclude]
     public IEnumerable<TaxRate> TaxRates => _taxRates.Values;
 
     public Money Subtotal => new(
@@ -49,7 +52,8 @@ public sealed class CounterTransaction
         BranchCode branchCode,
         string counterId,
         string clerkId,
-        IEnumerable<TaxRate>? taxRates = null)
+        IEnumerable<TaxRate>? taxRates = null,
+        DateTimeOffset? occurredAtUtc = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(branchCode);
@@ -80,6 +84,7 @@ public sealed class CounterTransaction
         BranchCode = branchCode;
         CounterId = counterId.Trim();
         ClerkId = clerkId.Trim();
+        OccurredAtUtc = occurredAtUtc;
         Status = TransactionStatus.Open;
     }
 

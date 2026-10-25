@@ -227,12 +227,18 @@ public sealed class ReportingServiceTests
     }
 
     private static ReportTransaction Transaction(
-        string branch,
-        DateOnly date,
-        ReportSaleCategory category,
-        decimal total,
-        bool completed = true) =>
-        new(branch, UtcTimestamp(date), category, total, completed);
+    string branch,
+    DateOnly date,
+    ReportSaleCategory category,
+    decimal total,
+    bool completed = true) =>
+    new(
+        $"TXN-{branch}-{date:yyyyMMdd}-{category}-{total}",
+        branch,
+        UtcTimestamp(date),
+        category,
+        total,
+        completed);
 
     private static DateTimeOffset UtcTimestamp(DateOnly date) =>
         new(date.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);

@@ -10,11 +10,13 @@ public sealed class ShippingService
     private readonly IShipmentRepository _shipmentRepository;
     private readonly IReadOnlyCollection<ShippingPricingRule> _pricingRules;
     private readonly decimal _maximumWeightKg;
+    private readonly TimeProvider _timeProvider;
 
     public ShippingService(
         IShipmentRepository shipmentRepository,
         IEnumerable<ShippingPricingRule> pricingRules,
-        decimal maximumWeightKg = 30m)
+        decimal maximumWeightKg = 30m,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(pricingRules);
@@ -29,6 +31,7 @@ public sealed class ShippingService
         _shipmentRepository = shipmentRepository;
         _pricingRules = pricingRules.ToArray();
         _maximumWeightKg = maximumWeightKg;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public Money CalculatePrice(
@@ -94,7 +97,8 @@ public sealed class ShippingService
             destinationZone.Trim(),
             serviceLevel,
             branchCode,
-            counterTransactionId);
+            counterTransactionId,
+            _timeProvider.GetUtcNow());
 
         await _shipmentRepository.AddAsync(
             shipment,

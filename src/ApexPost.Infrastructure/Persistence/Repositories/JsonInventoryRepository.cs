@@ -172,6 +172,49 @@ public sealed class JsonInventoryRepository : IInventoryRepository
         return _store.UpdateAsync(stock, cancellationToken);
     }
 
+    public Task<InventoryStock?> AdjustQuantityAsync(
+        string branchCode,
+        string sku,
+        int adjustment,
+        CancellationToken cancellationToken = default)
+    {
+        if (adjustment == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(adjustment), "Stock adjustment cannot be zero.");
+        }
+
+        var normalizedBranch = new BranchCode(branchCode).Value;
+        var normalizedSku = new Sku(sku).Value;
+        return _store.MutateAllAsync(stocks =>
+        {
+            var stock = stocks.FirstOrDefault(item =>
+                string.Equals(item.BranchCode.Value, normalizedBranch, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.Sku.Value, normalizedSku, StringComparison.OrdinalIgnoreCase));
+            if (stock is null)
+            {
+                if (adjustment < 0)
+                {
+                    return (false, (InventoryStock?)null);
+                }
+
+                stock = new InventoryStock(new BranchCode(normalizedBranch), new Sku(normalizedSku), adjustment);
+                stocks.Add(stock);
+                return (true, (InventoryStock?)stock);
+            }
+
+            if (adjustment > 0)
+            {
+                stock.AddStock(adjustment);
+            }
+            else
+            {
+                stock.RemoveStock(checked(-adjustment));
+            }
+
+            return (true, (InventoryStock?)stock);
+        }, cancellationToken);
+    }
+
     private static (string BranchCode, Dictionary<string, int> Quantities) ValidateRequest(
         string branchCode,
         IReadOnlyDictionary<string, int> skuQuantities)

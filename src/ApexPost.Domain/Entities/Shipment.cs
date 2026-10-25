@@ -23,6 +23,9 @@ public sealed class Shipment
     [JsonInclude]
     public DateTimeOffset? CourierStatusUpdatedAtUtc { get; private set; }
 
+    [JsonInclude]
+    public DateTimeOffset? CreatedAtUtc { get; private set; }
+
     public Shipment(
         string id,
         string itemType,
@@ -33,7 +36,8 @@ public sealed class Shipment
         string destinationZone,
         ShippingServiceLevel serviceLevel,
         BranchCode? branchCode = null,
-        string? counterTransactionId = null)
+        string? counterTransactionId = null,
+        DateTimeOffset? createdAtUtc = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemType);
@@ -76,6 +80,12 @@ public sealed class Shipment
         CounterTransactionId = string.IsNullOrWhiteSpace(counterTransactionId)
             ? null
             : counterTransactionId.Trim();
+        if (createdAtUtc.HasValue && createdAtUtc.Value.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("Shipment timestamps must be UTC.", nameof(createdAtUtc));
+        }
+
+        CreatedAtUtc = createdAtUtc;
     }
 
     public void RecordCourierStatus(string status, DateTimeOffset receivedAtUtc)

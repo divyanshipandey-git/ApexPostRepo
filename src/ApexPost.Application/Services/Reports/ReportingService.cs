@@ -47,10 +47,46 @@ public sealed class ReportingService
         return new DailyBranchSalesReport(
             normalizedBranch,
             date,
-            completed.Length,
+            completed.Select(transaction => transaction.TransactionId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
             retail,
             services,
             retail + services);
+    }
+
+    public async Task<IReadOnlyList<DailyBranchSalesReport>> GetDailyBranchSalesReportsAsync(
+        DateOnly date,
+        string? branchCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var transactions = await _dataSource.GetTransactionsAsync(cancellationToken);
+
+        return transactions
+            .Where(transaction => transaction.IsCompleted &&
+                transaction.OccurredAt >= start && transaction.OccurredAt < end &&
+                (normalizedBranch is null || string.Equals(
+                    transaction.BranchCode,
+                    normalizedBranch,
+                    StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(transaction => NormalizeBranch(transaction.BranchCode), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new DailyBranchSalesReport(
+                group.Key,
+                date,
+                group.Select(transaction => transaction.TransactionId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count(),
+                group.Where(transaction => transaction.Category == ReportSaleCategory.Retail)
+                    .Sum(transaction => transaction.Total),
+                group.Where(transaction => transaction.Category == ReportSaleCategory.Service)
+                    .Sum(transaction => transaction.Total),
+                group.Sum(transaction => transaction.Total)))
+            .OrderBy(report => report.BranchCode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockReportAsync(
@@ -126,12 +162,14 @@ public sealed class ReportingService
     public async Task<IReadOnlyList<BranchServiceActivityReport>>
         GetBranchServiceActivityReportAsync(
             DateOnly date,
+            string? branchCode = null,
             CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
 
         var moneyOrdersTask = _dataSource.GetMoneyOrdersAsync(cancellationToken);
         var verificationsTask = _dataSource.GetIdentityVerificationsAsync(cancellationToken);
@@ -139,12 +177,20 @@ public sealed class ReportingService
         await Task.WhenAll(moneyOrdersTask, verificationsTask);
 
         var moneyOrders = (await moneyOrdersTask)
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end)
+            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
+                (normalizedBranch is null || string.Equals(
+                    item.BranchCode,
+                    normalizedBranch,
+                    StringComparison.OrdinalIgnoreCase)))
             .GroupBy(item => NormalizeBranch(item.BranchCode))
             .ToDictionary(group => group.Key, group => group.Count());
 
         var verifications = (await verificationsTask)
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end)
+            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
+                (normalizedBranch is null || string.Equals(
+                    item.BranchCode,
+                    normalizedBranch,
+                    StringComparison.OrdinalIgnoreCase)))
             .GroupBy(item => NormalizeBranch(item.BranchCode))
             .ToDictionary(group => group.Key, group => group.Count());
 

@@ -7,7 +7,20 @@ public sealed class InventoryStock
 {
     public BranchCode BranchCode { get; }
     public Sku Sku { get; }
-    public int Quantity { get; private set; }
+    public int Quantity
+    {
+        get;
+        private set
+        {
+            // Keep the invariant at the assignment boundary, including JSON rehydration and domain mutations.
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Stock quantity cannot be negative.");
+            }
+
+            field = value;
+        }
+    }
 
     public InventoryStock(
         BranchCode branchCode,
@@ -16,13 +29,6 @@ public sealed class InventoryStock
     {
         ArgumentNullException.ThrowIfNull(branchCode);
         ArgumentNullException.ThrowIfNull(sku);
-
-        if (quantity < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(quantity),
-                "Stock quantity cannot be negative.");
-        }
 
         BranchCode = branchCode;
         Sku = sku;

@@ -8,6 +8,7 @@ public enum ReportSaleCategory
 }
 
 public sealed record ReportTransaction(
+    string TransactionId,
     string BranchCode,
     DateTimeOffset OccurredAt,
     ReportSaleCategory Category,

@@ -1,19 +1,43 @@
+@model ApexPost.Web.Models.Home.BranchDashboardViewModel
 @{
-    ViewData["Title"] = "ApexPost Counter Platform";
+    ViewData["Title"] = "Branch dashboard";
 }
 
 <section class="page-heading" aria-labelledby="page-title">
-    <div>
-        <p class="eyebrow">Staff workspace</p>
-        <h1 id="page-title">ApexPost Counter Platform</h1>
-        <p class="page-description">Your tools for dependable service at the counter.</p>
-    </div>
+    <p class="eyebrow">Branch dashboard · @Model.BranchCode</p>
+    <h1 id="page-title">Today's operations</h1>
+    <p class="page-description">Daily totals for @Model.Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture).</p>
 </section>
-<section class="card surface-card welcome-card">
-    <span class="welcome-icon" aria-hidden="true">▦</span>
-    <div>
-        <h2>Inventory is ready</h2>
-        <p>Look up available products and stock for your branch.</p>
-        <a class="btn btn-primary button button-primary" asp-controller="Inventory" asp-action="Index">Open inventory</a>
+
+<section class="dashboard-grid" aria-label="Daily branch totals">
+    <article class="card surface-card"><div class="card-body"><h2>Transactions</h2><p class="dashboard-value">@Model.TransactionCount</p></div></article>
+    <article class="card surface-card"><div class="card-body"><h2>Retail sales</h2><p class="dashboard-value">@Model.RetailSales.ToString("C")</p></div></article>
+    <article class="card surface-card"><div class="card-body"><h2>Service sales</h2><p class="dashboard-value">@Model.ServiceSales.ToString("C")</p></div></article>
+    <article class="card surface-card"><div class="card-body"><h2>Total sales</h2><p class="dashboard-value">@Model.TotalSales.ToString("C")</p></div></article>
+</section>
+
+<section class="card shadow-sm surface-card mt-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div><h2 class="section-title">Low stock</h2><p class="section-copy">Items at or below the reorder level of 5.</p></div>
+            <a class="button button-secondary" asp-controller="Inventory" asp-action="Index">Open inventory</a>
+        </div>
+        @if (Model.LowStockItems.Count == 0)
+        {
+            <p class="alert alert-success mb-0" role="status">No products are currently at the low-stock threshold.</p>
+        }
+        else
+        {
+            <div class="table-responsive"><table class="table align-middle">
+                <caption class="visually-hidden">Low stock items for @Model.BranchCode</caption>
+                <thead><tr><th scope="col">SKU</th><th scope="col">Product</th><th scope="col">Available</th><th scope="col">Reorder level</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.LowStockItems)
+                {
+                    <tr><th scope="row">@item.Sku</th><td>@item.ProductName</td><td>@item.QuantityOnHand</td><td>@item.ReorderLevel</td></tr>
+                }
+                </tbody>
+            </table></div>
+        }
     </div>
 </section>

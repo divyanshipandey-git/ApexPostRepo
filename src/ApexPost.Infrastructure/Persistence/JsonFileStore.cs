@@ -8,6 +8,7 @@ namespace ApexPost.Infrastructure.Persistence;
 public sealed class JsonFileStore<TEntity>
     where TEntity : class
 {
+    // Static gates coordinate this process only; they do not protect a shared directory from another process.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> FileGates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -33,7 +34,7 @@ public sealed class JsonFileStore<TEntity>
     }
 
     public async Task<TResult> MutateAllAsync<TResult>(
-        Func<IReadOnlyList<TEntity>, (bool ShouldWrite, TResult Result)> mutation,
+        Func<List<TEntity>, (bool ShouldWrite, TResult Result)> mutation,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mutation);
@@ -216,6 +217,7 @@ public sealed class JsonFileStore<TEntity>
 
         try
         {
+            // Replace one entity file atomically where supported; separate repository files are not one transaction.
             await using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,

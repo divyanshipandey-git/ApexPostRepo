@@ -74,7 +74,7 @@ public sealed class AccountController : Controller
             return LocalRedirect(model.ReturnUrl);
         }
 
-        return RedirectToAction("Index", "Inventory");
+        return RedirectToAction("Index", "Home");
     }
 
     [Authorize]

@@ -23,7 +23,7 @@
             @if (!string.IsNullOrWhiteSpace(Model.ShipmentId))
             {
                 <dt class="col-sm-4">Shipment reference</dt>
-                <dd class="col-sm-8">@Model.ShipmentId</dd>
+                <dd class="col-sm-8">@Model.ShipmentId <a asp-controller="Shipping" asp-action="Label" asp-route-id="@Model.ShipmentId">Preview label</a></dd>
             }
         </dl>
         <div class="table-responsive">

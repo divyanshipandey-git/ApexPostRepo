@@ -21,6 +21,9 @@ public sealed class MoneyOrder
     [JsonInclude]
     public IdentityVerification? IdentityVerification { get; private set; }
 
+    [JsonInclude]
+    public DateTimeOffset? CreatedAtUtc { get; private set; }
+
     public MoneyOrder(
         string id,
         Money amount,
@@ -60,7 +63,8 @@ public sealed class MoneyOrder
     public void AttachToTransaction(
         BranchCode branchCode,
         string transactionId,
-        IdentityVerification? identityVerification)
+        IdentityVerification? identityVerification,
+        DateTimeOffset createdAtUtc)
     {
         ArgumentNullException.ThrowIfNull(branchCode);
         ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
@@ -70,8 +74,14 @@ public sealed class MoneyOrder
             throw new InvalidOperationException("A money order can only be attached to one counter transaction.");
         }
 
+        if (createdAtUtc.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("Money order timestamps must be UTC.", nameof(createdAtUtc));
+        }
+
         BranchCode = branchCode.Value;
         TransactionId = transactionId.Trim();
         IdentityVerification = identityVerification;
+        CreatedAtUtc = createdAtUtc;
     }
 }
