@@ -15,7 +15,7 @@ This matrix maps the authoritative `apexpost.txt` requirements to implementation
 | 48 | Stock never negative; insufficient-stock sale rejected | Verified | Atomic all-lines reservation in `JsonInventoryRepository`; `InventoryStockTests`, `JsonInventoryRepositoryTests`, and insufficient-stock integration test. Same-process only; multi-process JSON writes are documented as unsafe. |
 | 49 | Inactive staff blocked; clerk limited to assigned branch | Verified | Current staff record is reloaded and checked in Application services; `CounterSaleServiceTests`, `StaffServiceTests`, and authorization integration tests. |
 | 50 | Above-threshold order needs successful identity verification in same transaction | Verified | `CounterSaleService` persists the verification with the linked order and paid transaction; integration tests cover missing/invalid verification and successful PRG. |
-| 51 | Reject parcel above maximum weight for service level | Verified | `ShippingService` validates configured maximum; `ShippingServiceTests` and `ShipmentTests`. |
+| 51 | Reject parcel above maximum weight for service level | Partial | `ShippingService` and the counter-sale workflow reject parcels above `Shipping:MaximumWeightKg`; `ShippingServiceTests`, `ShipmentTests`, and counter-sale tests cover the rejection. The current configuration is one shared 30 kg limit for Standard, Express, and Registered rather than independently configurable per-level limits. The assignment gives no tier-specific values, so this remains an explicit configuration gap rather than inventing limits. |
 | 52 | Branch Manager void/refund with reason | Verified | `TransactionVoidService`, `TransactionRefundService`, transaction pages; tests cover clerk denial, branch restrictions, reasons and state. Administrator has the documented elevated cross-branch path. Refund is a state record, not a payment reversal; void does not restore inventory. |
 | 53 | Closed branch cannot accept transaction | Verified | Branch/counter validation in `CounterSaleService`; integration coverage includes closed branch rejection. |
 | 56 | Daily branch sales split retail/services | Verified | `ReportingService`, `JsonReportDataSource`, `/Reports`; reporting tests. Transactions without occurrence time are excluded. |
@@ -105,5 +105,6 @@ This matrix maps the authoritative `apexpost.txt` requirements to implementation
 - Existing timestamp-free transactions are preserved and excluded from date-based reports.
 - Administrator staff pages require `Security:AdminAllowedIps`; integration routes require API key and IP/origin configuration.
 - Product cache misses are not coalesced and missing SKUs are not negatively cached; no catalogue write route currently exists. Future writes must call `Invalidate()`.
+- Parcel weight validation uses one configured 30 kg maximum for all service levels; per-level limits are not modeled because the assignment does not supply tier values.
 - Notifications are in-memory observer messages, not durable or operator-visible.
 - GitHub pull request review remains a manual step.
