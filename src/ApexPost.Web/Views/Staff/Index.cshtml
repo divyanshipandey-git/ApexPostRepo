@@ -1,0 +1,36 @@
+@model ApexPost.Web.Models.Staff.StaffManagementViewModel
+@{
+    ViewData["Title"] = "Staff management";
+}
+<section class="page-heading">
+    <p class="eyebrow">Administration</p>
+    <h1>Staff management</h1>
+    <p>Create staff accounts, update assignments and deactivate access.</p>
+</section>
+<section class="card surface-card mb-4"><div class="card-body">
+    <h2 class="section-title">@(string.IsNullOrWhiteSpace(Model.StaffId) ? "Add staff member" : "Update staff member")</h2>
+    <form asp-action="Save" method="post" class="row g-3">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <input asp-for="StaffId" type="hidden" />
+        <div class="col-md-6"><label asp-for="Name" class="form-label"></label><input asp-for="Name" class="form-control" /><span asp-validation-for="Name" class="text-danger"></span></div>
+        <div class="col-md-6"><label asp-for="Email" class="form-label"></label><input asp-for="Email" class="form-control" /><span asp-validation-for="Email" class="text-danger"></span></div>
+        <div class="col-md-4"><label asp-for="Role" class="form-label"></label><select asp-for="Role" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Entities.StaffRole>()" class="form-select"></select></div>
+        <div class="col-md-4"><label asp-for="BranchCode" class="form-label">Home branch</label><select asp-for="BranchCode" class="form-select"><option value="">Choose branch</option>@foreach (var branch in Model.BranchCodes) { <option value="@branch">@branch</option> }</select></div>
+        @if (string.IsNullOrWhiteSpace(Model.StaffId))
+        {
+            <div class="col-md-4"><label asp-for="InitialPassword" class="form-label">Initial password</label><input asp-for="InitialPassword" type="password" autocomplete="new-password" class="form-control" /><span asp-validation-for="InitialPassword" class="text-danger"></span></div>
+        }
+        <div class="col-12"><button class="button button-primary" type="submit">Save staff member</button></div>
+    </form>
+</div></section>
+<section class="card surface-card"><div class="card-body"><h2 class="section-title">Staff accounts</h2>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    @foreach (var staff in Model.Staff)
+    {
+        <tr><th>@staff.Id</th><td>@staff.Name</td><td>@staff.Email</td><td>@staff.Role</td><td>@staff.BranchCode</td><td>@(staff.IsActive ? "Active" : "Inactive")</td><td class="d-flex gap-2">
+            <a class="button button-secondary" asp-action="Edit" asp-route-id="@staff.Id">Edit</a>
+            <form asp-action="SetActive" method="post"><input type="hidden" name="staffId" value="@staff.Id" /><input type="hidden" name="active" value="@(!staff.IsActive)" /><button class="button button-secondary" type="submit">@(staff.IsActive ? "Deactivate" : "Activate")</button></form>
+        </td></tr>
+    }
+    </tbody></table></div>
+</div></section>

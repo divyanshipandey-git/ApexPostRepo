@@ -1,0 +1,86 @@
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var dashboardIsActive = string.Equals(controller, "Home", StringComparison.OrdinalIgnoreCase);
+    var inventoryIsActive = string.Equals(controller, "Inventory", StringComparison.OrdinalIgnoreCase);
+    var reportsIsActive = string.Equals(controller, "Reports", StringComparison.OrdinalIgnoreCase);
+    var transactionsIsActive = string.Equals(controller, "Transactions", StringComparison.OrdinalIgnoreCase);
+    var moneyOrdersIsActive = string.Equals(controller, "MoneyOrders", StringComparison.OrdinalIgnoreCase);
+    var action = ViewContext.RouteData.Values["action"]?.ToString();
+    var newTransactionIsActive = transactionsIsActive && (action is "Create" or "Receipt");
+    var canCreateTransactions = User.IsInRole("CounterClerk") || User.IsInRole("BranchManager") || User.IsInRole("Administrator");
+    var canManageTransactions = User.IsInRole("BranchManager") || User.IsInRole("Administrator");
+    var canViewReports = canManageTransactions || User.IsInRole("Auditor");
+    var canManageStock = canManageTransactions;
+    var canManageStaff = User.IsInRole("Administrator");
+    var productsIsActive = string.Equals(controller, "Products", StringComparison.OrdinalIgnoreCase);
+    var stockIsActive = string.Equals(controller, "Stock", StringComparison.OrdinalIgnoreCase);
+    var staffIsActive = string.Equals(controller, "Staff", StringComparison.OrdinalIgnoreCase);
+}
+
+<nav class="nav flex-column primary-navigation" aria-label="Primary">
+    <a asp-controller="Home" asp-action="Index"
+       class="nav-link navigation-link @(dashboardIsActive ? "is-active active" : string.Empty)"
+       aria-current="@(dashboardIsActive ? "page" : null)">
+        <span class="navigation-icon" aria-hidden="true">⌂</span>
+        <span>Dashboard</span>
+    </a>
+    <a asp-controller="Inventory" asp-action="Index"
+       class="nav-link navigation-link @(inventoryIsActive ? "is-active active" : string.Empty)"
+       aria-current="@(inventoryIsActive ? "page" : null)">
+        <span class="navigation-icon" aria-hidden="true">▦</span>
+        <span>Inventory</span>
+    </a>
+    <a asp-controller="Products" asp-action="Index"
+       class="nav-link navigation-link @(productsIsActive ? "is-active active" : string.Empty)"
+       aria-current="@(productsIsActive ? "page" : null)">
+        <span class="navigation-icon" aria-hidden="true">SKU</span><span>Product catalogue</span>
+    </a>
+    @if (canManageStock)
+    {
+        <a asp-controller="Stock" asp-action="Index"
+           class="nav-link navigation-link @(stockIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(stockIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">ST</span><span>Stock management</span>
+        </a>
+    }
+    @if (canManageStaff)
+    {
+        <a asp-controller="Staff" asp-action="Index"
+           class="nav-link navigation-link @(staffIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(staffIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">ID</span><span>Staff management</span>
+        </a>
+    }
+    @if (canCreateTransactions)
+    {
+        <a asp-controller="Transactions" asp-action="Create"
+           class="nav-link navigation-link @(newTransactionIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(newTransactionIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">$</span>
+            <span>New transaction</span>
+        </a>
+        <a asp-controller="MoneyOrders" asp-action="Create"
+           class="nav-link navigation-link @(moneyOrdersIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(moneyOrdersIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">MO</span><span>Money orders</span>
+        </a>
+    }
+    @if (canManageTransactions)
+    {
+        <a asp-controller="Transactions" asp-action="Index"
+           class="nav-link navigation-link @(transactionsIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(transactionsIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">TX</span>
+            <span>Counter transactions</span>
+        </a>
+    }
+    @if (canViewReports)
+    {
+        <a asp-controller="Reports" asp-action="Index"
+           class="nav-link navigation-link @(reportsIsActive ? "is-active active" : string.Empty)"
+           aria-current="@(reportsIsActive ? "page" : null)">
+            <span class="navigation-icon" aria-hidden="true">▤</span>
+            <span>Reports</span>
+        </a>
+    }
+</nav>

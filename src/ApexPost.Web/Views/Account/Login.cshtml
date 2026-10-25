@@ -1,0 +1,64 @@
+@model ApexPost.Web.Models.Account.LoginViewModel
+@{
+    ViewData["Title"] = "Staff login";
+}
+
+<section class="login-shell" aria-labelledby="login-title">
+    <aside class="login-aside" aria-label="ApexPost service information">
+        <a class="brand login-brand" asp-controller="Home" asp-action="Index" aria-label="ApexPost Counter Platform">
+            <span class="brand-mark" aria-hidden="true">A</span>
+            <span class="brand-copy">
+                <strong>ApexPost</strong>
+                <span>Counter Platform</span>
+            </span>
+        </a>
+        <div class="logistics-art" aria-hidden="true">
+            <span class="route-line route-line-one"></span>
+            <span class="route-line route-line-two"></span>
+            <span class="route-node route-node-one"></span>
+            <span class="route-node route-node-two"></span>
+            <span class="route-node route-node-three"></span>
+            <span class="parcel-illustration"><span></span></span>
+        </div>
+        <div class="login-aside-copy">
+            <p class="eyebrow">ApexPost staff workspace</p>
+            <h2>Every counter, connected.</h2>
+            <p>Manage branch inventory and counter services from one secure workspace.</p>
+        </div>
+    </aside>
+    <div class="card shadow-sm login-card">
+        <div class="login-heading">
+            <p class="eyebrow">Secure staff access</p>
+            <h1 id="login-title">Welcome back</h1>
+            <p>Sign in with your staff account to continue to the counter platform.</p>
+        </div>
+        <form asp-controller="Account" asp-action="Login" method="post" class="login-form" id="login-form">
+            <input asp-for="ReturnUrl" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger validation-summary" role="alert"></div>
+            <div class="form-field">
+                <label asp-for="Email">Email address</label>
+                <input asp-for="Email" class="form-control text-input" autocomplete="username" inputmode="email" placeholder="name@apexpost.example" autofocus />
+                <span asp-validation-for="Email" class="invalid-feedback field-error"></span>
+            </div>
+            <div class="form-field">
+                <label asp-for="Password"></label>
+                <div class="password-control">
+                    <input asp-for="Password" class="form-control text-input" autocomplete="current-password" aria-describedby="password-hint" />
+                    <button class="password-toggle" type="button" id="password-toggle" aria-controls="Password" aria-pressed="false">Show</button>
+                </div>
+                <span asp-validation-for="Password" class="invalid-feedback field-error"></span>
+                <span id="password-hint" class="visually-hidden">Password is hidden. Use Show to reveal it temporarily.</span>
+            </div>
+            <button type="submit" class="btn btn-primary button button-primary button-wide" id="login-submit">
+                <span class="submit-label">Sign in securely</span>
+                <span class="submit-pending" aria-hidden="true"></span>
+            </button>
+            <span class="visually-hidden" id="login-status" role="status" aria-live="polite"></span>
+        </form>
+        <p class="login-support">Access is restricted to authorized ApexPost staff.</p>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/login.js" asp-append-version="true" defer></script>
+}
