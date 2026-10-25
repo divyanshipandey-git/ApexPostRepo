@@ -1,8 +1,10 @@
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Notifications;
+using ApexPost.Application.Validation;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.MoneyOrders;
+using ApexPost.Application.Services.Products;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 
@@ -24,6 +26,7 @@ public sealed class CounterSaleService
     private readonly MoneyOrderService _moneyOrderService;
     private readonly MoneyOrderSettings _moneyOrderSettings;
     private readonly INotificationService _notifications;
+    private readonly ProductCatalogCache? _productCatalogCache;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -38,7 +41,8 @@ public sealed class CounterSaleService
         MoneyOrderSettings moneyOrderSettings,
         INotificationService notifications,
         IEnumerable<TaxRate> taxRates,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ProductCatalogCache? productCatalogCache = null)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
         ArgumentNullException.ThrowIfNull(inventoryRepository);
@@ -67,6 +71,7 @@ public sealed class CounterSaleService
         _notifications = notifications;
         _taxRates = taxRates.ToArray();
         _timeProvider = timeProvider;
+        _productCatalogCache = productCatalogCache;
     }
 
     public async Task<CounterSaleResult> CompleteAsync(
@@ -76,7 +81,7 @@ public sealed class CounterSaleService
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(authenticatedStaff);
-        if (!IsValidRequest(request))
+        if (!AttributeObjectValidator.TryValidateObjectGraph(request, out _) || !IsValidRequest(request))
         {
             return new CounterSaleResult(CounterSaleStatus.InvalidRequest);
         }
@@ -151,7 +156,9 @@ public sealed class CounterSaleService
 
         foreach (var (sku, quantity) in quantities)
         {
-            var product = await _productRepository.GetBySkuAsync(sku, cancellationToken);
+            var product = _productCatalogCache is null
+                ? await _productRepository.GetBySkuAsync(sku, cancellationToken)
+                : await _productCatalogCache.GetBySkuAsync(sku, cancellationToken);
             if (product is null)
             {
                 return new CounterSaleResult(CounterSaleStatus.InvalidProduct);
@@ -235,7 +242,8 @@ public sealed class CounterSaleService
             branchCode,
             counter.Id,
             staff.Id,
-            _taxRates);
+            _taxRates,
+            _timeProvider.GetUtcNow());
 
         foreach (var (product, quantity) in products)
         {
@@ -285,6 +293,7 @@ public sealed class CounterSaleService
         InventoryReservation? inventoryReservation = null;
         if (quantities.Count > 0)
         {
+            // Reserve the complete basket before writing linked records so concurrent sales cannot oversell stock.
             var reservationResult = await _inventoryRepository.TryReserveAsync(
                 branchCode.Value,
                 quantities,
@@ -337,6 +346,7 @@ public sealed class CounterSaleService
         }
         catch (Exception persistenceException)
         {
+            // Compensation uses a non-cancelable token so a disconnected client cannot strand reserved stock.
             try
             {
                 if (shipmentPersisted)
@@ -426,7 +436,9 @@ public sealed class CounterSaleService
             return null;
         }
 
-        var productsTask = _productRepository.GetAllAsync(cancellationToken);
+        var productsTask = _productCatalogCache is null
+            ? _productRepository.GetAllAsync(cancellationToken)
+            : _productCatalogCache.GetAllAsync(cancellationToken);
         var countersTask = _counterRepository.GetByBranchAsync(branchCode.Value, cancellationToken);
         await Task.WhenAll(productsTask, countersTask);
         var products = await productsTask;

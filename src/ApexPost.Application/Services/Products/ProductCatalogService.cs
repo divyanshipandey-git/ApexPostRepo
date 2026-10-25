@@ -7,15 +7,21 @@ namespace ApexPost.Application.Services.Products;
 
 public sealed class ProductCatalogService
 {
-    private readonly IProductRepository _productRepository;
+    private readonly ProductCatalogCache _cache;
 
     public ProductCatalogService(IProductRepository productRepository)
+        : this(productRepository, new ProductCatalogCache(productRepository, TimeProvider.System))
     {
-        ArgumentNullException.ThrowIfNull(productRepository);
-        _productRepository = productRepository;
     }
 
-    public async Task<Product?> GetBySkuAsync(
+    public ProductCatalogService(IProductRepository productRepository, ProductCatalogCache cache)
+    {
+        ArgumentNullException.ThrowIfNull(productRepository);
+        ArgumentNullException.ThrowIfNull(cache);
+        _cache = cache;
+    }
+
+    public ValueTask<Product?> GetBySkuAsync(
         string sku,
         CancellationToken cancellationToken = default)
     {
@@ -23,14 +29,12 @@ public sealed class ProductCatalogService
 
         var validatedSku = new Sku(sku);
 
-        return await _productRepository.GetBySkuAsync(
-            validatedSku.Value,
-            cancellationToken);
+        return _cache.GetBySkuAsync(validatedSku.Value, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Product>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        return await _productRepository.GetAllAsync(cancellationToken);
+        return await _cache.GetAllAsync(cancellationToken);
     }
 }

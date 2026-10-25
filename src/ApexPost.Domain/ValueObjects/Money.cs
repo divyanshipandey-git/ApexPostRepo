@@ -9,7 +9,7 @@ public sealed record Money
 
     public Money(decimal amount)
     {
-        Amount = decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
+        Amount = amount.ToCurrencyPrecision();
     }
 
     public static Money Zero => new(0m);

@@ -9,6 +9,7 @@ using ApexPost.Application.Services.Notifications;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Notifications;
+using ApexPost.Application.Services.Reports;
 using ApexPost.Domain.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -27,9 +28,11 @@ public static class DependencyInjection
         services.TryAddSingleton(new MoneyOrderPolicy(moneyOrderSettings.VerificationThreshold));
         services.TryAddScoped<BranchService>();
         services.TryAddScoped<ProductCatalogService>();
+        services.TryAddSingleton<ProductCatalogCache>();
         services.TryAddScoped<InventoryService>();
         services.TryAddScoped<InventoryInquiryService>();
         services.TryAddScoped<StaffAuthenticationService>();
+        services.TryAddScoped<StaffService>();
         services.TryAddScoped<MoneyOrderService>();
         services.TryAddScoped<CourierStatusService>();
         services.TryAddScoped<ShippingService>(provider => new ShippingService(
@@ -38,6 +41,8 @@ public static class DependencyInjection
         services.TryAddScoped<CounterSaleService>();
         services.TryAddScoped<TransactionVoidService>();
         services.TryAddScoped<TransactionRefundService>();
+        services.TryAddScoped<ReportingService>();
+        services.TryAddScoped<BranchDashboardService>();
         services.TryAddSingleton<SimulatedNotificationService>();
         services.TryAddSingleton<INotificationService>(provider =>
             provider.GetRequiredService<SimulatedNotificationService>());

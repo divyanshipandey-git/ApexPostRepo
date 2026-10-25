@@ -5,5 +5,6 @@ public enum CourierStatusUpdateStatus
     Updated,
     ShipmentNotFound,
     InvalidShipmentId,
-    InvalidStatus
+    InvalidStatus,
+    TimedOut
 }

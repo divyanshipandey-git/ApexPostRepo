@@ -4,15 +4,28 @@ namespace ApexPost.Application.Services.Shipping;
 
 public sealed class CourierStatusService
 {
+    private static readonly SemaphoreSlim TrackingLookupGate = new(4, 4);
     private readonly IShipmentRepository _shipmentRepository;
     private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _lookupTimeout;
+    private readonly TimeSpan _simulatedLookupDelay;
 
-    public CourierStatusService(IShipmentRepository shipmentRepository, TimeProvider timeProvider)
+    public CourierStatusService(
+        IShipmentRepository shipmentRepository,
+        TimeProvider timeProvider,
+        TimeSpan? lookupTimeout = null,
+        TimeSpan? simulatedLookupDelay = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _shipmentRepository = shipmentRepository;
         _timeProvider = timeProvider;
+        _lookupTimeout = lookupTimeout ?? TimeSpan.FromSeconds(2);
+        _simulatedLookupDelay = simulatedLookupDelay ?? TimeSpan.Zero;
+        if (_lookupTimeout <= TimeSpan.Zero || _simulatedLookupDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lookupTimeout));
+        }
     }
 
     public async Task<CourierStatusUpdateResult> UpdateAsync(
@@ -36,22 +49,49 @@ public sealed class CourierStatusService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var shipment = await _shipmentRepository.GetByIdAsync(shipmentId, cancellationToken);
-        if (shipment is null)
+        using var timeoutSource = new CancellationTokenSource(_lookupTimeout, _timeProvider);
+        using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            timeoutSource.Token);
+        var gateEntered = false;
+        try
         {
-            return new CourierStatusUpdateResult(CourierStatusUpdateStatus.ShipmentNotFound);
+            await TrackingLookupGate.WaitAsync(linkedSource.Token);
+            gateEntered = true;
+            if (_simulatedLookupDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(_simulatedLookupDelay, _timeProvider, linkedSource.Token);
+            }
+
+            var shipment = await _shipmentRepository.GetByIdAsync(shipmentId, linkedSource.Token);
+            if (shipment is null)
+            {
+                return new CourierStatusUpdateResult(CourierStatusUpdateStatus.ShipmentNotFound);
+            }
+
+            var receivedAtUtc = _timeProvider.GetUtcNow();
+            var normalizedStatus = status!.Trim();
+            shipment.RecordCourierStatus(normalizedStatus, receivedAtUtc);
+            await _shipmentRepository.UpdateAsync(shipment, linkedSource.Token);
+
+            return new CourierStatusUpdateResult(
+                CourierStatusUpdateStatus.Updated,
+                shipment.Id,
+                shipment.CourierStatus,
+                receivedAtUtc);
         }
-
-        var receivedAtUtc = _timeProvider.GetUtcNow();
-        var normalizedStatus = status!.Trim();
-        shipment.RecordCourierStatus(normalizedStatus, receivedAtUtc);
-        await _shipmentRepository.UpdateAsync(shipment, cancellationToken);
-
-        return new CourierStatusUpdateResult(
-            CourierStatusUpdateStatus.Updated,
-            shipment.Id,
-            shipment.CourierStatus,
-            receivedAtUtc);
+        // A partner/client cancellation is not a failed courier lookup; only the service-owned deadline maps to 504.
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
+        {
+            return new CourierStatusUpdateResult(CourierStatusUpdateStatus.TimedOut);
+        }
+        finally
+        {
+            if (gateEntered)
+            {
+                TrackingLookupGate.Release();
+            }
+        }
     }
 
     private static bool IsValidStatus(string? status)

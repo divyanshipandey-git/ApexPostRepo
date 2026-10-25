@@ -42,6 +42,7 @@ public sealed class CourierIntegrationController(CourierStatusService courierSta
                 result.CourierStatus!,
                 result.ReceivedAtUtc!.Value)),
             CourierStatusUpdateStatus.ShipmentNotFound => NotFoundProblem(),
+            CourierStatusUpdateStatus.TimedOut => StatusCode(StatusCodes.Status504GatewayTimeout),
             CourierStatusUpdateStatus.InvalidShipmentId => Problem(
                 title: "A valid shipment identifier is required.",
                 statusCode: StatusCodes.Status400BadRequest),

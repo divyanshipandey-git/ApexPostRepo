@@ -12,6 +12,8 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.MoneyOrders;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ApexPost.Web;
 
@@ -79,7 +81,22 @@ public static class DependencyInjection
         services.AddScoped<ShippingService>(provider => new ShippingService(
             provider.GetRequiredService<IShipmentRepository>(),
             shippingRules,
-            maximumWeight));
+            maximumWeight,
+            provider.GetRequiredService<TimeProvider>()));
+
+        var courierTimeoutSeconds = configuration.GetValue<int?>("Shipping:CourierTrackingTimeoutSeconds") ?? 2;
+        var simulatedTrackingDelayMilliseconds = configuration.GetValue<int?>("Shipping:SimulatedTrackingDelayMilliseconds") ?? 0;
+        if (courierTimeoutSeconds is < 1 or > 60 || simulatedTrackingDelayMilliseconds is < 0 or > 60_000)
+        {
+            throw new InvalidOperationException("Courier tracking timeout or simulation delay is outside its supported range.");
+        }
+
+        services.RemoveAll<CourierStatusService>();
+        services.AddScoped(provider => new CourierStatusService(
+            provider.GetRequiredService<IShipmentRepository>(),
+            provider.GetRequiredService<TimeProvider>(),
+            TimeSpan.FromSeconds(courierTimeoutSeconds),
+            TimeSpan.FromMilliseconds(simulatedTrackingDelayMilliseconds)));
 
         foreach (var section in configuration.GetSection("Tax:Rates").GetChildren())
         {
@@ -144,6 +161,15 @@ public static class DependencyInjection
         services.AddScoped<AuditActionFilter>();
         services.AddScoped<ValidationActionFilter>();
         services.AddScoped<PerformanceActionFilter>();
+        services.Configure<PerformanceFilterOptions>(options =>
+        {
+            options.WarningThresholdMilliseconds = configuration?.GetValue<int?>(
+                "Observability:MVCSlowActionWarningMilliseconds") ?? 500;
+            if (options.WarningThresholdMilliseconds <= 0)
+            {
+                throw new InvalidOperationException("The MVC slow-action warning threshold must be positive.");
+            }
+        });
         services.Configure<MvcOptions>(options =>
         {
             options.Filters.AddService<AuditActionFilter>();
@@ -174,6 +200,7 @@ public static class DependencyInjection
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            var configuredPartnerKey = configuration?["Integration:ApiKey"];
             options.AddPolicy(AuthorizationPolicies.LoginRateLimit, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -186,7 +213,7 @@ public static class DependencyInjection
                     }));
             options.AddPolicy(AuthorizationPolicies.PartnerIntegrationRateLimit, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    partitionKey: GetPartnerPartitionKey(context, configuredPartnerKey),
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = 60,
@@ -197,5 +224,24 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    private static string GetPartnerPartitionKey(HttpContext context, string? configuredPartnerKey)
+    {
+        var suppliedKey = context.Request.Headers["X-Api-Key"].ToString();
+        if (!string.IsNullOrWhiteSpace(configuredPartnerKey) && !string.IsNullOrEmpty(suppliedKey))
+        {
+            var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(configuredPartnerKey));
+            var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey));
+            var isConfiguredPartner = CryptographicOperations.FixedTimeEquals(expectedHash, suppliedHash);
+            CryptographicOperations.ZeroMemory(expectedHash);
+            CryptographicOperations.ZeroMemory(suppliedHash);
+            if (isConfiguredPartner)
+            {
+                return "configured-partner";
+            }
+        }
+
+        return $"untrusted:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
     }
 }

@@ -36,13 +36,13 @@ public sealed class ProductCatalogServiceTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task GetBySkuAsync_BlankSku_ThrowsArgumentException(
+    public void GetBySkuAsync_BlankSku_ThrowsArgumentException(
         string sku)
     {
         var service = new ProductCatalogService(
             new FakeProductRepository());
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => service.GetBySkuAsync(sku));
     }
 
