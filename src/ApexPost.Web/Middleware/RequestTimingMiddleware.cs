@@ -15,7 +15,8 @@ public sealed class RequestTimingMiddleware(RequestDelegate next, ILogger<Reques
         {
             timer.Stop();
             logger.LogInformation(
-                "HTTP {Method} {Path} returned {StatusCode} in {ElapsedMilliseconds} ms",
+                "CorrelationId {CorrelationId} HTTP {Method} {Path} returned {StatusCode} in {ElapsedMilliseconds} ms",
+                CorrelationIdMiddleware.GetCorrelationId(context),
                 context.Request.Method,
                 context.Request.Path.Value,
                 context.Response.StatusCode,

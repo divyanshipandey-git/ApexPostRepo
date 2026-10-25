@@ -137,6 +137,9 @@ Record Pass/Fail for each check.
 [ ] Shipping label: create a parcel shipment from a counter sale, follow the
     receipt's label preview link, and verify zone, service level, weight, and
     calculated price are shown. This is a preview, not a carrier-ready label.
+    Verify weight exactly at each configured service-level cap is accepted and
+    a value just above it is rejected. Demo caps are Standard 30 kg, Express
+    20 kg, and Registered 10 kg; these are configurable training assumptions.
 [ ] Health and headers: open `/health` and expect a healthy response. Browser
     developer tools can confirm security response headers are present.
 [ ] Maintenance: only if deliberately testing, set
@@ -179,6 +182,8 @@ Restore defaults after this check.
   or payment-provider reversal.
 - Shipping preview has no recipient postal-address model and is not carrier
   ready.
+- The checked-in per-service-level weight caps are demonstration values, not
+  supplied by the assignment; confirm operational limits with the business.
 - JSON file locking and stock reservation coordinate one running process only.
   Multi-file workflows are not crash-atomic; run a single application instance
   and keep backups.
@@ -192,3 +197,20 @@ Date: __________________________    Tester: ______________________________
 Passed: ______    Failed: ______    Notes / issue references:
 ___________________________________________________________________________
 ___________________________________________________________________________
+
+LATEST AUTOMATED / LOCAL SMOKE VERIFICATION (2026-10-25)
+--------------------------------------------------------
+`dotnet build ApexPost.sln --no-restore`: succeeded, 0 warnings, 0 errors.
+`dotnet test ApexPost.sln --no-restore`: 341 passed, 0 failed, 0 skipped
+(112 Domain, 167 Application, 62 Web integration).
+
+A local Kestrel smoke run used a separate temporary seeded data directory, not
+the repository's App_Data. `GET /health` returned 200 with CSP,
+X-Content-Type-Options, and the supplied X-Correlation-Id. A POST to the
+integration status route without an API key returned 401 and echoed its
+correlation ID. Console request-timing entries contained the same correlation
+IDs. Interactive browser sign-in and authenticated end-to-end journeys remain
+unverified on this host: there is no valid HTTPS development certificate, and
+the existing Windows DPAPI-protected Data Protection key cannot be decrypted
+under this execution identity. The WebApplicationFactory suite did pass its
+authentication, authorization, transaction, report, and security checks.

@@ -36,6 +36,38 @@ public sealed class ShippingPricingRuleTests
     }
 
     [Fact]
+    public void CalculatePrice_UsesConfiguredDelegatePolicy()
+    {
+        var rule = new ShippingPricingRule(
+            "ZONE1",
+            ShippingServiceLevel.Standard,
+            10m,
+            new Money(20m),
+            weight => new Money(20m + 10m * weight.Kilograms));
+
+        Assert.Equal(45m, rule.CalculatePrice(new Weight(2.5m)).Amount);
+    }
+
+    [Fact]
+    public void CalculatePrice_DifferentDelegatePoliciesProduceDifferentPrices()
+    {
+        var regular = new ShippingPricingRule(
+            "ZONE1",
+            ShippingServiceLevel.Standard,
+            10m,
+            new Money(20m));
+        var discounted = new ShippingPricingRule(
+            "ZONE1",
+            ShippingServiceLevel.Standard,
+            10m,
+            new Money(20m),
+            weight => new Money((20m + 10m * weight.Kilograms) * 0.9m));
+
+        Assert.Equal(45m, regular.CalculatePrice(new Weight(2.5m)).Amount);
+        Assert.Equal(40.5m, discounted.CalculatePrice(new Weight(2.5m)).Amount);
+    }
+
+    [Fact]
     public void Constructor_NegativePricePerKilogram_ThrowsException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>

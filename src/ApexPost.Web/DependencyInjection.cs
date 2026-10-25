@@ -53,6 +53,12 @@ public static class DependencyInjection
         services.TryAddSingleton(new MoneyOrderPolicy(moneyOrderSettings.VerificationThreshold));
 
         var shippingRules = new List<ShippingPricingRule>();
+        var priceMultiplier = configuration.GetValue<decimal?>("Shipping:PriceMultiplier") ?? 1m;
+        if (priceMultiplier <= 0)
+        {
+            throw new InvalidOperationException("The configured shipping price multiplier must be positive.");
+        }
+
         foreach (var section in configuration.GetSection("Shipping:PricingRules").GetChildren())
         {
             if (!Enum.TryParse<ShippingServiceLevel>(section["ServiceLevel"], out var level) ||
@@ -68,7 +74,8 @@ public static class DependencyInjection
                 section["DestinationZone"]!,
                 level,
                 perKilogram,
-                new Money(basePrice)));
+                new Money(basePrice),
+                priceMultiplier: priceMultiplier));
         }
 
         var maximumWeight = configuration.GetValue<decimal?>("Shipping:MaximumWeightKg") ?? 30m;
@@ -77,12 +84,36 @@ public static class DependencyInjection
             throw new InvalidOperationException("The configured maximum shipping weight must be positive.");
         }
 
+        var maximumWeightsByServiceLevel = new Dictionary<ShippingServiceLevel, decimal>();
+        foreach (var section in configuration.GetSection("Shipping:MaximumWeightKgByServiceLevel").GetChildren())
+        {
+            if (!Enum.TryParse<ShippingServiceLevel>(section.Key, ignoreCase: true, out var level) ||
+                !Enum.IsDefined(level) ||
+                !decimal.TryParse(section.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var limit) ||
+                limit <= 0 ||
+                !maximumWeightsByServiceLevel.TryAdd(level, limit))
+            {
+                throw new InvalidOperationException("A configured service-level shipping weight limit is invalid.");
+            }
+        }
+
+        if (maximumWeightsByServiceLevel.Count == 0)
+        {
+            maximumWeightsByServiceLevel = Enum.GetValues<ShippingServiceLevel>()
+                .ToDictionary(level => level, _ => maximumWeight);
+        }
+        else if (maximumWeightsByServiceLevel.Count != Enum.GetValues<ShippingServiceLevel>().Length)
+        {
+            throw new InvalidOperationException("A maximum weight must be configured for every shipping service level.");
+        }
+
         services.RemoveAll<ShippingService>();
         services.AddScoped<ShippingService>(provider => new ShippingService(
             provider.GetRequiredService<IShipmentRepository>(),
             shippingRules,
             maximumWeight,
-            provider.GetRequiredService<TimeProvider>()));
+            provider.GetRequiredService<TimeProvider>(),
+            maximumWeightsByServiceLevel));
 
         var courierTimeoutSeconds = configuration.GetValue<int?>("Shipping:CourierTrackingTimeoutSeconds") ?? 2;
         var simulatedTrackingDelayMilliseconds = configuration.GetValue<int?>("Shipping:SimulatedTrackingDelayMilliseconds") ?? 0;

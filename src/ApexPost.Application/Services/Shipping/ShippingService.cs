@@ -9,14 +9,15 @@ public sealed class ShippingService
 {
     private readonly IShipmentRepository _shipmentRepository;
     private readonly IReadOnlyCollection<ShippingPricingRule> _pricingRules;
-    private readonly decimal _maximumWeightKg;
+    private readonly IReadOnlyDictionary<ShippingServiceLevel, decimal> _maximumWeightKgByServiceLevel;
     private readonly TimeProvider _timeProvider;
 
     public ShippingService(
         IShipmentRepository shipmentRepository,
         IEnumerable<ShippingPricingRule> pricingRules,
         decimal maximumWeightKg = 30m,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IReadOnlyDictionary<ShippingServiceLevel, decimal>? maximumWeightKgByServiceLevel = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(pricingRules);
@@ -30,7 +31,18 @@ public sealed class ShippingService
 
         _shipmentRepository = shipmentRepository;
         _pricingRules = pricingRules.ToArray();
-        _maximumWeightKg = maximumWeightKg;
+        _maximumWeightKgByServiceLevel = maximumWeightKgByServiceLevel is null
+            ? Enum.GetValues<ShippingServiceLevel>().ToDictionary(level => level, _ => maximumWeightKg)
+            : new Dictionary<ShippingServiceLevel, decimal>(maximumWeightKgByServiceLevel);
+        foreach (var level in Enum.GetValues<ShippingServiceLevel>())
+        {
+            if (!_maximumWeightKgByServiceLevel.TryGetValue(level, out var limit) || limit <= 0)
+            {
+                throw new ArgumentException(
+                    $"A positive maximum weight is required for {level} shipping.",
+                    nameof(maximumWeightKgByServiceLevel));
+            }
+        }
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -42,10 +54,15 @@ public sealed class ShippingService
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationZone);
         ArgumentNullException.ThrowIfNull(weight);
 
-        if (weight.Kilograms > _maximumWeightKg)
+        if (!_maximumWeightKgByServiceLevel.TryGetValue(serviceLevel, out var maximumWeightKg))
+        {
+            throw new ArgumentOutOfRangeException(nameof(serviceLevel));
+        }
+
+        if (weight.Kilograms > maximumWeightKg)
         {
             throw new InvalidOperationException(
-                $"Parcel weight cannot exceed {_maximumWeightKg} kg.");
+                $"Parcel weight cannot exceed {maximumWeightKg} kg for {serviceLevel} shipping.");
         }
 
         var rule = _pricingRules.FirstOrDefault(

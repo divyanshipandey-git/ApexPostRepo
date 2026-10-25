@@ -64,6 +64,22 @@ public sealed class ShippingServiceTests
                 new Weight(6m)));
     }
 
+    [Theory]
+    [InlineData(ShippingServiceLevel.Standard, 30)]
+    [InlineData(ShippingServiceLevel.Express, 20)]
+    [InlineData(ShippingServiceLevel.Registered, 10)]
+    public void CalculatePrice_ServiceLevelLimit_AllowsBoundaryAndRejectsAbove(
+        ShippingServiceLevel level,
+        decimal maximumWeight)
+    {
+        var service = CreateServiceWithServiceLevelLimits();
+
+        Assert.Equal(maximumWeight + 50m,
+            service.CalculatePrice("ZONE1", level, new Weight(maximumWeight)).Amount);
+        Assert.Throws<InvalidOperationException>(() =>
+            service.CalculatePrice("ZONE1", level, new Weight(maximumWeight + 0.01m)));
+    }
+
     [Fact]
     public void CalculatePrice_WhenDestinationZoneIsBlank_Throws()
     {
@@ -131,6 +147,23 @@ public sealed class ShippingServiceTests
             new FakeShipmentRepository(),
             new[] { rule },
             maximumWeightKg);
+    }
+
+    private static ShippingService CreateServiceWithServiceLevelLimits()
+    {
+        var rules = Enum.GetValues<ShippingServiceLevel>()
+            .Select(level => new ShippingPricingRule(
+                "ZONE1", level, 1m, new Money(50m)))
+            .ToArray();
+        var limits = new Dictionary<ShippingServiceLevel, decimal>
+        {
+            [ShippingServiceLevel.Standard] = 30m,
+            [ShippingServiceLevel.Express] = 20m,
+            [ShippingServiceLevel.Registered] = 10m
+        };
+
+        return new ShippingService(new FakeShipmentRepository(), rules,
+            maximumWeightKgByServiceLevel: limits);
     }
 
     private sealed class FakeShipmentRepository : IShipmentRepository
