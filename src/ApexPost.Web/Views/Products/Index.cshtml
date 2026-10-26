@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Product catalogue";
 }
-<section class="page-heading"><p class="eyebrow">Retail</p><h1>Product catalogue</h1><p>Current product prices and tax categories used by counter sales.</p></section>
+<section class="page-heading"><div><p class="eyebrow">Retail</p><h1>Product catalogue</h1><p>Current product prices and tax categories used by counter sales.</p></div></section>
 <section class="card surface-card"><div class="card-body"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Unit price</th><th>Tax category</th></tr></thead><tbody>
 @foreach (var product in Model) { <tr><th>@product.Sku.Value</th><td>@product.Name</td><td>@product.Category</td><td>@product.UnitPrice.Amount.ToString("C")</td><td>@product.TaxCategory</td></tr> }
 </tbody></table></div></div></section>

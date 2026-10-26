@@ -30,12 +30,12 @@
 
         <div class="form-grid">
             <div class="form-field">
-                <label asp-for="BranchCode"></label>
+                <label asp-for="BranchCode">Branch code <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                 <input asp-for="BranchCode" class="form-control text-input" autocomplete="off" placeholder="e.g. IND01" />
                 <span asp-validation-for="BranchCode" class="invalid-feedback field-error"></span>
             </div>
             <div class="form-field">
-                <label asp-for="Sku"></label>
+                <label asp-for="Sku">SKU <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                 <input asp-for="Sku" class="form-control text-input" autocomplete="off" placeholder="e.g. ENV001" />
                 <span asp-validation-for="Sku" class="invalid-feedback field-error"></span>
             </div>

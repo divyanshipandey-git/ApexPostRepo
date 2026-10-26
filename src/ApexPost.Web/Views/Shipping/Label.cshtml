@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Shipping label preview";
 }
-<section class="page-heading"><p class="eyebrow">Shipping</p><h1>Label preview</h1><p>Review shipment details before printing the label.</p></section>
+<section class="page-heading"><div><p class="eyebrow">Shipping</p><h1>Label preview</h1><p>Review shipment details before printing the label.</p></div></section>
 <section class="card surface-card shipping-label"><div class="card-body">
     <div class="d-flex justify-content-between align-items-start"><div><p class="eyebrow">ApexPost Logistics</p><h2>@Model.ServiceLevel shipping</h2></div><div class="text-end"><strong>@Model.Id</strong><div>@Model.CreatedAtUtc?.ToString("u")</div></div></div>
     <hr />

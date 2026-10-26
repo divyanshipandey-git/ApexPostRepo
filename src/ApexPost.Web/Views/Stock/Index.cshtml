@@ -2,13 +2,13 @@
 @{
     ViewData["Title"] = "Stock management";
 }
-<section class="page-heading"><p class="eyebrow">Branch operations</p><h1>Stock management</h1><p>Adjust branch stock quantities. Reductions cannot take stock below zero.</p></section>
+<section class="page-heading"><div><p class="eyebrow">Branch operations</p><h1>Stock management</h1><p>Adjust branch stock quantities. Reductions cannot take stock below zero.</p></div></section>
 <section class="card surface-card mb-4"><div class="card-body">
     <form asp-action="Adjust" method="post" class="row g-3">
         <div asp-validation-summary="All" class="text-danger"></div>
-        <div class="col-md-4"><label for="BranchCode" class="form-label">Branch</label><select id="BranchCode" name="BranchCode" class="form-select">@foreach (var branch in Model.BranchCodes) { <option value="@branch" selected="@(branch == Model.BranchCode)">@branch</option> }</select></div>
-        <div class="col-md-4"><label for="Sku" class="form-label">Product</label><select id="Sku" name="Sku" class="form-select">@foreach (var product in Model.Products) { <option value="@product.Sku">@product.Name (@product.Sku)</option> }</select></div>
-        <div class="col-md-2"><label for="Adjustment" class="form-label">Change quantity</label><input id="Adjustment" name="Adjustment" type="number" min="-100000" max="100000" required class="form-control" value="@Model.Adjustment" /></div>
+        <div class="col-md-4"><label for="BranchCode" class="form-label">Branch <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label><select id="BranchCode" name="BranchCode" class="form-select">@foreach (var branch in Model.BranchCodes) { <option value="@branch" selected="@(branch == Model.BranchCode)">@branch</option> }</select></div>
+        <div class="col-md-4"><label for="Sku" class="form-label">Product <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label><select id="Sku" name="Sku" class="form-select">@foreach (var product in Model.Products) { <option value="@product.Sku">@product.Name (@product.Sku)</option> }</select></div>
+        <div class="col-md-2"><label for="Adjustment" class="form-label">Change quantity <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label><input id="Adjustment" name="Adjustment" type="number" min="-100000" max="100000" required class="form-control" value="@Model.Adjustment" /></div>
         <div class="col-md-2 d-flex align-items-end"><button class="button button-primary" type="submit">Adjust stock</button></div>
     </form>
 </div></section>

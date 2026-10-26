@@ -4,9 +4,11 @@
 }
 
 <section class="page-heading">
-    <p class="eyebrow">Branch operations · @Model.BranchCode</p>
-    <h1>Transaction @Model.TransactionId</h1>
-    <p>Review the transaction, then record a full void or refund when eligible.</p>
+    <div>
+        <p class="eyebrow">Branch operations · @Model.BranchCode</p>
+        <h1>Transaction @Model.TransactionId</h1>
+        <p>Review the transaction, then record a full void or refund when eligible.</p>
+    </div>
 </section>
 
 <section class="card shadow-sm surface-card">
@@ -35,7 +37,7 @@
             <form asp-action="Void" method="post" class="form-stack">
                 <input asp-for="TransactionId" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
-                <label asp-for="VoidReason" class="form-label"></label>
+                <label asp-for="VoidReason" class="form-label">Void reason <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                 <textarea asp-for="VoidReason" class="form-control" rows="3" autocomplete="off"></textarea>
                 <span asp-validation-for="VoidReason" class="field-validation-error"></span>
                 <button class="button button-primary" type="submit">Void transaction</button>
@@ -45,7 +47,7 @@
                 <input asp-for="TransactionId" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
                 <p class="form-hint">This records a full refund state. Payment reversal is not connected to a payment provider.</p>
-                <label asp-for="RefundReason" class="form-label">Reason for full refund</label>
+                <label asp-for="RefundReason" class="form-label">Reason for full refund <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                 <textarea asp-for="RefundReason" class="form-control" rows="3" maxlength="500" autocomplete="off"></textarea>
                 <span asp-validation-for="RefundReason" class="field-validation-error"></span>
                 <button class="button button-secondary" type="submit">Record full refund</button>

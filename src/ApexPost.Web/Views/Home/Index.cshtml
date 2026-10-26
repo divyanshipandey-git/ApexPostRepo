@@ -4,9 +4,11 @@
 }
 
 <section class="page-heading" aria-labelledby="page-title">
-    <p class="eyebrow">Branch dashboard · @Model.BranchCode</p>
-    <h1 id="page-title">Today's operations</h1>
-    <p class="page-description">Daily totals for @Model.Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture).</p>
+    <div>
+        <p class="eyebrow">Branch dashboard · @Model.BranchCode</p>
+        <h1 id="page-title">Today's operations</h1>
+        <p class="page-description">Daily totals for @Model.Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture).</p>
+    </div>
 </section>
 
 <section class="dashboard-grid" aria-label="Daily branch totals">

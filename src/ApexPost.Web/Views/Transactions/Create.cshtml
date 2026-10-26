@@ -4,9 +4,11 @@
 }
 
 <section class="page-heading">
-    <p class="eyebrow">Counter operations</p>
-    <h1>New counter transaction</h1>
-    <p>Build a basket from the current catalogue. Product prices, tax, branch and staff identity are taken from server data.</p>
+    <div>
+        <p class="eyebrow">Counter operations</p>
+        <h1>New counter transaction</h1>
+        <p>Build a basket from the current catalogue. Product prices, tax, branch and staff identity are taken from server data.</p>
+    </div>
 </section>
 
 <form asp-action="Create" method="post" class="form-stack transaction-form">
@@ -21,7 +23,7 @@
             <h2 id="counter-section-title" class="section-title">Counter and payment</h2>
             <div class="form-grid">
                 <div>
-                    <label asp-for="CounterId" class="form-label">Counter</label>
+                    <label asp-for="CounterId" class="form-label">Counter <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                     <select asp-for="CounterId" class="form-select">
                         <option value="">Select a counter</option>
                         @foreach (var counter in Model.CounterOptions)
@@ -32,7 +34,7 @@
                     <span asp-validation-for="CounterId" class="field-validation-error"></span>
                 </div>
                 <div>
-                    <label asp-for="PaymentMethod" class="form-label">Payment method</label>
+                    <label asp-for="PaymentMethod" class="form-label">Payment method <span class="required-indicator" aria-hidden="true">*</span><span class="visually-hidden"> required</span></label>
                     <select asp-for="PaymentMethod" class="form-select">
                         <option value="">Select payment method</option>
                         <option value="Cash">Cash</option>
