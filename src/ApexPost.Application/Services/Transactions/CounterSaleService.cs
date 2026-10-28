@@ -252,7 +252,8 @@ public sealed class CounterSaleService
                 "Retail",
                 quantity,
                 product.UnitPrice,
-                product.TaxCategory));
+                product.TaxCategory,
+                product.Sku.Value));
         }
 
         if (shippingPrice is not null)
