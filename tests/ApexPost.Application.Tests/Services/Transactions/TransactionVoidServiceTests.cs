@@ -2,6 +2,8 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Notifications;
+using ApexPost.Application.Tests.Persistence;
+using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using Xunit;
@@ -14,10 +16,14 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task RefundAsync_WhenPaidByManager_PersistsFullRefundAndPublishesNotification()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var access = new TransactionVoidService(
             repository,
-            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
         var notifications = new SimulatedNotificationService();
         var service = new TransactionRefundService(repository, access, notifications);
 
@@ -27,6 +33,7 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Refunded, repository.Transaction!.Status);
         Assert.Equal("Customer return", repository.Transaction.Reason);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
         Assert.Equal(NotificationType.TransactionRefund,
             Assert.Single(notifications.GetPublishedNotifications()).Type);
     }
@@ -101,9 +108,12 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task VoidAsync_WhenPaidBySameBranchManager_PersistsVoidedStateAndReason()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var staff = new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01"));
-        var service = new TransactionVoidService(repository, staff);
+        var service = new TransactionVoidService(repository, staff, inventoryRepository: inventory);
 
         var result = await service.VoidAsync(
             "TXN-APP-1",
@@ -114,6 +124,11 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Voided, repository.Transaction!.Status);
         Assert.Equal("Duplicate sale", repository.Transaction.Reason);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+
+        var retry = await service.VoidAsync("TXN-APP-1", "Duplicate retry", "staff-test-1");
+        Assert.Equal(TransactionVoidStatus.InvalidState, retry.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
     }
 
     [Theory]
@@ -220,11 +235,15 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task VoidAsync_WhenTransactionIsOpen_DoesNotMutateOrPersist()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var transaction = CreateOpenTransaction();
         var repository = new FakeCounterTransactionRepository(transaction);
         var service = new TransactionVoidService(
             repository,
-            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
 
         var result = await service.VoidAsync(
             "TXN-APP-1",
@@ -235,6 +254,48 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Open, repository.Transaction!.Status);
         Assert.Null(repository.Transaction.Reason);
         Assert.Equal(0, repository.UpdateCount);
+        Assert.Equal(1, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task VoidAsync_WhenCallerIsUnauthorized_DoesNotRestoreStock()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.CounterClerk, "IND01")),
+            inventoryRepository: inventory);
+
+        var result = await service.VoidAsync("TXN-APP-1", "Not allowed", "staff-test-1");
+
+        Assert.Equal(TransactionVoidStatus.Forbidden, result.Status);
+        Assert.Equal(TransactionStatus.Paid, repository.Transaction!.Status);
+        Assert.Equal(1, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task ConcurrentVoidRetries_RestoreStockOnlyOnce()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
+
+        var results = await Task.WhenAll(
+            service.VoidAsync("TXN-APP-1", "Original request", "staff-test-1"),
+            service.VoidAsync("TXN-APP-1", "Retried request", "staff-test-1"));
+
+        Assert.Single(results, result => result.Status == TransactionVoidStatus.Voided);
+        Assert.Single(results, result => result.Status == TransactionVoidStatus.InvalidState);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+        Assert.Equal(1, repository.UpdateCount);
     }
 
     private static CounterTransaction CreateOpenTransaction() => new(
@@ -261,7 +322,8 @@ public sealed class TransactionVoidServiceTests
             "Envelope",
             "Retail",
             1,
-            new Money(25m)));
+            new Money(25m),
+            referenceId: "SKU001"));
         transaction.CompletePayment(PaymentMethod.Cash);
         return transaction;
     }

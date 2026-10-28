@@ -566,26 +566,15 @@ public sealed class WebApplicationIntegrationTests
     }
 
     [Fact]
-    public async Task AuditFilterPersistsActionMetadataWithoutCredentialsOrRequestBody()
+    public async Task AuditFilterSkipsOrdinaryGetNavigation()
     {
         using var factory = new TestWebApplicationFactory();
         using var client = await factory.CreateAuthenticatedClientAsync();
         client.DefaultRequestHeaders.Add("X-Correlation-Id", "audit-correlation-7");
 
         using var response = await client.GetAsync("/Inventory/Index");
-        var audit = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"));
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("staff-test-1", audit);
-        Assert.Contains("CounterClerk", audit);
-        Assert.Contains("IND01", audit);
-        Assert.Contains("Inventory", audit);
-        Assert.Contains("Index", audit);
-        Assert.Contains("audit-correlation-7", audit);
-        Assert.Contains("statusCode", audit);
-        Assert.Contains("durationMilliseconds", audit);
-        Assert.DoesNotContain(TestWebApplicationFactory.TestPassword, audit);
-        Assert.DoesNotContain("__RequestVerificationToken", audit);
+        Assert.False(File.Exists(Path.Combine(factory.DataDirectory, "audit.jsonl")));
     }
 
     [Fact]
@@ -769,7 +758,25 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("Transactions", audit);
         Assert.Contains("Void", audit);
         Assert.Contains("BranchManager", audit);
+        Assert.Contains("TXN-VOID-WEB-1", audit);
         Assert.DoesNotContain("Duplicate sale", audit);
+    }
+
+    [Fact]
+    public async Task AuditWriteFailureDoesNotChangeCompletedBusinessResponse()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedTransactionAsync("TXN-AUDIT-FAILURE-1");
+        Directory.CreateDirectory(Path.Combine(factory.DataDirectory, "audit.jsonl"));
+        using var client = await factory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Details/TXN-AUDIT-FAILURE-1");
+
+        using var response = await PostVoidAsync(client, token, "TXN-AUDIT-FAILURE-1", "Audit unavailable");
+        var saved = await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByIdAsync("TXN-AUDIT-FAILURE-1");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(TransactionStatus.Voided, saved!.Status);
     }
 
     [Fact]
@@ -975,7 +982,9 @@ public sealed class WebApplicationIntegrationTests
         Assert.Equal(200.6m, transaction.Total.Amount);
         Assert.Equal(3, stock!.Quantity);
         Assert.NotNull(shipment);
-        Assert.Contains("Create", await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl")));
+        var audit = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"));
+        Assert.Contains("Create", audit);
+        Assert.Contains(transaction.Id, audit);
     }
 
     [Fact]
