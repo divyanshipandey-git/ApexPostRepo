@@ -5,6 +5,7 @@ using ApexPost.Domain.Entities;
 using ApexPost.Web.Models.MoneyOrders;
 using ApexPost.Web.Models.Transactions;
 using ApexPost.Web.Security;
+using ApexPost.Web.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +28,7 @@ public sealed class MoneyOrdersController(CounterSaleService counterSaleService)
     }
 
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(
         MoneyOrderCreateViewModel model,

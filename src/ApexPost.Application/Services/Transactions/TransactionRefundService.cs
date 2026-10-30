@@ -29,6 +29,14 @@ public sealed class TransactionRefundService
         string? staffId,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            return new TransactionRefundResult(TransactionRefundStatus.InvalidTransactionId);
+        }
+
+        using var reversalGate = await TransactionVoidService.AcquireReversalGateAsync(
+            transactionId,
+            cancellationToken);
         var accessible = await _accessService.GetAccessibleAsync(
             transactionId,
             staffId,
@@ -57,6 +65,7 @@ public sealed class TransactionRefundService
             return new TransactionRefundResult(TransactionRefundStatus.InvalidReason, transaction);
         }
 
+        await _accessService.RestoreSoldRetailStockAsync(transaction, cancellationToken);
         await _transactionRepository.UpdateAsync(transaction, cancellationToken);
         await _notifications.NotifyTransactionRefundAsync(
             transaction.BranchCode.Value,

@@ -14,6 +14,12 @@ public interface IInventoryRepository
         InventoryReservation reservation,
         CancellationToken cancellationToken = default);
 
+    Task RestoreReversedRetailStockAsync(
+        string transactionId,
+        string branchCode,
+        IReadOnlyDictionary<string, int> skuQuantities,
+        CancellationToken cancellationToken = default);
+
     Task CommitReservationAsync(
         InventoryReservation reservation,
         CancellationToken cancellationToken = default);

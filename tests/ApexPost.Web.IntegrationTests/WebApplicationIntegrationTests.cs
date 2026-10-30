@@ -122,6 +122,58 @@ public sealed class WebApplicationIntegrationTests
     }
 
     [Fact]
+    public async Task InvalidStockAdjustmentRedisplaysValidationErrorsAndProductOptions()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedInventoryAsync();
+        using var client = await factory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var token = await GetAntiforgeryTokenAsync(client, "/Stock/Index");
+
+        using var response = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["BranchCode"] = "IND01",
+                ["Sku"] = "",
+                ["Adjustment"] = "2"
+            }));
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("The Sku field is required.", content);
+        Assert.Contains("Envelope (ENV001)", content);
+        Assert.Contains("value=\"IND01\"", content);
+    }
+
+    [Fact]
+    public async Task ReceiptUsesShipmentReferenceInsteadOfRetailReference()
+    {
+        foreach (var scenario in new[] { "retail", "shipment", "mixed" })
+        {
+            using var factory = new TestWebApplicationFactory();
+            var transactionId = $"TXN-RECEIPT-{scenario.ToUpperInvariant()}";
+            await factory.SeedReceiptTransactionAsync(transactionId, scenario);
+            using var client = await factory.CreateAuthenticatedClientAsync();
+
+            using var response = await client.GetAsync($"/Transactions/Receipt/{transactionId}");
+            var content = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            if (scenario == "retail")
+            {
+                Assert.DoesNotContain("Preview label", content);
+                Assert.DoesNotContain("/Shipping/Label/", content);
+            }
+            else
+            {
+                Assert.Contains("SHP-RECEIPT-1", content);
+                Assert.Contains("/Shipping/Label/SHP-RECEIPT-1", content);
+                Assert.DoesNotContain("/Shipping/Label/ENV001", content);
+            }
+        }
+    }
+
+    [Fact]
     public async Task SearchPostWithoutAntiforgeryTokenIsRejected()
     {
         using var factory = new TestWebApplicationFactory();
@@ -566,26 +618,15 @@ public sealed class WebApplicationIntegrationTests
     }
 
     [Fact]
-    public async Task AuditFilterPersistsActionMetadataWithoutCredentialsOrRequestBody()
+    public async Task AuditFilterSkipsOrdinaryGetNavigation()
     {
         using var factory = new TestWebApplicationFactory();
         using var client = await factory.CreateAuthenticatedClientAsync();
         client.DefaultRequestHeaders.Add("X-Correlation-Id", "audit-correlation-7");
 
         using var response = await client.GetAsync("/Inventory/Index");
-        var audit = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"));
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("staff-test-1", audit);
-        Assert.Contains("CounterClerk", audit);
-        Assert.Contains("IND01", audit);
-        Assert.Contains("Inventory", audit);
-        Assert.Contains("Index", audit);
-        Assert.Contains("audit-correlation-7", audit);
-        Assert.Contains("statusCode", audit);
-        Assert.Contains("durationMilliseconds", audit);
-        Assert.DoesNotContain(TestWebApplicationFactory.TestPassword, audit);
-        Assert.DoesNotContain("__RequestVerificationToken", audit);
+        Assert.False(File.Exists(Path.Combine(factory.DataDirectory, "audit.jsonl")));
     }
 
     [Fact]
@@ -769,7 +810,57 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("Transactions", audit);
         Assert.Contains("Void", audit);
         Assert.Contains("BranchManager", audit);
+        Assert.Contains("TXN-VOID-WEB-1", audit);
         Assert.DoesNotContain("Duplicate sale", audit);
+        using var auditDocument = System.Text.Json.JsonDocument.Parse(audit);
+        var auditedRouteValues = auditDocument.RootElement.GetProperty("routeValues");
+        Assert.Equal("TXN-VOID-WEB-1", auditedRouteValues.GetProperty("transactionId").GetString());
+        Assert.False(auditedRouteValues.TryGetProperty("id", out _));
+    }
+
+    [Fact]
+    public async Task StockAdjustmentAuditContainsBranchAndSkuWithoutGenericIds()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedInventoryAsync();
+        using var client = await factory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var token = await GetAntiforgeryTokenAsync(client, "/Stock/Index");
+
+        using var response = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["BranchCode"] = "IND01",
+                ["Sku"] = "ENV001",
+                ["Adjustment"] = "2"
+            }));
+        var auditLine = (await File.ReadAllLinesAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"))).Single();
+        using var audit = System.Text.Json.JsonDocument.Parse(auditLine);
+        var routeValues = audit.RootElement.GetProperty("routeValues");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("IND01", routeValues.GetProperty("branchCode").GetString());
+        Assert.Equal("ENV001", routeValues.GetProperty("sku").GetString());
+        Assert.False(routeValues.TryGetProperty("id", out _));
+        Assert.False(auditLine.Contains("password", StringComparison.OrdinalIgnoreCase));
+        Assert.False(auditLine.Contains("token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task AuditWriteFailureDoesNotChangeCompletedBusinessResponse()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedTransactionAsync("TXN-AUDIT-FAILURE-1");
+        Directory.CreateDirectory(Path.Combine(factory.DataDirectory, "audit.jsonl"));
+        using var client = await factory.CreateAuthenticatedClientAsync(StaffRole.BranchManager);
+        var token = await GetAntiforgeryTokenAsync(client, "/Transactions/Details/TXN-AUDIT-FAILURE-1");
+
+        using var response = await PostVoidAsync(client, token, "TXN-AUDIT-FAILURE-1", "Audit unavailable");
+        var saved = await factory.Services.GetRequiredService<ICounterTransactionRepository>()
+            .GetByIdAsync("TXN-AUDIT-FAILURE-1");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(TransactionStatus.Voided, saved!.Status);
     }
 
     [Fact]
@@ -975,7 +1066,9 @@ public sealed class WebApplicationIntegrationTests
         Assert.Equal(200.6m, transaction.Total.Amount);
         Assert.Equal(3, stock!.Quantity);
         Assert.NotNull(shipment);
-        Assert.Contains("Create", await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl")));
+        var audit = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "audit.jsonl"));
+        Assert.Contains("Create", audit);
+        Assert.Contains(transaction.Id, audit);
     }
 
     [Fact]
@@ -1567,6 +1660,30 @@ public sealed class WebApplicationIntegrationTests
                 }
             }
 
+            await Services.GetRequiredService<ICounterTransactionRepository>().AddAsync(transaction);
+        }
+
+        public async Task SeedReceiptTransactionAsync(string transactionId, string scenario)
+        {
+            var transaction = new CounterTransaction(
+                transactionId,
+                new BranchCode("IND01"),
+                "COUNTER01",
+                "staff-test-1");
+            if (scenario is "retail" or "mixed")
+            {
+                transaction.AddLineItem(new TransactionLineItem(
+                    "Envelope", "Retail", 1, new Money(50m), referenceId: "ENV001"));
+            }
+
+            if (scenario is "shipment" or "mixed")
+            {
+                transaction.AddLineItem(new TransactionLineItem(
+                    "Shipping (Parcel, ZONE1, Standard, SHP-RECEIPT-1)",
+                    "Service", 1, new Money(25m), referenceId: "SHP-RECEIPT-1"));
+            }
+
+            transaction.CompletePayment(PaymentMethod.Cash);
             await Services.GetRequiredService<ICounterTransactionRepository>().AddAsync(transaction);
         }
 
