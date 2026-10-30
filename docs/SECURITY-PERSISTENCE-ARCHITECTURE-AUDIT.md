@@ -82,11 +82,11 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 | Required xUnit domain tests and >=6 Web integration tests | Complete and verified | Full suite currently passes 352 cases (Domain 112, Application 171, Web integration 69). |
 | Opt-in demo seed volume (5 branches, 20 staff, 30 products, 10 zones/rates, 40 transactions) | Complete for new seed runs | Guarded console tool provisions required counts; new sample transactions carry UTC timestamps. Existing timestamp-free `App_Data` data was preserved and not migrated. |
 | README, DESIGN, ADRs, audit sample and diagrams | Complete | README, architecture/domain/pipeline diagrams, SOLID/security/filter/DI sections, ADR-0001 through ADR-0014, performance notes and generated `AUDIT-SAMPLE.json` exist. |
-| Git workflow and zero-warning .NET 10 build | Build verified; review workflow pending | Targeted improvements are being prepared on `feature/targeted-feedback`; publication and PR state will be recorded after this change is pushed. |
+| Git workflow and zero-warning .NET 10 build | Build verified; PR open | Commit `356aecb` is pushed to `feature/targeted-feedback`; [PR #3](https://github.com/divyanshipandey-git/ApexPostRepo/pull/3) targets `master` and remains open for checks/review. No merge was performed. |
 
 ## Remaining gaps and operational limits
 
-The assignment workflows are implemented. Operational/integration limits remain: there is no real carrier tracking client, payment-provider integration, or partial-refund model. The label preview has the assignment-required destination zone but no postal-address fields, so it is not carrier-ready. Identity verification is captured with the money-order transaction to enforce the same-transaction rule. Admin staff pages require `Security:AdminAllowedIps`; timestamp-free legacy transactions remain unchanged and are excluded from date-based reports. GitHub review/PR workflow has not been performed in this local pass.
+The assignment workflows are implemented. Operational/integration limits remain: there is no real carrier tracking client, payment-provider integration, or partial-refund model. The label preview has the assignment-required destination zone but no postal-address fields, so it is not carrier-ready. Identity verification is captured with the money-order transaction to enforce the same-transaction rule. Admin staff pages require `Security:AdminAllowedIps`; timestamp-free legacy transactions remain unchanged and are excluded from date-based reports. PR #3 is open and unmerged; its required checks and approvals must be satisfied before any merge.
 
 ## Audit verification
 
