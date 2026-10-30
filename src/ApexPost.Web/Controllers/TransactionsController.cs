@@ -4,6 +4,7 @@ using ApexPost.Application.Services.Staff;
 using ApexPost.Domain.Entities;
 using ApexPost.Web.Models.Transactions;
 using ApexPost.Web.Security;
+using ApexPost.Web.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -37,6 +38,7 @@ public sealed class TransactionsController(
 
     [Authorize(Policy = AuthorizationPolicies.CounterSales)]
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(
         CounterSaleViewModel model,
@@ -222,7 +224,9 @@ public sealed class TransactionsController(
         }
 
         var transaction = result.Transaction!;
-        var shipmentId = transaction.LineItems.FirstOrDefault(line => line.ReferenceId is not null)?.ReferenceId;
+        var shipmentId = transaction.LineItems
+            .FirstOrDefault(line => line.ItemType == "Service" && line.ReferenceId is not null)?
+            .ReferenceId;
 
         return View(new TransactionReceiptViewModel(
             transaction.Id,
@@ -281,6 +285,7 @@ public sealed class TransactionsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayInvalidModelState]
     public async Task<IActionResult> Void(
         TransactionVoidViewModel model,
         CancellationToken cancellationToken)
@@ -336,6 +341,7 @@ public sealed class TransactionsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayInvalidModelState]
     public async Task<IActionResult> Refund(
         TransactionRefundViewModel model,
         CancellationToken cancellationToken)

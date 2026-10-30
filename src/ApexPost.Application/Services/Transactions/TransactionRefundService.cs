@@ -65,8 +65,8 @@ public sealed class TransactionRefundService
             return new TransactionRefundResult(TransactionRefundStatus.InvalidReason, transaction);
         }
 
+        await _accessService.RestoreSoldRetailStockAsync(transaction, cancellationToken);
         await _transactionRepository.UpdateAsync(transaction, cancellationToken);
-        await _accessService.RestoreSoldRetailStockAsync(transaction);
         await _notifications.NotifyTransactionRefundAsync(
             transaction.BranchCode.Value,
             transaction.Id,
