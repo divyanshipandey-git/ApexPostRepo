@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Web.Models.Account;
+using ApexPost.Web.Filters;
 using ApexPost.Web.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -27,6 +28,7 @@ public sealed class AccountController : Controller
 
     [AllowAnonymous]
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     [EnableRateLimiting(AuthorizationPolicies.LoginRateLimit)]
     public async Task<IActionResult> Login(

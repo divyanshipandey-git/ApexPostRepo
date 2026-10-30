@@ -3,6 +3,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Inventory;
 using ApexPost.Domain.Entities;
 using ApexPost.Web.Models.Stock;
+using ApexPost.Web.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -42,6 +43,7 @@ public sealed class StockController(
     }
 
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Adjust(StockManagementViewModel model, CancellationToken cancellationToken)
     {

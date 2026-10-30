@@ -2,6 +2,8 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Notifications;
+using ApexPost.Application.Tests.Persistence;
+using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using Xunit;
@@ -14,10 +16,14 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task RefundAsync_WhenPaidByManager_PersistsFullRefundAndPublishesNotification()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var access = new TransactionVoidService(
             repository,
-            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
         var notifications = new SimulatedNotificationService();
         var service = new TransactionRefundService(repository, access, notifications);
 
@@ -27,8 +33,13 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Refunded, repository.Transaction!.Status);
         Assert.Equal("Customer return", repository.Transaction.Reason);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
         Assert.Equal(NotificationType.TransactionRefund,
             Assert.Single(notifications.GetPublishedNotifications()).Type);
+
+        var repeated = await service.RefundAsync("TXN-APP-1", "Repeated request", "staff-test-1");
+        Assert.Equal(TransactionRefundStatus.InvalidState, repeated.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
     }
 
     [Fact]
@@ -101,9 +112,12 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task VoidAsync_WhenPaidBySameBranchManager_PersistsVoidedStateAndReason()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var staff = new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01"));
-        var service = new TransactionVoidService(repository, staff);
+        var service = new TransactionVoidService(repository, staff, inventoryRepository: inventory);
 
         var result = await service.VoidAsync(
             "TXN-APP-1",
@@ -114,6 +128,65 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Voided, repository.Transaction!.Status);
         Assert.Equal("Duplicate sale", repository.Transaction.Reason);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+
+        var retry = await service.VoidAsync("TXN-APP-1", "Duplicate retry", "staff-test-1");
+        Assert.Equal(TransactionVoidStatus.InvalidState, retry.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task VoidAsync_WhenStockWriteFails_LeavesPaidTransactionAndRetryRestoresStockOnce()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var options = directory.CreateOptions();
+        var inventory = new JsonInventoryRepository(options);
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var repository = new JsonCounterTransactionRepository(options);
+        await repository.AddAsync(CreatePaidTransaction());
+        var failingInventory = new FailOnceInventoryRepository(inventory);
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: failingInventory);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.VoidAsync("TXN-APP-1", "Duplicate sale", "staff-test-1"));
+        Assert.Equal(TransactionStatus.Paid, (await repository.GetByIdAsync("TXN-APP-1"))!.Status);
+        Assert.Equal(1, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+
+        var retry = await service.VoidAsync("TXN-APP-1", "Duplicate sale", "staff-test-1");
+
+        Assert.Equal(TransactionVoidStatus.Voided, retry.Status);
+        Assert.Equal(TransactionStatus.Voided, (await repository.GetByIdAsync("TXN-APP-1"))!.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task VoidAsync_WhenTransactionWriteFails_RetryDoesNotRestoreStockTwice()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var options = directory.CreateOptions();
+        var inventory = new JsonInventoryRepository(options);
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var storedTransactions = new JsonCounterTransactionRepository(options);
+        await storedTransactions.AddAsync(CreatePaidTransaction());
+        var repository = new FailOnceTransactionRepository(storedTransactions);
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.VoidAsync("TXN-APP-1", "Duplicate sale", "staff-test-1"));
+        Assert.Equal(TransactionStatus.Paid, (await storedTransactions.GetByIdAsync("TXN-APP-1"))!.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+
+        var retry = await service.VoidAsync("TXN-APP-1", "Duplicate sale", "staff-test-1");
+
+        Assert.Equal(TransactionVoidStatus.Voided, retry.Status);
+        Assert.Equal(TransactionStatus.Voided, (await storedTransactions.GetByIdAsync("TXN-APP-1"))!.Status);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
     }
 
     [Theory]
@@ -220,11 +293,15 @@ public sealed class TransactionVoidServiceTests
     [Fact]
     public async Task VoidAsync_WhenTransactionIsOpen_DoesNotMutateOrPersist()
     {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var transaction = CreateOpenTransaction();
         var repository = new FakeCounterTransactionRepository(transaction);
         var service = new TransactionVoidService(
             repository,
-            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
 
         var result = await service.VoidAsync(
             "TXN-APP-1",
@@ -235,6 +312,48 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Open, repository.Transaction!.Status);
         Assert.Null(repository.Transaction.Reason);
         Assert.Equal(0, repository.UpdateCount);
+        Assert.Equal(1, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task VoidAsync_WhenCallerIsUnauthorized_DoesNotRestoreStock()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.CounterClerk, "IND01")),
+            inventoryRepository: inventory);
+
+        var result = await service.VoidAsync("TXN-APP-1", "Not allowed", "staff-test-1");
+
+        Assert.Equal(TransactionVoidStatus.Forbidden, result.Status);
+        Assert.Equal(TransactionStatus.Paid, repository.Transaction!.Status);
+        Assert.Equal(1, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+    }
+
+    [Fact]
+    public async Task ConcurrentVoidRetries_RestoreStockOnlyOnce()
+    {
+        using var directory = new JsonRepositoryTestDirectory();
+        var inventory = new JsonInventoryRepository(directory.CreateOptions());
+        await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
+        var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
+        var service = new TransactionVoidService(
+            repository,
+            new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
+            inventoryRepository: inventory);
+
+        var results = await Task.WhenAll(
+            service.VoidAsync("TXN-APP-1", "Original request", "staff-test-1"),
+            service.VoidAsync("TXN-APP-1", "Retried request", "staff-test-1"));
+
+        Assert.Single(results, result => result.Status == TransactionVoidStatus.Voided);
+        Assert.Single(results, result => result.Status == TransactionVoidStatus.InvalidState);
+        Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
+        Assert.Equal(1, repository.UpdateCount);
     }
 
     private static CounterTransaction CreateOpenTransaction() => new(
@@ -261,7 +380,8 @@ public sealed class TransactionVoidServiceTests
             "Envelope",
             "Retail",
             1,
-            new Money(25m)));
+            new Money(25m),
+            referenceId: "SKU001"));
         transaction.CompletePayment(PaymentMethod.Cash);
         return transaction;
     }
@@ -325,6 +445,54 @@ public sealed class TransactionVoidServiceTests
             Transaction = value;
             UpdateCount++;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailOnceInventoryRepository(IInventoryRepository inner) : IInventoryRepository
+    {
+        private bool _shouldFail = true;
+
+        public Task RestoreReversedRetailStockAsync(
+            string transactionId,
+            string branchCode,
+            IReadOnlyDictionary<string, int> skuQuantities,
+            CancellationToken cancellationToken = default)
+        {
+            if (_shouldFail)
+            {
+                _shouldFail = false;
+                throw new IOException("Simulated inventory persistence failure.");
+            }
+
+            return inner.RestoreReversedRetailStockAsync(transactionId, branchCode, skuQuantities, cancellationToken);
+        }
+
+        public Task<InventoryReservationResult> TryReserveAsync(string branchCode, IReadOnlyDictionary<string, int> skuQuantities, CancellationToken cancellationToken = default) => inner.TryReserveAsync(branchCode, skuQuantities, cancellationToken);
+        public Task RestoreReservationAsync(InventoryReservation reservation, CancellationToken cancellationToken = default) => inner.RestoreReservationAsync(reservation, cancellationToken);
+        public Task CommitReservationAsync(InventoryReservation reservation, CancellationToken cancellationToken = default) => inner.CommitReservationAsync(reservation, cancellationToken);
+        public Task<InventoryStock?> GetByBranchAndSkuAsync(string branchCode, string sku, CancellationToken cancellationToken = default) => inner.GetByBranchAndSkuAsync(branchCode, sku, cancellationToken);
+        public Task<IReadOnlyList<InventoryStock>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) => inner.GetByBranchAsync(branchCode, cancellationToken);
+        public Task AddAsync(InventoryStock stock, CancellationToken cancellationToken = default) => inner.AddAsync(stock, cancellationToken);
+        public Task UpdateAsync(InventoryStock stock, CancellationToken cancellationToken = default) => inner.UpdateAsync(stock, cancellationToken);
+    }
+
+    private sealed class FailOnceTransactionRepository(ICounterTransactionRepository inner) : ICounterTransactionRepository
+    {
+        private bool _shouldFail = true;
+
+        public Task<CounterTransaction?> GetByIdAsync(string transactionId, CancellationToken cancellationToken = default) => inner.GetByIdAsync(transactionId, cancellationToken);
+        public Task<IReadOnlyList<CounterTransaction>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) => inner.GetByBranchAsync(branchCode, cancellationToken);
+        public Task AddAsync(CounterTransaction value, CancellationToken cancellationToken = default) => inner.AddAsync(value, cancellationToken);
+
+        public Task UpdateAsync(CounterTransaction value, CancellationToken cancellationToken = default)
+        {
+            if (_shouldFail)
+            {
+                _shouldFail = false;
+                throw new IOException("Simulated transaction persistence failure.");
+            }
+
+            return inner.UpdateAsync(value, cancellationToken);
         }
     }
 }

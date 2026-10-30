@@ -35,6 +35,8 @@ Inventory reservation checks all requested lines and changes the inventory file 
 
 Within the running process, inventory reservations now return opaque-by-registration tokens tracked by the JSON repository. A sale commits the token after the transaction is written, or restores it once during compensation. The repository rejects malformed quantities, unknown/modified tokens, and repeated restores. Reservation tokens are process-local; they do not provide crash recovery or cross-process coordination.
 
+Voids and refunds now restore eligible retail quantities to the transaction's branch in one inventory-file mutation before saving the reversed transaction. The JSON inventory repository remembers completed reversal IDs for the lifetime of the process. If the inventory write fails, the transaction remains paid and the caller can retry; if the transaction write fails after inventory is restored, retrying does not restore it again in that process. A process crash between the inventory and transaction writes loses the in-memory idempotency marker, and separate processes do not share it. Durable crash recovery requires a persistent transaction/operation ledger or transactional storage and remains outside this targeted change. Older transactions without SKU references cannot be restored automatically.
+
 Transaction listing, details and void actions resolve the authenticated `StaffId` against the current staff repository record. A disabled account or a changed role/home branch cannot continue to void using stale cookie claims. Branch Managers remain restricted to their current home branch; Administrators retain cross-branch access.
 
 ## Architecture and bounded findings
@@ -44,7 +46,7 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 - `StaffService`, `ReportingService` and `JsonReportDataSource` are registered. Dashboard, reports, staff, catalogue, stock, label preview and standalone transaction-linked money-order routes consume their Application services.
 - `AttributeObjectValidator` uses custom validation attributes and a concurrent per-type reflection metadata cache. `JsonEntityPropertyReader` remains a separate branch metadata adapter. `IRepository<TEntity,TKey>` and `JsonFileStore<TEntity>` use generic constraints/key selectors.
 - `NotificationPublished` is implemented by the singleton simulated observer. Counter sales and stock adjustments notify low stock, high-value money orders notify after successful completion, and successful void/refund workflows publish their respective messages. Notifications are process-local; there is no durable queue or operator inbox.
-- `PerformanceActionFilter` logs at Debug and warns above configurable `Observability:MVCSlowActionWarningMilliseconds`. `AuditActionFilter` records route/action and staff/correlation metadata without reading form data; `IAuditStore` appends JSONL in this single process.
+- `PerformanceActionFilter` logs at Debug and warns above configurable `Observability:MVCSlowActionWarningMilliseconds`. `AuditActionFilter` records only action-specific safe identifiers (transaction ID, stock branch/SKU or shipment ID) plus staff/correlation metadata, without reading form data; `IAuditStore` appends JSONL in this single process.
 - Valid configured partner API keys share a partner rate-limit bucket; invalid requests are partitioned by remote IP. Integration and administrator staff-management endpoints use configured IP allowlists. Forwarded headers remain disabled unless trusted proxies/networks are explicitly configured.
 - Tax/shipping and money-order settings in `appsettings.json` remain demonstration values. Courier status handling has a configurable timeout, bounded concurrency and simulated delay, but there is no real outbound carrier client. Product cache TTL is two minutes; catalogue writes are not currently exposed in Web and any future write path must invalidate the cache.
 
@@ -60,7 +62,7 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 | Money order threshold and same-transaction successful identity verification | Complete | `/Transactions/Create` and `/MoneyOrders/Create` use `CounterSaleService`, apply configured fee/threshold, require successful verification above threshold, and persist the order with the paid transaction. Identity check is staff attestation, not external provider validation. |
 | Mixed counter transactions, payment, state | Complete within simulated payment scope | Paid retail, shipping and money-order lines, receipt, status lifecycle, void and full-refund state are implemented. No payment-provider capture/reversal or partial-refund support. |
 | Inactive staff, assigned branch and closed-branch transaction rules | Complete | Counter-sale service checks current staff, branch, counter, opening state and branch assignment; existing tests cover rejects. |
-| Manager void/refund with reason | Complete within domain scope | Current-staff role/branch checks, mandatory reasons, PRG, audit filter, simulated notifications and tests exist. No payment-provider reversal; void does not restore inventory. |
+| Manager void/refund with reason | Complete within domain scope | Current-staff role/branch checks, mandatory reasons, PRG, audit filter, simulated notifications, and retry-safe retail stock restoration exist. JSON crash recovery limits are documented. No payment-provider reversal. |
 | Four required reports and auditor view | Complete | `JsonReportDataSource` connects JSON repositories to report DTOs; dashboard and `/Reports` show daily sales, low stock, shipping volume, and money orders/identity checks. Timestamp-free legacy transactions are excluded from date reports. |
 | JSON persistence behind abstractions; no DB/ORM | Complete | JSON repositories and store tests exist. Cross-file crash consistency and multi-process writes remain limited as documented above. |
 | Simulated low-stock/high-value/void/refund notifications | Complete for required triggers | Low-stock triggers on sales and adjustments; high-value orders, successful voids, and successful refunds publish observer events. Messages are in-memory and not durable/displayed. |
@@ -77,21 +79,21 @@ Transaction listing, details and void actions resolve the authenticated `StaffId
 | Exception handling, correlation, timing/logging, maintenance, headers, HTTPS/HSTS, health | Complete and integration tested | Middleware is registered in the documented order; integration cases cover safe errors, correlation/security headers, maintenance and health. |
 | API key, IP restrictions, cookie claims/roles, antiforgery, rate limiting, CORS | Complete with configuration requirements | Courier uses key/IP/CORS/rate limits; staff admin endpoints use `Security:AdminAllowedIps`; partner key receives shared rate bucket; admin allowlist and secrets must be configured. |
 | Three filters and audit protection | Complete | Audit, validation and performance filters are global; slow-action threshold is configurable; append-only store avoids request body/action data. |
-| Required xUnit domain tests and >=6 Web integration tests | Complete and verified | Domain/application suites plus 62 Web integration cases passed in the current run. |
+| Required xUnit domain tests and >=6 Web integration tests | Complete and verified | Full suite currently passes 352 cases (Domain 112, Application 171, Web integration 69). |
 | Opt-in demo seed volume (5 branches, 20 staff, 30 products, 10 zones/rates, 40 transactions) | Complete for new seed runs | Guarded console tool provisions required counts; new sample transactions carry UTC timestamps. Existing timestamp-free `App_Data` data was preserved and not migrated. |
-| README, DESIGN, six new ADRs, audit sample and diagrams | Complete | README, architecture/domain/pipeline diagrams, SOLID/security/filter/DI sections, ADR-0001 through ADR-0013, performance notes and `AUDIT-SAMPLE.json` exist. |
-| Git workflow and zero-warning .NET 10 build | Build verified; review workflow pending | Current feature branch is 7 commits ahead/0 behind; working tree remains uncommitted and no PR/push was made. |
+| README, DESIGN, ADRs, audit sample and diagrams | Complete | README, architecture/domain/pipeline diagrams, SOLID/security/filter/DI sections, ADR-0001 through ADR-0014, performance notes and generated `AUDIT-SAMPLE.json` exist. |
+| Git workflow and zero-warning .NET 10 build | Build verified; PR open | Commit `356aecb` is pushed to `feature/targeted-feedback`; [PR #3](https://github.com/divyanshipandey-git/ApexPostRepo/pull/3) targets `master` and remains open for checks/review. No merge was performed. |
 
 ## Remaining gaps and operational limits
 
-The assignment workflows are implemented. Operational/integration limits remain: there is no real carrier tracking client, payment-provider integration, or partial-refund model. The label preview has the assignment-required destination zone but no postal-address fields, so it is not carrier-ready. Identity verification is captured with the money-order transaction to enforce the same-transaction rule. Admin staff pages require `Security:AdminAllowedIps`; timestamp-free legacy transactions remain unchanged and are excluded from date-based reports. GitHub review/PR workflow has not been performed in this local pass.
+The assignment workflows are implemented. Operational/integration limits remain: there is no real carrier tracking client, payment-provider integration, or partial-refund model. The label preview has the assignment-required destination zone but no postal-address fields, so it is not carrier-ready. Identity verification is captured with the money-order transaction to enforce the same-transaction rule. Admin staff pages require `Security:AdminAllowedIps`; timestamp-free legacy transactions remain unchanged and are excluded from date-based reports. PR #3 is open and unmerged; its required checks and approvals must be satisfied before any merge.
 
 ## Audit verification
 
 - Domain suite: 110 discovered and executed, 110 passed, 0 failed, 0 skipped; exit code 0.
 - Application suite: 164 discovered and executed, 164 passed, 0 failed, 0 skipped; exit code 0.
-- Web integration suite: 62 discovered and executed, 62 passed, 0 failed, 0 skipped; exit code 0.
-- Full `dotnet test`: 336 discovered and executed (Domain 110, Application 164, Web integration 62), 336 passed, 0 failed, 0 skipped; exit code 0.
+- Web integration suite: 69 discovered and executed, 69 passed, 0 failed, 0 skipped; exit code 0.
+- Full `dotnet test`: 352 discovered and executed (Domain 112, Application 171, Web integration 69), 352 passed, 0 failed, 0 skipped; exit code 0.
 - `dotnet build ApexPost.sln --no-restore`: succeeded, 0 warnings and 0 errors; exit code 0.
 - `git diff --check`: exit code 0. Git emitted line-ending conversion notices for existing CRLF/LF working-copy differences; no whitespace errors were reported.
 
