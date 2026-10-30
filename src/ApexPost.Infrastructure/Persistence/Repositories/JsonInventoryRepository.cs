@@ -12,6 +12,7 @@ public sealed class JsonInventoryRepository : IInventoryRepository
 {
     private readonly JsonFileStore<InventoryStock> _store;
     private readonly ConcurrentDictionary<Guid, InventoryReservation> _pendingReservations = new();
+    private readonly ConcurrentDictionary<string, byte> _restoredTransactions = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _reservationGate = new(1, 1);
 
     public JsonInventoryRepository(JsonPersistenceOptions options)
@@ -132,6 +133,55 @@ public sealed class JsonInventoryRepository : IInventoryRepository
                 return (true, true);
             }, cancellationToken);
             _pendingReservations.TryRemove(validated.Id, out _);
+        }
+        finally
+        {
+            _reservationGate.Release();
+        }
+    }
+
+    public async Task RestoreReversedRetailStockAsync(
+        string transactionId,
+        string branchCode,
+        IReadOnlyDictionary<string, int> skuQuantities,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
+        var (normalizedBranch, normalizedQuantities) = ValidateRequest(branchCode, skuQuantities);
+        var normalizedTransactionId = transactionId.Trim();
+
+        await _reservationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_restoredTransactions.ContainsKey(normalizedTransactionId))
+            {
+                return;
+            }
+
+            await _store.MutateAllAsync(stocks =>
+            {
+                foreach (var (sku, quantity) in normalizedQuantities)
+                {
+                    var stock = stocks.FirstOrDefault(item =>
+                        string.Equals(item.BranchCode.Value, normalizedBranch, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(item.Sku.Value, sku, StringComparison.OrdinalIgnoreCase));
+                    if (stock is null)
+                    {
+                        stocks.Add(new InventoryStock(
+                            new BranchCode(normalizedBranch),
+                            new Sku(sku),
+                            quantity));
+                    }
+                    else
+                    {
+                        stock.AddStock(quantity);
+                    }
+                }
+
+                return (true, true);
+            }, cancellationToken);
+
+            _restoredTransactions.TryAdd(normalizedTransactionId, 0);
         }
         finally
         {

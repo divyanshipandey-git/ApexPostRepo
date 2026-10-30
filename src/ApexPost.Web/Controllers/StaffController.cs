@@ -5,6 +5,7 @@ using ApexPost.Web.Models.Staff;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ApexPost.Web.Security;
+using ApexPost.Web.Filters;
 
 namespace ApexPost.Web.Controllers;
 
@@ -54,6 +55,7 @@ public sealed class StaffController(
     }
 
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(StaffManagementViewModel model, CancellationToken cancellationToken)
     {

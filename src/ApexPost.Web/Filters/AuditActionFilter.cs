@@ -3,6 +3,8 @@ using System.Security.Claims;
 using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Services.Auditing;
 using ApexPost.Web.Middleware;
+using ApexPost.Web.Models.Shipping;
+using ApexPost.Web.Models.Stock;
 using ApexPost.Web.Models.Transactions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -23,11 +25,6 @@ public sealed class AuditActionFilter(
         ("MoneyOrders", "Create"),
         ("CourierIntegration", "UpdateShipmentStatus")
     ];
-
-    private static readonly HashSet<string> SafeRouteKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "controller", "action", "id", "shipmentId"
-    };
 
     public async Task OnActionExecutionAsync(
         ActionExecutingContext context,
@@ -88,29 +85,35 @@ public sealed class AuditActionFilter(
         ActionExecutedContext? executed)
     {
         var user = context.HttpContext.User;
-        var routeValues = context.RouteData.Values
-            .Where(pair => SafeRouteKeys.Contains(pair.Key))
-            .ToDictionary(
-                pair => pair.Key,
-                pair => pair.Value?.ToString() is { Length: <= 256 } value ? value : null,
-                StringComparer.OrdinalIgnoreCase);
-
+        var routeValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         if (IsTransactionReversal(context) &&
             context.ActionArguments.Values.OfType<TransactionVoidViewModel>().FirstOrDefault() is { } voidModel)
         {
-            routeValues["transactionId"] = voidModel.TransactionId;
+            AddSafeValue(routeValues, "transactionId", voidModel.TransactionId);
         }
         else if (IsTransactionReversal(context) &&
                  context.ActionArguments.Values.OfType<TransactionRefundViewModel>().FirstOrDefault() is { } refundModel)
         {
-            routeValues["transactionId"] = refundModel.TransactionId;
+            AddSafeValue(routeValues, "transactionId", refundModel.TransactionId);
         }
 
-        if (executed?.Result is RedirectToActionResult { RouteValues: not null } redirect &&
-            redirect.RouteValues.TryGetValue("id", out var transactionId) &&
-            transactionId?.ToString() is { Length: <= 256 } value)
+        if (IsStockAdjustment(context) &&
+            context.ActionArguments.Values.OfType<StockManagementViewModel>().FirstOrDefault() is { } stockModel)
         {
-            routeValues["transactionId"] = value;
+            AddSafeValue(routeValues, "branchCode", stockModel.BranchCode);
+            AddSafeValue(routeValues, "sku", stockModel.Sku);
+        }
+
+        if (IsCourierStatusUpdate(context))
+        {
+            AddSafeValue(routeValues, "shipmentId", context.RouteData.Values["shipmentId"]?.ToString());
+        }
+
+        if (IsSaleOrMoneyOrder(context) &&
+            executed?.Result is RedirectToActionResult { RouteValues: not null } redirect &&
+            redirect.RouteValues.TryGetValue("id", out var transactionId))
+        {
+            AddSafeValue(routeValues, "transactionId", transactionId?.ToString());
         }
 
         return new AuditActionRecord(
@@ -135,7 +138,29 @@ public sealed class AuditActionFilter(
         context.RouteData.Values["controller"]?.ToString() is { } controller &&
         context.RouteData.Values["action"]?.ToString() is { } action &&
         controller.Equals("Transactions", StringComparison.OrdinalIgnoreCase) &&
-        action is "Void" or "Refund";
+        (action.Equals("Void", StringComparison.OrdinalIgnoreCase) ||
+         action.Equals("Refund", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsStockAdjustment(ActionExecutingContext context) =>
+        IsAction(context, "Stock", "Adjust");
+
+    private static bool IsCourierStatusUpdate(ActionExecutingContext context) =>
+        IsAction(context, "CourierIntegration", "UpdateShipmentStatus");
+
+    private static bool IsSaleOrMoneyOrder(ActionExecutingContext context) =>
+        IsAction(context, "Transactions", "Create") || IsAction(context, "MoneyOrders", "Create");
+
+    private static bool IsAction(ActionExecutingContext context, string controller, string action) =>
+        string.Equals(context.RouteData.Values["controller"]?.ToString(), controller, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(context.RouteData.Values["action"]?.ToString(), action, StringComparison.OrdinalIgnoreCase);
+
+    private static void AddSafeValue(IDictionary<string, string?> values, string key, string? value)
+    {
+        if (value is { Length: > 0 and <= 256 } && !value.Any(char.IsControl))
+        {
+            values[key] = value;
+        }
+    }
 
     private static int GetStatusCode(ActionExecutingContext context, ActionExecutedContext executed)
     {

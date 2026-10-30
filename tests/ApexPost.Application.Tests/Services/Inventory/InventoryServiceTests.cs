@@ -230,6 +230,30 @@ public sealed class InventoryServiceTests
             return Task.CompletedTask;
         }
 
+        public Task RestoreReversedRetailStockAsync(
+            string transactionId,
+            string branchCode,
+            IReadOnlyDictionary<string, int> skuQuantities,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var (sku, quantity) in skuQuantities)
+            {
+                var stock = _stocks.FirstOrDefault(item =>
+                    item.BranchCode.Value == branchCode && item.Sku.Value == sku);
+                if (stock is null)
+                {
+                    _stocks.Add(new InventoryStock(new BranchCode(branchCode), new Sku(sku), quantity));
+                }
+                else
+                {
+                    stock.AddStock(quantity);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
         public Task CommitReservationAsync(
             InventoryReservation reservation,
             CancellationToken cancellationToken = default)

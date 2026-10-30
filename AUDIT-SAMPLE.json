@@ -1,18 +1,1 @@
-[
-  {
-    "Timestamp": "2026-10-25T12:00:00+00:00",
-    "StaffId": "DEMO-branchmanager-02",
-    "Role": "BranchManager",
-    "BranchCode": "AP002",
-    "Controller": "Transactions",
-    "Action": "Void",
-    "RouteValues": {
-      "controller": "Transactions",
-      "action": "Void",
-      "id": "DEMO-TXN-001"
-    },
-    "StatusCode": 302,
-    "DurationMilliseconds": 18,
-    "CorrelationId": "sample-correlation-id"
-  }
-]
+{"timestamp":"2026-10-30T10:21:47.9256844+00:00","staffId":"staff-test-1","role":"BranchManager","branchCode":"IND01","controller":"Stock","action":"Adjust","routeValues":{"branchCode":"IND01","sku":"ENV001"},"statusCode":302,"durationMilliseconds":10,"correlationId":"d8f80d786c860b1cc3ab1562d4b0fa21"}

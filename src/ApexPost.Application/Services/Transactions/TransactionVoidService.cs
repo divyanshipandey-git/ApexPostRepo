@@ -122,8 +122,8 @@ public sealed class TransactionVoidService
             return new TransactionVoidResult(TransactionVoidStatus.InvalidReason, transaction);
         }
 
+        await RestoreSoldRetailStockAsync(transaction, cancellationToken);
         await _repository.UpdateAsync(transaction, cancellationToken);
-        await RestoreSoldRetailStockAsync(transaction);
         if (_notifications is not null)
         {
             await _notifications.NotifyTransactionVoidAsync(
@@ -136,7 +136,9 @@ public sealed class TransactionVoidService
         return new TransactionVoidResult(TransactionVoidStatus.Voided, transaction);
     }
 
-    internal async Task RestoreSoldRetailStockAsync(CounterTransaction transaction)
+    internal async Task RestoreSoldRetailStockAsync(
+        CounterTransaction transaction,
+        CancellationToken cancellationToken = default)
     {
         if (_inventoryRepository is null)
         {
@@ -148,13 +150,13 @@ public sealed class TransactionVoidService
             .GroupBy(item => item.ReferenceId!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity), StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (sku, quantity) in quantities)
+        if (quantities.Count > 0)
         {
-            await _inventoryRepository.AdjustQuantityAsync(
+            await _inventoryRepository.RestoreReversedRetailStockAsync(
+                transaction.Id,
                 transaction.BranchCode.Value,
-                sku,
-                quantity,
-                CancellationToken.None);
+                quantities,
+                cancellationToken);
         }
     }
 

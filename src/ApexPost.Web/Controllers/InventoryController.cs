@@ -1,5 +1,6 @@
 using ApexPost.Application.Services.Inventory;
 using ApexPost.Web.Models.Inventory;
+using ApexPost.Web.Filters;
 using ApexPost.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -59,6 +60,7 @@ public sealed class InventoryController : Controller
     }
 
     [HttpPost]
+    [RedisplayInvalidModelState]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Search(
         InventoryInquiryViewModel model,
