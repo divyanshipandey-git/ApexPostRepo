@@ -1,4 +1,5 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Application.Validation;
 using ApexPost.Application.Services.Staff;
@@ -27,6 +28,7 @@ public sealed class CounterSaleService
     private readonly MoneyOrderSettings _moneyOrderSettings;
     private readonly INotificationService _notifications;
     private readonly ProductCatalogCache? _productCatalogCache;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -42,7 +44,8 @@ public sealed class CounterSaleService
         INotificationService notifications,
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider,
-        ProductCatalogCache? productCatalogCache = null)
+        ProductCatalogCache? productCatalogCache = null,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
         ArgumentNullException.ThrowIfNull(inventoryRepository);
@@ -72,6 +75,7 @@ public sealed class CounterSaleService
         _taxRates = taxRates.ToArray();
         _timeProvider = timeProvider;
         _productCatalogCache = productCatalogCache;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<CounterSaleResult> CompleteAsync(
@@ -344,9 +348,22 @@ public sealed class CounterSaleService
                     CancellationToken.None);
             }
 
+            if (_unitOfWork is not null)
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
         }
         catch (Exception persistenceException)
         {
+            // A SQL rowversion conflict means SaveChanges did not commit this scope.  Do not
+            // compensate a reservation that never reached the database, or it would add stock
+            // already sold by the winning concurrent request.
+            if (persistenceException is ConcurrencyConflictException)
+            {
+                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
+            }
+
             // Compensation uses a non-cancelable token so a disconnected client cannot strand reserved stock.
             try
             {
@@ -365,6 +382,11 @@ public sealed class CounterSaleService
                     await _inventoryRepository.RestoreReservationAsync(
                         inventoryReservation,
                         CancellationToken.None);
+                }
+
+                if (_unitOfWork is not null)
+                {
+                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
                 }
             }
             catch (Exception rollbackException)
@@ -395,7 +417,7 @@ public sealed class CounterSaleService
 
         if (inventoryReservation is not null)
         {
-            await Task.WhenAll(inventoryReservation.SkuQuantities.Keys.Select(async sku =>
+            foreach (var sku in inventoryReservation.SkuQuantities.Keys)
             {
                 var current = await _inventoryRepository.GetByBranchAndSkuAsync(
                     branchCode.Value,
@@ -410,7 +432,7 @@ public sealed class CounterSaleService
                         LowStockReorderLevel,
                         CancellationToken.None);
                 }
-            }));
+            }
         }
 
         return new CounterSaleResult(CounterSaleStatus.Completed, transaction, shipmentId);
@@ -437,13 +459,10 @@ public sealed class CounterSaleService
             return null;
         }
 
-        var productsTask = _productCatalogCache is null
-            ? _productRepository.GetAllAsync(cancellationToken)
-            : _productCatalogCache.GetAllAsync(cancellationToken);
-        var countersTask = _counterRepository.GetByBranchAsync(branchCode.Value, cancellationToken);
-        await Task.WhenAll(productsTask, countersTask);
-        var products = await productsTask;
-        var counters = await countersTask;
+        var products = _productCatalogCache is null
+            ? await _productRepository.GetAllAsync(cancellationToken)
+            : await _productCatalogCache.GetAllAsync(cancellationToken);
+        var counters = await _counterRepository.GetByBranchAsync(branchCode.Value, cancellationToken);
 
         return new CounterSaleOptions(
             products,

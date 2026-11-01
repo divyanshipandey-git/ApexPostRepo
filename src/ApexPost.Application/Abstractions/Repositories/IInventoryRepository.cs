@@ -20,6 +20,15 @@ public interface IInventoryRepository
         IReadOnlyDictionary<string, int> skuQuantities,
         CancellationToken cancellationToken = default);
 
+    Task RestoreReversedRetailStockAsync(
+        string transactionId,
+        string branchCode,
+        IReadOnlyDictionary<string, int> skuQuantities,
+        string reason,
+        string changedBy,
+        CancellationToken cancellationToken = default) =>
+        RestoreReversedRetailStockAsync(transactionId, branchCode, skuQuantities, cancellationToken);
+
     Task CommitReservationAsync(
         InventoryReservation reservation,
         CancellationToken cancellationToken = default);
@@ -80,6 +89,15 @@ public interface IInventoryRepository
         await UpdateAsync(stock, cancellationToken);
         return stock;
     }
+
+    Task<InventoryStock?> AdjustQuantityWithAuditAsync(
+        string branchCode,
+        string sku,
+        int adjustment,
+        string reason,
+        string changedBy,
+        CancellationToken cancellationToken = default) =>
+        AdjustQuantityAsync(branchCode, sku, adjustment, cancellationToken);
 }
 
 public enum InventoryReservationStatus

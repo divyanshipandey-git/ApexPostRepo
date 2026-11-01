@@ -10,17 +10,19 @@ public sealed class InventoryService
     private const int LowStockReorderLevel = 5;
     private readonly IInventoryRepository _inventoryRepository;
     private readonly INotificationService? _notifications;
+    private readonly ApexPost.Application.Abstractions.Persistence.IUnitOfWork? _unitOfWork;
 
     public InventoryService(IInventoryRepository inventoryRepository)
         : this(inventoryRepository, null)
     {
     }
 
-    public InventoryService(IInventoryRepository inventoryRepository, INotificationService? notifications)
+    public InventoryService(IInventoryRepository inventoryRepository, INotificationService? notifications, ApexPost.Application.Abstractions.Persistence.IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(inventoryRepository);
         _inventoryRepository = inventoryRepository;
         _notifications = notifications;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<InventoryStock?> GetStockAsync(
@@ -57,6 +59,15 @@ public sealed class InventoryService
         string sku,
         int adjustment,
         CancellationToken cancellationToken = default)
+        => AdjustQuantityAsync(branchCode, sku, adjustment, "Stock adjustment from Stock Management", "Unknown", cancellationToken);
+
+    public Task<InventoryStock?> AdjustQuantityAsync(
+        string branchCode,
+        string sku,
+        int adjustment,
+        string reason,
+        string changedBy,
+        CancellationToken cancellationToken = default)
     {
         var normalizedBranchCode = ValidateBranchCode(branchCode);
         var normalizedSku = ValidateSku(sku);
@@ -65,16 +76,21 @@ public sealed class InventoryService
             throw new ArgumentOutOfRangeException(nameof(adjustment), "Use a non-zero quantity within the supported range.");
         }
 
-        return AdjustQuantityCoreAsync(normalizedBranchCode, normalizedSku, adjustment, cancellationToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(changedBy);
+        return AdjustQuantityCoreAsync(normalizedBranchCode, normalizedSku, adjustment, reason.Trim(), changedBy.Trim(), cancellationToken);
     }
 
     private async Task<InventoryStock?> AdjustQuantityCoreAsync(
         string branchCode,
         string sku,
         int adjustment,
+        string reason,
+        string changedBy,
         CancellationToken cancellationToken)
     {
-        var stock = await _inventoryRepository.AdjustQuantityAsync(branchCode, sku, adjustment, cancellationToken);
+        var stock = await _inventoryRepository.AdjustQuantityWithAuditAsync(branchCode, sku, adjustment, reason, changedBy, cancellationToken);
+        if (_unitOfWork is not null && stock is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         if (stock is not null && stock.Quantity <= LowStockReorderLevel && _notifications is not null)
         {
             await _notifications.NotifyLowStockAsync(

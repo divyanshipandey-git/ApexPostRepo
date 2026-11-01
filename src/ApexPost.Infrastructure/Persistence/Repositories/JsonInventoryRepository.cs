@@ -8,7 +8,7 @@ using System.Collections.ObjectModel;
 
 namespace ApexPost.Infrastructure.Persistence.Repositories;
 
-public sealed class JsonInventoryRepository : IInventoryRepository
+public sealed class JsonInventoryRepository : IStockRepository
 {
     private readonly JsonFileStore<InventoryStock> _store;
     private readonly ConcurrentDictionary<Guid, InventoryReservation> _pendingReservations = new();

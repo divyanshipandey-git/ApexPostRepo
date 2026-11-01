@@ -18,6 +18,12 @@ flowchart TD
 
 The Web project is the composition root and registers Application and Infrastructure services. Domain must not reference ASP.NET Core, JSON files, controllers, or Infrastructure. Application defines ports; Infrastructure implements them.
 
+## Runtime persistence (Week 3)
+
+The running Web application registers the EF Core SQL Server adapters from `AddSqlInfrastructure`. Branch, counter, staff/credential, product, stock, transaction, shipment, money-order, report, unit-of-work, and audit operations resolve through scoped SQL implementations sharing the request's `ApexPostDbContext`. Web startup does not register JSON repositories or use JSON as a fallback. Missing SQL configuration fails startup with a message showing the Development user-secrets command. JSON adapters remain available to legacy tests and the explicit import tool only. No separate business database is used.
+
+Development connection strings belong in user-secrets, and schema changes are applied explicitly with `dotnet ef database update`; Web startup does not migrate the database or use `EnsureCreated`. See [README.md](README.md) for setup and [docs/WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md) for the migration/import procedure.
+
 ## Project references
 
 | Project | References |
@@ -71,25 +77,56 @@ classDiagram
     Shipment --> Weight
 ```
 
+## SQL Server relational ER diagram
+
+The deployed schema adds normalized lookup, credential, payment, tax snapshot, movement, audit, and import tables. Historical/financial foreign keys restrict deletion (`NO ACTION`); the diagram omits scalar columns and lookup details for readability.
+
+```mermaid
+erDiagram
+    Branches ||--o{ Counters : owns
+    Branches ||--o{ Staff : assigns
+    Roles ||--o{ Staff : grants
+    Staff ||--|| StaffCredentials : authenticates
+    ProductCategories ||--o{ Products : classifies
+    Branches ||--o{ BranchStock : holds
+    Products ||--o{ BranchStock : stocked
+    ShippingZones ||--o{ ShippingRates : prices
+    ShippingZones ||--o{ Shipments : destination
+    Branches ||--o{ Shipments : creates
+    Branches ||--o{ CounterTransactions : records
+    Counters ||--o{ CounterTransactions : serves
+    Staff ||--o{ CounterTransactions : processes
+    CounterTransactions ||--|{ TransactionLines : contains
+    CounterTransactions ||--o{ TransactionTaxRates : snapshots
+    CounterTransactions ||--o| Payments : settles
+    CounterTransactions ||--o{ Shipments : may_include
+    CounterTransactions ||--o| MoneyOrders : may_include
+    Branches ||--o{ MoneyOrders : issues
+    MoneyOrders ||--o| IdentityVerifications : verifies
+    Branches ||--o{ StockMovements : records
+    Products ||--o{ StockMovements : tracks
+    CounterTransactions o|--o{ StockMovements : reversal_source
+```
+
 Retail goods and services share the transaction's composed line-item list; a line's item type distinguishes retail from service without coupling transaction lifecycle to separate product/shipping inheritance trees.
 
 ## SOLID mapping
 
 | Principle | Application here |
 |---|---|
-| Single Responsibility | Domain entities enforce invariants, Application services orchestrate use cases, JSON repositories persist data, and MVC controllers translate HTTP inputs/results. |
+| Single Responsibility | Domain entities enforce invariants, Application services orchestrate use cases, SQL repositories persist data, and MVC controllers translate HTTP inputs/results. |
 | Open/Closed | `IReportDataSource` and repository ports allow storage/report adapters to change without changing report calculations. Shipping prices are supplied as configured `ShippingPricingRule` instances. |
-| Liskov Substitution | JSON repository implementations satisfy Application repository interfaces and can be replaced by test fakes or later adapters. |
+| Liskov Substitution | SQL repository implementations satisfy Application repository interfaces and can be replaced by test fakes or isolated legacy adapters. |
 | Interface Segregation | Branch, counter, staff, product, inventory, transaction, shipment and money-order ports expose focused operations. |
 | Dependency Inversion | Application depends on Domain and abstractions; Infrastructure implements repository/report/audit ports; Web is the composition root. |
 
 ## Persistence
 
-This week uses asynchronous JSON persistence behind repository interfaces; no database or ORM. `JsonPersistenceOptions.DataDirectory` defaults to `<solution-root>/App_Data` when the running assembly can locate `ApexPost.sln`, falling back to `AppContext.BaseDirectory/App_Data` otherwise. Web startup binds the optional `JsonPersistence:DataDirectory` setting; an absolute path is recommended for deployment. Missing entity files read as empty collections and are created on the first write. The JSON entity files are `branches.json`, `counters.json`, `staff.json`, `staff-credentials.json`, `products.json`, `inventory.json`, `counter-transactions.json`, `shipments.json`, and `money-orders.json`; action audit entries are appended separately to `audit.jsonl` in the same directory. The opt-in console project `tools/ApexPost.DemoSeed` creates synthetic records only in an existing empty directory. It records digests in a manifest and refuses changed or unrelated data on repeat invocation. It is not a Web endpoint or a production startup hook. There are no production seed files or credentials.
+Web runtime business data uses EF Core 10 with SQL Server and the `ApexPostDb` catalog. The connection string is supplied through Development user-secrets or an explicit environment variable; startup does not migrate the database, call `EnsureCreated`, register JSON repositories, or fall back to JSON. Schema changes are applied explicitly through EF migrations. The SQL repositories, `ApexPostDbContext`, and `IUnitOfWork` are scoped and share one context within a request/use case.
 
-`CounterTransaction.OccurredAtUtc` is optional so existing JSON remains readable. New counter sales and seeded sample sales record a UTC occurrence time. `JsonReportDataSource` excludes older records with no timestamp from date-based reporting instead of inventing historical dates. No automatic rewrite or migration of the existing `App_Data` JSON is performed. Reporting reads the JSON branch, inventory, product, transaction, shipment, and money-order repositories through `IReportDataSource`; sales are split by retail/service line and include the saved transaction tax rates. The branch dashboard loads daily sales and low-stock data concurrently. Managers are scoped to their home branch; auditors and administrators can view cross-branch reports.
+Reads use no-tracking projections for reports and screens. Counter sale, stock reservation, payment, linked shipment/money-order, and reversal changes are staged through the unit of work and committed consistently. Stock and transaction rowversions, a unique reversal movement constraint, and database transactions protect concurrent writes. The stored procedures provide set-based daily sales and low-stock reports plus transactional stock adjustment; calls use parameterized EF APIs. Audit entries are written through the SQL audit store separately from the business commit so audit failure does not replace a completed business response.
 
-`InventoryService.AdjustQuantityAsync` delegates to the JSON repository's single-file mutation path. The update is serialized with sales reservations and validates the domain stock rule before replacing `inventory.json`. This is atomic within the running process for the inventory file; it does not create a transaction spanning multiple JSON files. Admin staff creation writes the staff record and password hash to two separate JSON files, so a process failure between those writes can leave an account requiring administrative recovery.
+JSON repositories remain only as legacy test adapters. The opt-in importer reads a selected JSON source without modifying it and writes imported rows to SQL explicitly; the original `App_Data` files are not changed by Web startup. The opt-in demo tool can create fictional JSON fixtures in a separate, explicitly selected empty directory. Its password is required through user-secrets or an environment variable and only the password hash is written to the fixture. Neither tool is a Web startup hook.
 
 ## Advanced C# and performance choices
 
@@ -97,23 +134,23 @@ This week uses asynchronous JSON persistence behind repository interfaces; no da
 |---|---|---|
 | Records and value objects | Report DTOs and `Money`, `Weight`, `Sku`, `BranchCode`, and `Address` keep values explicit and validated. | Used |
 | Pattern matching | Domain item-type validation and role/state branches keep supported cases explicit. | Used |
-| Generic repository | `JsonFileStore<TEntity> where TEntity : class` shares asynchronous JSON CRUD and key handling without exposing storage to use cases. | Used |
+| Generic repository | `JsonFileStore<TEntity> where TEntity : class` supports isolated legacy JSON tests and the import source; SQL runtime uses focused EF repositories. | Legacy/import only |
 | Delegates | A `Func<Weight, Money>` on `ShippingPricingRule` selects the real price calculation. The configured multiplier adjusts the default linear policy; callers/tests can supply a different policy without changing `ShippingService`. | Used |
 | Events | `SimulatedNotificationService.NotificationPublished` exposes low-stock, high-value money-order, void, and refund notifications to observers. | Used |
-| Async and cancellation | Controllers and use cases pass cancellation through JSON repository I/O; cancellation is propagated separately from ordinary persistence failures. | Used |
+| Async and cancellation | Controllers and use cases pass cancellation through SQL operations; cancellation is propagated separately from ordinary persistence failures. | Used |
 | `Task.WhenAll` | The dashboard, reports, and independent option loads request separate repositories concurrently. | Used |
-| `SemaphoreSlim` | JSON file gates serialize writes by full path; inventory reservations are bounded within the process. | Used |
+| `SemaphoreSlim` | JSON file gates support legacy adapters; SQL stock reservations use database transactions, conditional updates and concurrency tokens. | Used |
 | C# 14 extension members | `decimal.ToCurrencyPrecision()` centralizes the two-decimal, midpoint-away-from-zero rule used by `Money`. | Used |
 | C# 14 `field` keyword | `InventoryStock.Quantity` validates the non-negative invariant in its setter, including constructor/deserialization paths, without a manually declared backing field. | Used |
 | Custom attributes and reflection | `RequiredTextAttribute` and `MaskedIdentifierAttribute` decorate transaction request records. `AttributeObjectValidator` caches per-type property/attribute metadata in a `ConcurrentDictionary` and validates nested request objects before the sale use case runs. | Used |
-| `ValueTask` and in-memory cache | The singleton `ProductCatalogCache` stores immutable products for two minutes. A cache hit returns a completed `ValueTask` and counter-sale option loading warms it before line-item lookup. The catalog has no Web write path; a future writer must call `Invalidate`, and concurrent cache misses are not coalesced. | Used |
-| Courier timeout and cancellation | `CourierStatusService` bounds concurrent processing to four operations, links the request token with a configured timeout, and maps timeout to 504 while caller cancellation propagates. A configurable delay simulates a slow courier lookup; the current integration is a webhook plus local JSON lookup, not a real outbound carrier API. | Used (simulation) |
+| `ValueTask` and in-memory cache | The scoped `ProductCatalogCache` stores products for two minutes against a scoped SQL repository. A cache hit returns a completed `ValueTask`; a future catalogue writer must call `Invalidate`. | Used |
+| Courier timeout and cancellation | `CourierStatusService` bounds concurrent processing to four operations, links the request token with a configured timeout, and maps timeout to 504 while caller cancellation propagates. A configurable delay simulates a slow courier lookup; the webhook writes through the SQL shipment repository and is not a real outbound carrier API. | Used (simulation) |
 
-The report data source uses repository abstractions and DTO projections rather than loading files directly in controllers. Dashboard/report fan-out is safe for independent read operations. File writes remain serialized per path to prevent lost updates. `ProductCatalogCacheTests` compares 100 direct reads against 100 warm cache hits over a fake repository that waits 1 ms per read. On the local test run, direct reads took 1,522.39 ms and cache hits took 0.24 ms. This is a small latency demonstration, not a production benchmark: it excludes JSON parsing, competing cache misses, expiration, and real workload variance. The cache avoids repeated repository I/O for an immutable, repeatedly read catalogue; the dictionary lookup itself is not expected to beat an already in-memory `Task.FromResult` repository.
+The SQL report data source uses repository abstractions and no-tracking DTO projections rather than loading files in controllers. Dashboard/report reads are database queries. `ProductCatalogCacheTests` is a small fake-repository latency demonstration, not a production benchmark; it does not measure SQL throughput or real workload variance.
 
 Shipping weight limits are independently configured under `Shipping:MaximumWeightKgByServiceLevel`. The checked-in values (Standard 30 kg, Express 20 kg, Registered 10 kg) are demonstration assumptions, not assignment-provided business policy. Replace them with approved values. `ShippingPricingRule` uses a `Func<Weight, Money>` to run the configured pricing policy; the default linear rule applies `Shipping:PriceMultiplier` to the base-plus-weight price. A different delegate can implement another pricing policy without changing shipment orchestration.
 
-`JsonFileStore<TEntity>` writes a complete entity collection to a unique temporary file in the target directory, flushes it, then moves it over the destination. A static per-full-path `SemaphoreSlim` coordinates store instances in the same process for the same entity type. Missing files are treated as empty; malformed JSON, permission errors, and I/O failures propagate to the safe HTTP exception handler (or the caller outside Web). A process failure may leave a temporary file or a partial final audit line. Entity-file replacement does not create a transaction across files. The counter-sale service compensates some failed multi-file writes, but a process crash or multiple application instances can still leave inventory, shipment, and transaction data inconsistent. This is not a database transaction or a cross-process lock. Backups, file permissions, durable recovery, and single-instance deployment remain operational requirements until a transactional store is introduced.
+`JsonFileStore<TEntity>` remains an isolated legacy adapter and a source reader for import; it is not part of the Web runtime composition. Its prior Week 2 atomic-file and multi-file compensation limits are historical behavior and do not describe SQL-backed Web operations. SQL sale and reversal writes use the scoped unit of work and database constraints/transactions; see [WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md) for remaining SQL limitations.
 
 ## Cross-cutting concerns
 
@@ -153,9 +190,11 @@ flowchart TD
 
 | Service | Lifetime | Reason |
 |---|---|---|
-| JSON repositories and audit store | Singleton | Share per-file gates and persistence coordination across requests. |
-| `ProductCatalogCache`, notification observer and `TimeProvider` | Singleton | Cache/notification state and clock are shared; cache entries are immutable and expire. |
-| Application use-case services and `IReportDataSource` | Scoped | Request orchestration can safely depend on singleton repositories without holding request state across requests. |
+| SQL repositories, audit store, `ApexPostDbContext`, and `IUnitOfWork` | Scoped | One request scope shares a context and unit of work; SQL changes are committed at the use-case boundary. |
+| `ProductCatalogCache` and Application use-case services | Scoped | The cache depends on a scoped SQL repository; use-case dependencies remain within the request scope. |
+| Notification observer and `TimeProvider` | Singleton | The notification simulation and system clock are shared. |
+| JSON repositories and audit store | Not registered in Web | They remain available for legacy tests/import tooling only. |
+| `IReportDataSource` | Scoped | Report reads use SQL projections within the request's context. |
 | MVC action filters | Scoped | Use request/action context and may depend on audit/options services. |
 | Custom middleware | Singleton middleware construction | Constructors use singleton-safe configuration/loggers; request-specific services must be passed to `InvokeAsync`, not captured by the middleware constructor. |
 
@@ -169,8 +208,8 @@ flowchart TD
 | Forged client IP behind a proxy | Forwarded headers are disabled unless trusted proxies/networks are explicitly configured; allowlists otherwise use the direct remote IP. |
 | Cross-branch data access | Branch-aware use cases/controllers; branch managers are scoped to their home branch; admin endpoints additionally use the configured IP allowlist. |
 | Personal or payment data in logs | Audit filter records route metadata only, excludes sensitive route keys, and does not inspect form values/action arguments. Identity numbers are stored masked; card data is not collected. |
-| Lost update or negative stock | Per-file semaphore and atomic JSON replacement; stock reservation checks all requested lines before decrement. |
-| File tampering, crash or multi-instance inconsistency | Restrict data-directory permissions and back up files; documented limitation is single-process/single-instance and non-atomic multi-file workflows. |
+| Lost update or negative stock | SQL stock reservation, rowversion concurrency, database constraints, and one unit-of-work transaction protect the reservation and sale. |
+| Database availability or migration mismatch | SQL is the only Web runtime source; startup does not silently fall back to JSON. Apply reviewed migrations explicitly and keep tested backups. |
 
 ### Middleware and filters
 

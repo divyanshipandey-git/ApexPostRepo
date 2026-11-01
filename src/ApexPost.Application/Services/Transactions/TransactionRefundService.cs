@@ -1,5 +1,6 @@
 using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 
 namespace ApexPost.Application.Services.Transactions;
@@ -9,11 +10,13 @@ public sealed class TransactionRefundService
     private readonly ICounterTransactionRepository _transactionRepository;
     private readonly TransactionVoidService _accessService;
     private readonly INotificationService _notifications;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public TransactionRefundService(
         ICounterTransactionRepository transactionRepository,
         TransactionVoidService accessService,
-        INotificationService notifications)
+        INotificationService notifications,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
         ArgumentNullException.ThrowIfNull(accessService);
@@ -21,6 +24,7 @@ public sealed class TransactionRefundService
         _transactionRepository = transactionRepository;
         _accessService = accessService;
         _notifications = notifications;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<TransactionRefundResult> RefundAsync(
@@ -65,8 +69,9 @@ public sealed class TransactionRefundService
             return new TransactionRefundResult(TransactionRefundStatus.InvalidReason, transaction);
         }
 
-        await _accessService.RestoreSoldRetailStockAsync(transaction, cancellationToken);
+        await _accessService.RestoreSoldRetailStockAsync(transaction, reason.Trim(), staffId!, cancellationToken);
         await _transactionRepository.UpdateAsync(transaction, cancellationToken);
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         await _notifications.NotifyTransactionRefundAsync(
             transaction.BranchCode.Value,
             transaction.Id,
