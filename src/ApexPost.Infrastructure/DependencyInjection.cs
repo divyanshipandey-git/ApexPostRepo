@@ -38,6 +38,7 @@ public static class DependencyInjection
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
         options.DataDirectory = JsonPersistenceOptions.ResolveDataDirectory(options.DataDirectory);
 
+        services.TryAddScoped<IUnitOfWork, NoOpUnitOfWork>();
         services.TryAddSingleton(options);
         services.TryAddSingleton<JsonAuditLog>();
         services.TryAddSingleton<IAuditStore>(provider => provider.GetRequiredService<JsonAuditLog>());
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IStaffPasswordHasher, Pbkdf2StaffPasswordHasher>();
 
         services.TryAddSingleton<IInventoryRepository, JsonInventoryRepository>();
+        services.TryAddSingleton<IStockRepository>(provider => (IStockRepository)provider.GetRequiredService<IInventoryRepository>());
         services.TryAddSingleton<ICounterTransactionRepository, JsonCounterTransactionRepository>();
         services.TryAddSingleton<IShipmentRepository, JsonShipmentRepository>();
         services.TryAddSingleton<IMoneyOrderRepository, JsonMoneyOrderRepository>();

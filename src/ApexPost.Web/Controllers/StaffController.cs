@@ -18,13 +18,12 @@ public sealed class StaffController(
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var staffTask = staffService.GetAllAsync(cancellationToken);
-        var branchesTask = branchRepository.GetAllAsync(cancellationToken);
-        await Task.WhenAll(staffTask, branchesTask);
+        var staff = await staffService.GetAllAsync(cancellationToken);
+        var branches = await branchRepository.GetAllAsync(cancellationToken);
         return View(new StaffManagementViewModel
         {
-            BranchCodes = (await branchesTask).Select(branch => branch.Code.Value).ToArray(),
-            Staff = (await staffTask).OrderBy(staff => staff.Name, StringComparer.OrdinalIgnoreCase)
+            BranchCodes = branches.Select(branch => branch.Code.Value).ToArray(),
+            Staff = staff.OrderBy(staff => staff.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(staff => new StaffRowViewModel(
                     staff.Id, staff.Name, staff.Email, staff.Role, staff.HomeBranchCode.Value, staff.IsActive))
                 .ToArray()
@@ -34,10 +33,7 @@ public sealed class StaffController(
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken cancellationToken)
     {
-        var staffTask = staffService.GetByIdAsync(id, cancellationToken);
-        var branchesTask = branchRepository.GetAllAsync(cancellationToken);
-        await Task.WhenAll(staffTask, branchesTask);
-        var staff = await staffTask;
+        var staff = await staffService.GetByIdAsync(id, cancellationToken);
         if (staff is null)
         {
             return NotFound();

@@ -1,12 +1,13 @@
 using ApexPost.Application;
 using ApexPost.Infrastructure;
+using ApexPost.Infrastructure.Persistence;
 using ApexPost.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSqlInfrastructure(builder.Configuration);
 builder.Services.AddCounterSaleConfiguration(builder.Configuration);
 builder.Services.AddWebSecurity(builder.Configuration);
 

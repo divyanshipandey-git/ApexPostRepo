@@ -13,6 +13,7 @@ public sealed class StaffService
     private readonly IBranchRepository? _branchRepository;
     private readonly IStaffCredentialRepository? _credentialRepository;
     private readonly IStaffPasswordHasher? _passwordHasher;
+    private readonly ApexPost.Application.Abstractions.Persistence.IUnitOfWork? _unitOfWork;
 
     public StaffService(IStaffRepository staffRepository)
     {
@@ -24,12 +25,14 @@ public sealed class StaffService
         IStaffRepository staffRepository,
         IBranchRepository branchRepository,
         IStaffCredentialRepository credentialRepository,
-        IStaffPasswordHasher passwordHasher)
+        IStaffPasswordHasher passwordHasher,
+        ApexPost.Application.Abstractions.Persistence.IUnitOfWork? unitOfWork = null)
         : this(staffRepository)
     {
         _branchRepository = branchRepository ?? throw new ArgumentNullException(nameof(branchRepository));
         _credentialRepository = credentialRepository ?? throw new ArgumentNullException(nameof(credentialRepository));
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<StaffEntity> CreateAsync(
@@ -80,6 +83,8 @@ public sealed class StaffService
             throw;
         }
 
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
+
         return staff;
     }
 
@@ -117,6 +122,7 @@ public sealed class StaffService
 
         staff.UpdateProfile(name, email, role, code);
         await _staffRepository.UpdateAsync(staff, cancellationToken);
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
     }
 
@@ -176,6 +182,7 @@ public sealed class StaffService
         }
 
         await _staffRepository.UpdateAsync(staff, cancellationToken);
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

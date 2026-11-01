@@ -113,7 +113,8 @@ public static class DependencyInjection
             shippingRules,
             maximumWeight,
             provider.GetRequiredService<TimeProvider>(),
-            maximumWeightsByServiceLevel));
+            maximumWeightsByServiceLevel,
+            provider.GetService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>()));
 
         var courierTimeoutSeconds = configuration.GetValue<int?>("Shipping:CourierTrackingTimeoutSeconds") ?? 2;
         var simulatedTrackingDelayMilliseconds = configuration.GetValue<int?>("Shipping:SimulatedTrackingDelayMilliseconds") ?? 0;
@@ -127,7 +128,8 @@ public static class DependencyInjection
             provider.GetRequiredService<IShipmentRepository>(),
             provider.GetRequiredService<TimeProvider>(),
             TimeSpan.FromSeconds(courierTimeoutSeconds),
-            TimeSpan.FromMilliseconds(simulatedTrackingDelayMilliseconds)));
+            TimeSpan.FromMilliseconds(simulatedTrackingDelayMilliseconds),
+            provider.GetService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>()));
 
         foreach (var section in configuration.GetSection("Tax:Rates").GetChildren())
         {

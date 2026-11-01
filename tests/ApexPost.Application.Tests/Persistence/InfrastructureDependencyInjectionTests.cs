@@ -79,4 +79,22 @@ public sealed class InfrastructureDependencyInjectionTests
 
         Assert.Equal(Path.GetFullPath(directory.Path), options.DataDirectory);
     }
+
+    [Fact]
+    public void AddSqlInfrastructure_RequiresAnExplicitConnectionString()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:ApexPost"] = string.Empty
+            })
+            .Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => services.AddSqlInfrastructure(configuration));
+
+        Assert.Contains("ConnectionStrings:ApexPost", exception.Message);
+        Assert.Contains("user-secrets", exception.Message);
+    }
 }

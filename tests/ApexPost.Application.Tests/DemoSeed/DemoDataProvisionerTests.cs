@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using ApexPost.DemoSeed;
 using ApexPost.Domain.Entities;
 using ApexPost.Infrastructure.Persistence;
@@ -14,9 +15,10 @@ public sealed class DemoDataProvisionerTests
     {
         using var directory = new TemporaryDirectory();
         var provisioner = new DemoDataProvisioner();
+        var password = CreateTestPassword();
 
-        var firstRun = await provisioner.ProvisionAsync(directory.Path);
-        var secondRun = await provisioner.ProvisionAsync(directory.Path);
+        var firstRun = await provisioner.ProvisionAsync(directory.Path, password);
+        var secondRun = await provisioner.ProvisionAsync(directory.Path, password);
 
         Assert.Equal(DemoDataProvisioningResult.Provisioned, firstRun);
         Assert.Equal(DemoDataProvisioningResult.AlreadyProvisioned, secondRun);
@@ -53,7 +55,7 @@ public sealed class DemoDataProvisionerTests
         var account = staff.First(member => member.Role == StaffRole.CounterClerk);
         var credentials = new JsonStaffCredentialRepository(directory.Path);
         var hash = await credentials.GetPasswordHashAsync(account.Id);
-        Assert.True(new Pbkdf2StaffPasswordHasher().VerifyPassword(DemoDataProvisioner.DemoPassword, hash));
+        Assert.True(new Pbkdf2StaffPasswordHasher().VerifyPassword(password, hash));
     }
 
     [Fact]
@@ -62,12 +64,31 @@ public sealed class DemoDataProvisionerTests
         using var directory = new TemporaryDirectory();
         var sentinelPath = Path.Combine(directory.Path, "user-data.json");
         await File.WriteAllTextAsync(sentinelPath, "[]");
+        var password = CreateTestPassword();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new DemoDataProvisioner().ProvisionAsync(directory.Path));
+            new DemoDataProvisioner().ProvisionAsync(directory.Path, password));
 
         Assert.Equal("[]", await File.ReadAllTextAsync(sentinelPath));
         Assert.Single(Directory.EnumerateFiles(directory.Path));
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_CanCreateTwoHundredExplicitlySyntheticHistoricalTransactions()
+    {
+        using var directory = new TemporaryDirectory();
+        await new DemoDataProvisioner().ProvisionAsync(
+            directory.Path,
+            CreateTestPassword(),
+            transactionCount: 200);
+        var repository = new JsonCounterTransactionRepository(new JsonPersistenceOptions { DataDirectory = directory.Path });
+        var transactions = await repository.GetByBranchAsync("AP001");
+
+        Assert.Equal(40, transactions.Count);
+        Assert.All(transactions, transaction => Assert.NotNull(transaction.OccurredAtUtc));
+        var allBranches = await Task.WhenAll(Enumerable.Range(1, 5)
+            .Select(index => repository.GetByBranchAsync($"AP{index:000}")));
+        Assert.Equal(200, allBranches.Sum(items => items.Count));
     }
 
     [Fact]
@@ -75,12 +96,16 @@ public sealed class DemoDataProvisionerTests
     {
         using var directory = new TemporaryDirectory();
         var provisioner = new DemoDataProvisioner();
-        await provisioner.ProvisionAsync(directory.Path);
+        var password = CreateTestPassword();
+        await provisioner.ProvisionAsync(directory.Path, password);
         await File.AppendAllTextAsync(Path.Combine(directory.Path, "staff.json"), " ");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provisioner.ProvisionAsync(directory.Path));
+            provisioner.ProvisionAsync(directory.Path, password));
     }
+
+    private static string CreateTestPassword() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
 
     private sealed class TemporaryDirectory : IDisposable
     {

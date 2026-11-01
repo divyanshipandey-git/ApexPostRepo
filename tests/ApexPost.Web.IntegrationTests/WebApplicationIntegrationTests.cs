@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
+using ApexPost.Application.Abstractions.Reports;
 using ApexPost.Application.Notifications;
 using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Inventory;
@@ -26,6 +29,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace ApexPost.Web.IntegrationTests;
@@ -341,13 +345,14 @@ public sealed class WebApplicationIntegrationTests
             AllowAutoRedirect = false
         });
         var token = await GetAntiforgeryTokenAsync(client, "/Account/Login");
+        var invalidPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
 
-        using var response = await PostLoginAsync(client, token, "nobody@example.test", "Wrong-secret-42!");
+        using var response = await PostLoginAsync(client, token, "nobody@example.test", invalidPassword);
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Invalid email address or password.", WebUtility.HtmlDecode(content));
-        Assert.DoesNotContain("Wrong-secret-42!", content, StringComparison.Ordinal);
+        Assert.DoesNotContain(invalidPassword, content, StringComparison.Ordinal);
         Assert.DoesNotContain("account was not found", content, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -1507,7 +1512,8 @@ public sealed class WebApplicationIntegrationTests
     private sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
     {
         public const string TestEmail = "clerk@example.test";
-        public const string TestPassword = "Test-secret-42!";
+        public static readonly string TestPassword =
+            Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
         public const string TestApiKey = "test-only-integration-key-91";
 
         private readonly string _environment;
@@ -1716,6 +1722,7 @@ public sealed class WebApplicationIntegrationTests
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            TestSqlRuntimeSettings.EnsureConfigured();
             builder.UseEnvironment(_environment);
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -1747,10 +1754,23 @@ public sealed class WebApplicationIntegrationTests
                 services.AddSingleton<IStartupFilter>(new TestRemoteAddressStartupFilter());
                 services.RemoveAll<JsonPersistenceOptions>();
                 services.RemoveAll<JsonAuditLog>();
+                services.RemoveAll<ApexPostDbContext>();
+                services.RemoveAll<SqlInventoryRepository>();
+                services.RemoveAll<DbContextOptions<ApexPostDbContext>>();
+                services.RemoveAll<IDbContextFactory<ApexPostDbContext>>();
+                services.RemoveAll<IUnitOfWork>();
+                services.RemoveAll<IAuditStore>();
+                services.RemoveAll<IBranchRepository>();
+                services.RemoveAll<ICounterRepository>();
+                services.RemoveAll<IStaffRepository>();
+                services.RemoveAll<IStaffCredentialRepository>();
+                services.RemoveAll<IProductRepository>();
                 services.RemoveAll<IInventoryRepository>();
+                services.RemoveAll<IStockRepository>();
                 services.RemoveAll<ICounterTransactionRepository>();
                 services.RemoveAll<IShipmentRepository>();
                 services.RemoveAll<IMoneyOrderRepository>();
+                services.RemoveAll<IReportDataSource>();
 
                 services.AddInfrastructure(options => options.DataDirectory = DataDirectory);
                 services.AddDataProtection()

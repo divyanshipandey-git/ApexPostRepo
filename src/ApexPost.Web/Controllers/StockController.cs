@@ -24,10 +24,10 @@ public sealed class StockController(
             return Forbid();
         }
 
-        var stockTask = inventoryService.GetBranchStockAsync(code, cancellationToken);
-        var productsTask = productRepository.GetAllAsync(cancellationToken);
-        await Task.WhenAll(stockTask, productsTask);
-        var products = await productsTask;
+        // The SQL repositories share the request-scoped DbContext. EF Core permits
+        // only one active command per context, so these reads must be sequential.
+        var stock = await inventoryService.GetBranchStockAsync(code, cancellationToken);
+        var products = await productRepository.GetAllAsync(cancellationToken);
         return View(new StockManagementViewModel
         {
             BranchCode = code,
@@ -35,10 +35,10 @@ public sealed class StockController(
                 ? (await branchRepository.GetAllAsync(cancellationToken)).Select(branch => branch.Code.Value).ToArray()
                 : [code],
             Products = products.Select(product => new ProductOption(product.Sku.Value, product.Name)).ToArray(),
-            Rows = (await stockTask).Select(stock => new StockManagementRow(
-                stock.Sku.Value,
-                products.FirstOrDefault(product => product.Sku == stock.Sku)?.Name ?? stock.Sku.Value,
-                stock.Quantity)).OrderBy(row => row.ProductName, StringComparer.OrdinalIgnoreCase).ToArray()
+            Rows = stock.Select(item => new StockManagementRow(
+                item.Sku.Value,
+                products.FirstOrDefault(product => product.Sku == item.Sku)?.Name ?? item.Sku.Value,
+                item.Quantity)).OrderBy(row => row.ProductName, StringComparer.OrdinalIgnoreCase).ToArray()
         });
     }
 
@@ -49,6 +49,11 @@ public sealed class StockController(
     {
         var code = ResolveBranch(model.BranchCode);
         if (code is null)
+        {
+            return Forbid();
+        }
+        var changedBy = User.FindFirstValue("StaffId");
+        if (string.IsNullOrWhiteSpace(changedBy))
         {
             return Forbid();
         }
@@ -68,7 +73,11 @@ public sealed class StockController(
 
         try
         {
-            var stock = await inventoryService.AdjustQuantityAsync(code, model.Sku, model.Adjustment, cancellationToken);
+            var stock = await inventoryService.AdjustQuantityAsync(
+                code, model.Sku, model.Adjustment,
+                "Stock adjustment from Stock Management",
+                changedBy,
+                cancellationToken);
             if (stock is null)
             {
                 ModelState.AddModelError(string.Empty, "Add stock before reducing it; no stock record exists for this SKU.");
