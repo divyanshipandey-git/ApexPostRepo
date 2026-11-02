@@ -12,5 +12,6 @@
 - [ADR-0022 — Audit persistence isolation](0022-audit-persistence-isolation.md)
 - [ADR-0023 — Report DTOs and input mapping](0023-report-dtos-and-input-mapping.md)
 - [ADR-0024 — SQL parameterization and permissions](0024-sql-parameterization-and-runtime-permissions.md)
+- [ADR-0025 — Patched PKCS dependency override](0025-pkcs-security-override.md)
 
 ADR-0003, ADR-0008, ADR-0009, and ADR-0014 record historical JSON behavior and are superseded for the Web runtime by ADR-0015. The remaining Week 2 decisions continue to describe the business/domain and Web behavior where they do not conflict with SQL persistence. This repository does not adopt Couchbase or offline synchronization.

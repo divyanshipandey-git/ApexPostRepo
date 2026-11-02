@@ -13,7 +13,8 @@
 - Add schema changes as EF Core migrations under `src/ApexPost.Infrastructure/Persistence/Migrations/`.
 - Update standalone SQL reference files under `database/` when their procedure or schema definition changes; regenerate the idempotent deployment script as needed.
 - Do not apply migrations automatically at Web startup or use `EnsureCreated`.
-- Use parameterized EF/SQL APIs. Keep multi-row business writes within the existing `IUnitOfWork` transaction boundary.
+- Use parameterized EF/SQL APIs. Keep multi-row business writes within `IUnitOfWork.ExecuteInTransactionAsync`; SQL counter sales stage stock, transaction, payment, shipment, and money-order writes for one commit.
+- `NoOpUnitOfWork` is for legacy JSON adapters only and does not provide atomic transaction guarantees. Do not treat JSON compensation as SQL behavior.
 - Keep SQL integration tests isolated: `APEXPOST_SQL_TEST_CONNECTION` must use a catalog prefix of `ApexPost_SqlIT_`. Never point tests at `ApexPostDb`.
 - Do not add credentials, connection strings, user-secrets, production data, or sensitive identifiers to source control.
 
@@ -24,6 +25,7 @@
 - Return focused report DTOs from Infrastructure and map them into view models in Web.
 - Preserve request cancellation through async APIs except for deliberate cleanup/compensation after a write has started.
 - Treat optimistic concurrency as a conflict, not as ordinary invalid input.
+- Map SQL unique-key violations to `UniqueKeyConflictException`; middleware returns safe Problem Details for 400/404/409/500 outcomes.
 
 ## Validation commands
 
@@ -33,3 +35,5 @@ dotnet test ApexPost.sln --configuration Release
 ```
 
 For SQL integration coverage, configure `APEXPOST_SQL_TEST_CONNECTION` to an isolated LocalDB catalog beginning with `ApexPost_SqlIT_` before running the solution tests. See [the testing guide](docs/WEEK3-TESTING-AND-EXECUTION-GUIDE.md) and [database README](database/README.md) for setup details.
+
+SQLCMD wrappers and safe transaction/concurrency demonstrations are organized under `sql/`; the canonical schema, migration references, report queries, procedures, and performance scripts remain under `database/`.

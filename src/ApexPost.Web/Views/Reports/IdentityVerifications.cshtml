@@ -1,0 +1,79 @@
+@model ApexPost.Web.Models.Reports.IdentityVerificationsReportViewModel
+@{
+    ViewData["Title"] = "Identity verification audit";
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Auditor report</p>
+    <h1>Identity verifications</h1>
+    <p>Verification records are filtered in SQL and ordered newest first. Only the already-masked document number is displayed.</p>
+</section>
+
+<form method="get" asp-action="IdentityVerifications" class="card surface-card mb-4">
+    <div class="card-body d-flex align-items-end gap-3 flex-wrap">
+        <div>
+            <label for="branchCode" class="form-label">Branch</label>
+            <select id="branchCode" name="branchCode" class="form-select">
+                <option value="">All branches</option>
+                @foreach (var branch in Model.Branches)
+                {
+                    if (branch.Code == Model.BranchCode) { <option value="@branch.Code" selected>@branch.Code — @branch.Name</option> }
+                    else { <option value="@branch.Code">@branch.Code — @branch.Name</option> }
+                }
+            </select>
+        </div>
+        <div><label for="fromDate" class="form-label">From (UTC)</label><input id="fromDate" name="fromDate" type="date" value="@Model.FromDate?.ToString("yyyy-MM-dd")" class="form-control" /></div>
+        <div><label for="toDate" class="form-label">To (UTC)</label><input id="toDate" name="toDate" type="date" value="@Model.ToDate?.ToString("yyyy-MM-dd")" class="form-control" /></div>
+        <div>
+            <label for="isVerified" class="form-label">Verification status</label>
+            <select id="isVerified" name="isVerified" class="form-select">
+                <option value="">All statuses</option>
+                @if (Model.IsVerified == true) { <option value="true" selected>Verified</option> }
+                else { <option value="true">Verified</option> }
+                @if (Model.IsVerified == false) { <option value="false" selected>Not verified</option> }
+                else { <option value="false">Not verified</option> }
+            </select>
+        </div>
+        <input type="hidden" name="pageSize" value="@Model.Report.PageSize" />
+        <button type="submit" class="button button-primary">Filter</button>
+    </div>
+</form>
+
+<section class="card surface-card">
+    <div class="card-body">
+        <h2 class="section-title">Verification details</h2>
+        @if (Model.Report.Items.Count == 0)
+        {
+            <p class="form-hint">No identity verifications match the selected filters.</p>
+        }
+        else
+        {
+            <p class="form-hint">@Model.Report.TotalCount records · Page @Model.Report.PageNumber of @Model.Report.TotalPages</p>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Verification</th><th>Money order</th><th>Branch</th><th>Verified at (UTC)</th><th>Document type</th><th>Masked number</th><th>Status</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in Model.Report.Items)
+                    {
+                        <tr><th>@item.VerificationId</th><td>@item.MoneyOrderId</td><td>@item.BranchCode</td><td>@item.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm")</td><td>@item.DocumentType</td><td>@item.MaskedDocumentNumber</td><td>@(item.IsVerified ? "Verified" : "Not verified")</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (Model.Report.TotalPages > 1)
+        {
+            <nav aria-label="Identity verification report pages">
+                @if (Model.Report.PageNumber > 1)
+                {
+                    <a class="button button-secondary" asp-action="IdentityVerifications" asp-route-branchCode="@Model.BranchCode" asp-route-fromDate="@Model.FromDate?.ToString("yyyy-MM-dd")" asp-route-toDate="@Model.ToDate?.ToString("yyyy-MM-dd")" asp-route-isVerified="@Model.IsVerified" asp-route-page="@(Model.Report.PageNumber - 1)" asp-route-pageSize="@Model.Report.PageSize">Previous</a>
+                }
+                @if (Model.Report.PageNumber < Model.Report.TotalPages)
+                {
+                    <a class="button button-secondary" asp-action="IdentityVerifications" asp-route-branchCode="@Model.BranchCode" asp-route-fromDate="@Model.FromDate?.ToString("yyyy-MM-dd")" asp-route-toDate="@Model.ToDate?.ToString("yyyy-MM-dd")" asp-route-isVerified="@Model.IsVerified" asp-route-page="@(Model.Report.PageNumber + 1)" asp-route-pageSize="@Model.Report.PageSize">Next</a>
+                }
+            </nav>
+        }
+    </div>
+</section>

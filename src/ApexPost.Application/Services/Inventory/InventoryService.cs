@@ -10,19 +10,17 @@ public sealed class InventoryService
     private const int LowStockReorderLevel = 5;
     private readonly IInventoryRepository _inventoryRepository;
     private readonly INotificationService? _notifications;
-    private readonly ApexPost.Application.Abstractions.Persistence.IUnitOfWork? _unitOfWork;
 
     public InventoryService(IInventoryRepository inventoryRepository)
         : this(inventoryRepository, null)
     {
     }
 
-    public InventoryService(IInventoryRepository inventoryRepository, INotificationService? notifications, ApexPost.Application.Abstractions.Persistence.IUnitOfWork? unitOfWork = null)
+    public InventoryService(IInventoryRepository inventoryRepository, INotificationService? notifications)
     {
         ArgumentNullException.ThrowIfNull(inventoryRepository);
         _inventoryRepository = inventoryRepository;
         _notifications = notifications;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<InventoryStock?> GetStockAsync(
@@ -90,7 +88,6 @@ public sealed class InventoryService
         CancellationToken cancellationToken)
     {
         var stock = await _inventoryRepository.AdjustQuantityWithAuditAsync(branchCode, sku, adjustment, reason, changedBy, cancellationToken);
-        if (_unitOfWork is not null && stock is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         if (stock is not null && stock.Quantity <= LowStockReorderLevel && _notifications is not null)
         {
             await _notifications.NotifyLowStockAsync(

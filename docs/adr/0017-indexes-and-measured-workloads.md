@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the existing measured SQL fixture; re-evaluate with production-like data before adding indexes.
+Accepted for the retained schema indexes; performance evidence is pending a corrected SQL Server run.
 
 ## Context
 
@@ -10,18 +10,18 @@ The schema has low-stock, daily-sales, shipment, and auditor money-order workloa
 
 ## Decision
 
-Retain the EF-owned indexes on branch/quantity/SKU, branch/occurrence/status, zone/service/created-time, and branch/created-time money orders. Do not add a competing SQL-only index definition. Keep the date filters half-open and SARGable. Revisit index key order only after measuring representative selectivity and write overhead.
+Retain the EF-owned indexes on branch/quantity/SKU, branch/occurrence/status, zone/service/created-time, and branch/created-time money orders. Do not add a competing SQL-only index definition. Keep the date filters half-open and SARGable. Revisit index key order only after measuring representative selectivity and write overhead with the corrected unhinted query comparison.
 
 ## Alternatives considered
 
 - Add covering indexes for every projected column: rejected because it increases stock/sale write and storage costs without measured benefit.
 - Apply index changes based only on plan appearance or assumed query frequency: rejected as insufficient evidence.
-- Drop indexes that did not improve the documented synthetic run: rejected pending broader workload evidence.
+- Drop indexes based on the prior forced-index comparison: rejected because the comparison did not isolate the secondary indexes being evaluated.
 
 ## Consequences
 
-The retained LocalDB measurements show no logical-read improvement for three of the four tested workloads; the money-order workload did reduce reads in the saved fixture output. Those are fixture-specific results, not production capacity claims.
+The previously recorded LocalDB comparison forced primary-key indexes and therefore does not establish whether the retained secondary indexes help. The corrected scripts have not yet been executed; no before/after performance result is currently verified.
 
 ## Implementation and verification
 
-Index definitions are in `ApexPostEntityConfigurations.cs` and EF migrations. The exact observed measurements, limitations, and setup are in `PERFORMANCE.md`, `database/performance/`, and `database/indexes/VerifyReportIndexes.sql`. No new performance numbers are claimed by this ADR.
+Index definitions are in `ApexPostEntityConfigurations.cs` and EF migrations. Corrected measurement setup and limitations are in `PERFORMANCE.md`, `database/performance/`, and `database/indexes/VerifyReportIndexes.sql`. Run those scripts against representative SQL Server data before making performance claims.

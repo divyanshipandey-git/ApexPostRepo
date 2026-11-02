@@ -97,4 +97,78 @@ public sealed class ReportingService
 
     private static string NormalizeBranch(string branchCode) =>
         branchCode.Trim().ToUpperInvariant();
+
+    public Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        string? branchCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (fromDate > toDate)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetTopProductsByRegionAsync(
+            fromDate, toDate, normalizedBranch, cancellationToken);
+    }
+
+    public Task<PagedReport<ReportMoneyOrder>> GetMoneyOrderReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetMoneyOrderPageAsync(
+            normalizedBranch, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+    }
+
+    public Task<PagedReport<ReportIdentityVerification>> GetIdentityVerificationReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        bool? isVerified,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetIdentityVerificationPageAsync(
+            normalizedBranch, fromDate, toDate, isVerified, pageNumber, pageSize, cancellationToken);
+    }
+
+    private static void ValidatePageFilters(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize)
+    {
+        if (fromDate is { } start && toDate is { } end && start > end)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (pageNumber > int.MaxValue / pageSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber), "The requested page is too large.");
+        }
+    }
 }

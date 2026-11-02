@@ -255,6 +255,75 @@ public sealed class ReportingServiceTests
     }
 
     [Fact]
+    public async Task GetMoneyOrderReportPageAsync_FiltersAndReturnsDeterministicPage()
+    {
+        var date = UtcTimestamp(ReportDate);
+        var source = new FakeReportDataSource
+        {
+            MoneyOrders =
+            [
+                new("IND01", "MO002", date, 200m, 5m),
+                new("IND01", "MO001", date, 100m, 5m),
+                new("BPL01", "MO003", date, 300m, 5m),
+                new("IND01", "MO004", date.AddDays(-1), 400m, 5m)
+            ]
+        };
+
+        var page = await new ReportingService(source).GetMoneyOrderReportPageAsync(
+            " ind01 ", ReportDate, ReportDate, pageNumber: 2, pageSize: 1);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(2, page.PageNumber);
+        Assert.Equal("MO002", Assert.Single(page.Items).MoneyOrderId);
+    }
+
+    [Fact]
+    public async Task GetIdentityVerificationReportPageAsync_FiltersStatusBranchAndDates()
+    {
+        var date = UtcTimestamp(ReportDate);
+        var source = new FakeReportDataSource
+        {
+            Verifications =
+            [
+                new("IND01", "IDV001", date, "MO001", "Government ID", "XXXX1234", true),
+                new("IND01", "IDV002", date, "MO002", "Government ID", "XXXX5678", false),
+                new("BPL01", "IDV003", date, "MO003", "Government ID", "XXXX9012", true),
+                new("IND01", "IDV004", date.AddDays(-1), "MO004", "Government ID", "XXXX3456", true)
+            ]
+        };
+
+        var page = await new ReportingService(source).GetIdentityVerificationReportPageAsync(
+            "IND01", ReportDate, ReportDate, true, pageNumber: 1, pageSize: 10);
+
+        Assert.Equal(1, page.TotalCount);
+        var item = Assert.Single(page.Items);
+        Assert.Equal("IDV001", item.VerificationId);
+        Assert.Equal("XXXX1234", item.MaskedDocumentNumber);
+    }
+
+    [Theory]
+    [InlineData(0, 25)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task GetMoneyOrderReportPageAsync_RejectsInvalidPageBounds(
+        int pageNumber,
+        int pageSize)
+    {
+        var service = new ReportingService(new FakeReportDataSource());
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.GetMoneyOrderReportPageAsync(null, null, null, pageNumber, pageSize));
+    }
+
+    [Fact]
+    public async Task GetIdentityVerificationReportPageAsync_RejectsReversedDateRange()
+    {
+        var service = new ReportingService(new FakeReportDataSource());
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.GetIdentityVerificationReportPageAsync(
+                null, ReportDate, ReportDate.AddDays(-1), null, 1, 25));
+    }
+
+    [Fact]
     public async Task GetLowStockReportAsync_WhenCancelled_Throws()
     {
         var service = new ReportingService(new FakeReportDataSource());
@@ -263,6 +332,20 @@ public sealed class ReportingServiceTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.GetLowStockReportAsync(cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
+    public async Task GetTopProductsByRegionAsync_NormalizesBranchAndReturnsData()
+    {
+        var expected = new TopProductRevenueReportItem("North", 1, "SKU-1", "Product 1", 12.5m);
+        var source = new FakeReportDataSource { TopProducts = [expected] };
+        var service = new ReportingService(source);
+
+        var result = await service.GetTopProductsByRegionAsync(
+            ReportDate, ReportDate, " p01 ");
+
+        Assert.Equal([expected], result);
+        Assert.Equal("P01", source.LastTopProductsBranchCode);
     }
 
     private static ReportTransaction Transaction(
@@ -289,6 +372,8 @@ public sealed class ReportingServiceTests
         public IReadOnlyList<ReportShipment> Shipments { get; init; } = [];
         public IReadOnlyList<ReportMoneyOrder> MoneyOrders { get; init; } = [];
         public IReadOnlyList<ReportIdentityVerification> Verifications { get; init; } = [];
+        public IReadOnlyList<TopProductRevenueReportItem> TopProducts { get; init; } = [];
+        public string? LastTopProductsBranchCode { get; private set; }
 
         public Task<IReadOnlyList<ReportTransaction>> GetTransactionsAsync(
             CancellationToken cancellationToken = default) =>
@@ -310,6 +395,16 @@ public sealed class ReportingServiceTests
             GetIdentityVerificationsAsync(
                 CancellationToken cancellationToken = default) =>
             ReturnAsync(Verifications, cancellationToken);
+
+        public Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+            DateOnly fromDate,
+            DateOnly toDate,
+            string? branchCode,
+            CancellationToken cancellationToken = default)
+        {
+            LastTopProductsBranchCode = branchCode;
+            return ReturnAsync(TopProducts, cancellationToken);
+        }
 
         private static Task<IReadOnlyList<T>> ReturnAsync<T>(
             IReadOnlyList<T> result,

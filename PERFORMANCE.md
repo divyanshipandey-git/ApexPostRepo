@@ -1,23 +1,47 @@
 # SQL performance evidence
 
-## Method and retained fixture
+## Method and isolated fixture
 
-Measurements were taken on 2026-11-01 using SQL Server LocalDB `(localdb)\MSSQLLocalDB`, catalog `ApexPost_PerfEvidence_20261101b`. It is a retained, isolated fictional-data catalog, never `ApexPostDb` or `App_Data`. The fixture contains 10 branches, 1,000 products, 10,000 stock rows, 50,000 paid transactions with lines/tax/payments, 20,000 shipments, and 20,000 money orders.
+The corrected workload was run on 2026-11-03 against SQL Server LocalDB 17.0.4025.3 in the disposable catalog `ApexPost_PerfEvidence_Remediation`. It was created from all seven current EF migrations, populated by the repeatable synthetic setup, measured, and then dropped. It never targeted `ApexPostDb` or `App_Data`. The fixture contained 10 branches, 1,000 products, 10,000 stock rows, 50,000 paid transactions with lines/tax/payments, 20,000 shipments, 20,000 money orders, and 20,000 masked identity-verification records.
 
-The reproducible setup and workload scripts are [performance-evidence-setup.sql](docs/sql/performance-evidence-setup.sql) and [performance-evidence-measurements.sql](docs/sql/performance-evidence-measurements.sql). The saved SQL Server actual-plan XML and `SET STATISTICS IO, TIME ON` output is [actual-plans-and-statistics.txt](docs/performance-plans/actual-plans-and-statistics.txt). Results are warm-cache LocalDB observations, not production capacity estimates.
+The repeatable setup and measurement scripts are [performance-evidence-setup.sql](database/performance/performance-evidence-setup.sql) and [performance-evidence-measurements.sql](database/performance/performance-evidence-measurements.sql). The old captured SQL Server output is [actual-plans-and-statistics.txt](docs/performance-plans/actual-plans-and-statistics.txt).
 
-The baseline forces the relevant primary-key access path with an `INDEX` hint only in this isolated evidence script. The after measurement lets the optimizer choose the deployed migration index. This compares real access paths without changing production schema.
+**The earlier forced-primary-key comparison is invalid for index-effect claims:** those “before” queries used index hints while secondary indexes remained present. The corrected run dropped only the supporting secondary index for the before query, executed the same unhinted SQL, recreated the index, and reran the query with normal optimizer choices. `STATISTICS IO`, `STATISTICS TIME`, and actual execution plans were enabled. No index hint was used to simulate the unindexed baseline.
 
-## Actual-plan and IO/time results
+## Corrected LocalDB results
 
-| Workload | Deployed index | Baseline reads / CPU / elapsed | Optimizer reads / CPU / elapsed | Actual finding |
-|---|---|---:|---:|---|
-| Low stock for `P01`, threshold 5 | `IX_BranchStock_Branch_Quantity_Sku` | 14 `BranchStock` + 21 `Products` / 0 ms / 2 ms | 14 + 21 / 0 ms / 1 ms | The optimizer retained the same compact branch range on this 1,000-row branch slice. No measured read reduction. |
-| Daily paid sales for `P01`, 7 days | `IX_CounterTransactions_Branch_Occurred_Status` | 1,029 / 15 ms / 11 ms | 1,029 / 16 ms / 6 ms | The current key order did not reduce reads for this status predicate after the date range. It remains an evidence-backed limitation. |
-| Shipments for `ZONE1`/`Standard`, 7 days | `IX_Shipments_Zone_Service_Created` | 355 / 0 ms / 3 ms | 355 / 16 ms / 4 ms | The returned fixture slice did not yield a lower-read plan. No improvement is claimed. |
-| Auditor money orders for `P01`, 7 days | `IX_MoneyOrders_Branch_Created` with amount/fee/transaction includes | 426 + sort worktable / 0 ms / 16 ms | 11 / 0 ms / 6 ms | The index removed the broad primary-key scan and sort work, reducing `MoneyOrders` logical reads by 415 (97%). |
+One warm-cache run against the synthetic data produced these results. Reads and times are one-run observations; very small CPU/elapsed values are subject to LocalDB timing resolution.
 
-The source output contains actual plan XML following each labelled query, plus the exact SQL Server messages. Physical reads vary with cache state and are therefore not used to claim an improvement.
+| Workload | Index state | Logical reads (primary table) | Actual plan operator | Estimated rows → actual rows | CPU / elapsed |
+|---|---|---:|---|---:|---:|
+| Low stock, branch P01 | absent / present | 12 / 12 (plus 19 product reads in each run) | clustered PK scan in both | 447.7 → 197 | 1 ms / 1 ms in both |
+| Daily paid sales, branch P01, last 7 days | absent / present | 950 / 950 | clustered PK scan in both | 2,026.8 → 1,008 | 5 ms / 5 ms in both |
+| Shipment zone/service/date, last 7 days | absent / present | 320 / 320 | clustered PK scan in both | 706.7 → 336 | 3 ms / 3 ms in both |
+| Money orders, branch P01, last 7 days | absent / present | 389 / 10 | clustered PK scan → `IX_MoneyOrders_Branch_Created` seek | 810.7 → 1,008 | 3/7 ms → 0/3 ms |
+
+The money-order plan reduced the measured base-table logical reads by about 97% in this run. The optimizer did not choose the added low-stock, daily-sales, or shipment index for these fixture distributions, so no read benefit was observed for those query shapes. The estimates also differ materially from actual rows, especially daily sales and low stock; the synthetic distribution is not a cardinality model for production.
+
+The script additionally compared one rollback-only stock update and insert:
+
+| Write operation | Supporting stock index present | Supporting stock index absent |
+|---|---:|---:|
+| Update `P01` / `PERF-0001` | 12 BranchStock logical reads | 2 BranchStock logical reads |
+| Insert one BranchStock row | 17 BranchStock logical reads | 4 BranchStock logical reads |
+
+The insert also performed two logical reads each against the `Products` and `Branches` foreign-key tables. Both write cases were rolled back; their observed elapsed time was below useful single-millisecond resolution. These are operation-level reads, not throughput or concurrency measurements.
+
+Selected index storage from `sys.dm_db_partition_stats` (10,000 stock rows; 50,000 transactions; 20,000 shipments and money orders):
+
+| Index | Reserved KB | Used KB |
+|---|---:|---:|
+| `IX_BranchStock_Branch_Quantity_Sku` | 392 | 296 |
+| `IX_CounterTransactions_Branch_Occurred_Status` | 2,184 | 2,104 |
+| `IX_Shipments_Zone_Service_Created` | 1,096 | 992 |
+| `IX_MoneyOrders_Branch_Created` | 1,160 | 1,080 |
+
+The non-SARGable `YEAR(OccurredAtUtc)` and equivalent half-open year range each read 29 transaction pages and returned 5,000 P01 rows in this fixture. The plans could seek on branch, but the tested year covered every generated row; this run showed no measurable date-predicate gain.
+
+These are actual LocalDB execution-plan observations from this synthetic fixture, not production capacity evidence. The test catalog was removed after capture. The SQL-backed test `TransactionRepository_LoadsCollectionsWithBoundedSplitQueryCommands` also ran with the isolated SQL suite and passed its assertion of three reader commands for four transactions.
 
 ## Historical EF SQL samples (2026-11-01)
 
@@ -105,19 +129,31 @@ GROUP BY [m].[BranchCode]
 
 ## Non-SARGable comparison
 
-The saved run compares `YEAR(OccurredAtUtc) = YEAR(SYSUTCDATETIME())` with the equivalent calendar-year half-open range for branch `P01`. Both read 38 logical pages and completed in 1 ms on this fixture because all matching synthetic rows fall in the same small current-year branch range. The SARGable version remains the implementation standard because it permits timestamp-range seeking when data spans years; this run does not demonstrate a numeric gain and does not claim one.
+The corrected run compares `YEAR(OccurredAtUtc) = YEAR(SYSUTCDATETIME())` with the equivalent calendar-year half-open range for branch `P01`. Both read 29 logical pages and completed within 1 ms; both returned 5,000 rows because the fixture's date range covered all generated transactions. The SARGable version remains the implementation standard because it permits timestamp-range seeking when data spans years; this run does not demonstrate a numeric gain and does not claim one.
 
 ## Index choices and trade-offs
 
 | Index | Read rationale | Write/storage cost |
 |---|---|---|
 | `(BranchCode, Quantity, Sku)` on `BranchStock` | Branch equality then low-quantity range; SKU supports the join/output. | Every stock adjustment maintains the extra key. Product name is intentionally not included because it belongs to `Products` and would widen every stock row. |
-| `(BranchCode, OccurredAtUtc, Status)` on `CounterTransactions` | Branch/date reports have a stable leading branch and range. | Each sale writes the index. The measured status-after-range limitation should be reconsidered only with representative production selectivity. |
+| `(BranchCode, OccurredAtUtc, Status)` on `CounterTransactions` | Branch/date reports have a stable leading branch and range. | Each sale writes the index. The status-after-range selectivity needs a valid before/after measurement. |
 | `(ZoneCode, ServiceLevel, CreatedAtUtc)` on `Shipments` | Matches zone/service equality followed by date range. | Each shipment insert updates the index; including extra receipt columns would increase index size. |
-| `(BranchCode, CreatedAtUtc, Id)` including amount/fee/transaction on `MoneyOrders` | Supports auditor branch/date ordering and covers the displayed monetary fields. | Included columns increase insert and storage cost, justified here by the measured 426-to-11 logical-read reduction. |
+| `(BranchCode, CreatedAtUtc, Id)` including amount/fee/transaction on `MoneyOrders` | Intended to support auditor branch/date ordering and cover displayed monetary fields. | Included columns increase insert and storage cost; index benefit and size have not been validly measured here. |
 
-No index DDL was added from these measurements. Three workloads showed no lower-read plan on this fixture, so changing their index design without broader representative evidence would be premature.
+These are schema design rationales, not measured performance claims. No new index DDL is proposed from the invalid historical comparison.
 
 ## Remaining limitation
 
-LocalDB actual-plan XML and IO/time evidence is complete for the required synthetic workloads. The remaining limitation is representativeness: these measurements do not include production concurrency, hardware, cache pressure, or production data distribution. Re-run the documented scripts against an approved anonymized production-like volume before making capacity or index-change decisions.
+The corrected SQL workload and command-count test were executed against isolated catalogs, and their synthetic results are summarized above. LocalDB observations do not substitute for production concurrency, hardware, cache pressure, or data distribution; rerun against an approved anonymized production-like volume before capacity or index decisions.
+
+## Normalization anomalies prevented
+
+- **Insert anomaly:** a product must exist once in `Products` before branch inventory can reference its SKU in `BranchStock`; product details are not repeated in each branch's stock row.
+- **Update anomaly:** a branch name or product name is maintained in one `Branches` or `Products` row rather than copied into every transaction line or stock record.
+- **Delete anomaly:** `NO ACTION` relationships from transactions, products, staff, and branches to financial/history rows prevent deleting a referenced entity from silently erasing its sales, payment, stock movement, or audit history.
+
+## Split-query and N+1 behavior
+
+`SqlCounterTransactionRepository.Full` loads transaction `Lines` and `TaxRates` collections plus the one-to-one `Payment`. Joining both collections in one SQL statement can multiply line rows by tax-rate rows. The repository uses `AsSplitQuery()` to issue one root query and one query per collection while avoiding that cartesian multiplication; the trade-off is additional round trips and a possibility of seeing data across statements unless the caller uses a transaction.
+
+The SQL integration test `TransactionRepository_LoadsCollectionsWithBoundedSplitQueryCommands` seeds four transactions and asserts a fixed three reader commands (root, lines, tax rates), rather than one query per transaction. This is a repeatable proof specification, not a measured result until the LocalDB test is run.

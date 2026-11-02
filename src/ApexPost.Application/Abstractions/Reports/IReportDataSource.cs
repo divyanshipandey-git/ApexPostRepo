@@ -102,4 +102,62 @@ public interface IReportDataSource
 
     Task<IReadOnlyList<ReportIdentityVerification>> GetIdentityVerificationsAsync(
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        string? branchCode,
+        CancellationToken cancellationToken = default);
+
+    async Task<PagedReport<ReportMoneyOrder>> GetMoneyOrderPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await GetMoneyOrdersAsync(cancellationToken);
+        var filtered = rows
+            .Where(item => branchCode is null ||
+                string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(item => fromDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) >= fromDate)
+            .Where(item => toDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) <= toDate)
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenBy(item => item.MoneyOrderId, StringComparer.Ordinal)
+            .ToArray();
+        return Paginate(filtered, pageNumber, pageSize);
+    }
+
+    async Task<PagedReport<ReportIdentityVerification>> GetIdentityVerificationPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        bool? isVerified,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await GetIdentityVerificationsAsync(cancellationToken);
+        var filtered = rows
+            .Where(item => branchCode is null ||
+                string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(item => fromDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) >= fromDate)
+            .Where(item => toDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) <= toDate)
+            .Where(item => isVerified is null || item.IsVerified == isVerified)
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenBy(item => item.VerificationId, StringComparer.Ordinal)
+            .ToArray();
+        return Paginate(filtered, pageNumber, pageSize);
+    }
+
+    private static PagedReport<T> Paginate<T>(
+        IReadOnlyList<T> filtered,
+        int pageNumber,
+        int pageSize) =>
+        new(
+            filtered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToArray(),
+            pageNumber,
+            pageSize,
+            filtered.Count);
 }

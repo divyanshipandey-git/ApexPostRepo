@@ -125,16 +125,20 @@ Key files:
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031173907_AddSqlReportingAndStockProcedures.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261101010000_UpdateDailyBranchSalesProcedure.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261102000000_AddReportFilters.cs`
-- `docs/sql/ApexPostDb-idempotent.sql`
+- `src/ApexPost.Infrastructure/Persistence/Migrations/20261103000000_HardenReportingProcedures.cs`
+- `database/schema/ApexPostDb-idempotent.sql`
 
 The migration history includes:
 
 - initial schema creation
+- shipping-zone and rate seed data
 - SQL reporting and stock adjustment procedures
+- stock-adjustment overflow guard
 - report procedure update and validation tightening
 - date/branch and low-stock threshold report filters, plus transactional stock procedure rollback handling
+- hardened reporting procedures and rollback definitions
 
-The idempotent SQL script is maintained under `database/schema/ApexPostDb-idempotent.sql`; the legacy `docs/sql/` copy is refreshed for existing references.
+The idempotent SQL script is maintained under `database/schema/ApexPostDb-idempotent.sql`.
 
 ## 7. Repository and Unit of Work implementation
 
@@ -237,25 +241,24 @@ The implementation preserves all recordable performance evidence in the reposito
 Performance files:
 
 - `PERFORMANCE.md`
-- `docs/performance-measurement.md`
-- `docs/sql/performance-evidence-setup.sql`
-- `docs/sql/performance-evidence-measurements.sql`
+- `database/performance/performance-evidence-setup.sql`
+- `database/performance/performance-evidence-measurements.sql`
 - `docs/performance-plans/actual-plans-and-statistics.txt`
 
-The performance documentation records actual measured results for several workloads, including low stock, daily sales, shipment search, and money-order review. The evidence explicitly distinguishes measured results from production capacity claims.
+The performance documentation records corrected synthetic LocalDB measurements for low stock, daily sales, shipment search, and money-order review, and explicitly distinguishes those results from production capacity claims.
 
 ## 13. Testing strategy and final results
 
 The final validation used the configured SQL integration environment. The full suite was executed after setting `APEXPOST_SQL_TEST_CONNECTION` to the SQL Server LocalDB test database.
 
-Final result:
+Final result for the latest SQL-enabled Release run:
 
-- 390 passed
+- 407 passed
 - 0 failed
 - 0 skipped
-- total: 390
+- total: 407
 
-Project totals: 112 Domain, 201 Application, and 77 Web integration tests.
+Project totals: 112 Domain, 214 Application, and 81 Web integration tests. The explicit Release build succeeded with 0 warnings and 0 errors.
 
 Key test files:
 
@@ -335,7 +338,7 @@ The only new persistent `ApexPostDb` data from this audit is the 102 existing au
 
 ## 16. Conclusion
 
-SQL connectivity and SQL-only runtime behavior are verified. The historical audit data is imported repeat-safely. The remaining four empty tables are explained and correctly remain empty in the persistent database because their operational workflows have not been executed there and no corresponding legacy JSON source files exist. All 390 tests passed, including SQL Server integration tests, with temporary test databases cleaned up. Actual-plan measurements for the newly filtered report shapes remain a documented performance limitation; see the [gap analysis](WEEK3-REQUIREMENT-GAP-ANALYSIS.md).
+SQL connectivity and SQL-only runtime behavior are verified. The historical audit data is imported repeat-safely. The remaining four empty tables are explained and correctly remain empty in the persistent database because their operational workflows have not been executed there and no corresponding legacy JSON source files exist. All 407 tests passed, including SQL Server integration and MVC tests, with temporary test databases cleaned up. Synthetic LocalDB plan evidence is documented, but does not support production capacity claims. See the [gap analysis](WEEK3-REQUIREMENT-GAP-ANALYSIS.md) and [final trainer verification](WEEK3-FINAL-TRAINER-VERIFICATION.md) for limitations.
 
 ## 17. Final verdict
 

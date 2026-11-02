@@ -67,6 +67,7 @@ public sealed class ProductPriceRevisionServiceTests
 
     private sealed class SpyUnitOfWork : IUnitOfWork
     {
+        public bool SupportsAtomicTransactions => false;
         public int TransactionCount { get; private set; }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>

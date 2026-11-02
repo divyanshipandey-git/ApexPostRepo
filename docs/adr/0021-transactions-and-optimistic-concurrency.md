@@ -10,7 +10,7 @@ Two clerks may sell the last stock unit concurrently, and sale/reversal writes m
 
 ## Decision
 
-Map `BranchStock` and `CounterTransactionRecord` rowversions and translate `DbUpdateConcurrencyException` into `ConcurrencyConflictException` at the unit-of-work boundary. A counter sale stages stock and its transaction graph in one scoped context and saves once. Operations combining immediate SQL commands with tracked EF writes use `IUnitOfWork.ExecuteInTransactionAsync`, which executes through EF's configured retry strategy. The stock-adjustment procedure owns its own SQL transaction because its row lock and history insert are one procedure boundary. Concurrency failures are returned as safe HTTP 409 responses.
+Map `BranchStock` and `CounterTransactionRecord` rowversions and translate `DbUpdateConcurrencyException` into `ConcurrencyConflictException` at the unit-of-work boundary. A SQL counter sale stages stock, transaction, and any shipment or money order in one scoped context and commits them once inside `IUnitOfWork.ExecuteInTransactionAsync`; it does not compensate with deletes after a failed SQL write. JSON compatibility adapters retain separate compensation because they do not support atomic database transactions. The stock-adjustment procedure owns its own SQL transaction because its row lock and history insert are one procedure boundary. Concurrency failures are returned as safe HTTP 409 responses.
 
 ## Alternatives considered
 
@@ -24,4 +24,4 @@ Callers must handle a stale-write result and ask the user to refresh/retry. Retr
 
 ## Implementation and verification
 
-See `SqlUnitOfWork`, `CounterSaleService`, `SafeExceptionMiddleware`, `StockController`, and `20261102000000_AddReportFilters.cs`. Existing SQL tests cover stale stock updates, concurrent last-unit sales, rollback, and the stock adjustment procedure; the latest additions are opt-in and need a configured LocalDB test run.
+See `SqlUnitOfWork`, `CounterSaleService`, `SafeExceptionMiddleware`, `StockController`, and `20261103000000_HardenReportingProcedures.cs`. Application spy-UoW tests verify one transaction-boundary invocation for ordinary, shipment, and money-order sales; the standalone shipment test verifies one save. SQL tests cover stale stock updates, concurrent last-unit sales, rollback, and stock adjustment; SQL-backed verification remains opt-in and requires a configured isolated LocalDB connection.
