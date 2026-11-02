@@ -152,6 +152,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
     {
         using var manager = await CreateAuthenticatedClientAsync();
         var token = await GetAntiforgeryTokenAsync(manager, "/Transactions/Create");
+        var auditWindowStart = DateTime.UtcNow.AddMinutes(-1);
         var saleIds = new List<string>();
         for (var index = 0; index < 2; index++)
         {
@@ -183,6 +184,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             saleIds.Add(Assert.IsType<Uri>(sale.Headers.Location)
                 .OriginalString.Split('/', StringSplitOptions.RemoveEmptyEntries).Last());
         }
+        var auditWindowEnd = DateTime.UtcNow.AddMinutes(1);
 
         await using var db = _factory.CreateContext();
         var transactions = await db.CounterTransactions
@@ -207,13 +209,13 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             Assert.NotEqual(
                 new DateTime(2000, 1, 1),
                 db.Entry(transaction).Property<DateTime>("CreatedAtUtc").CurrentValue);
-            Assert.NotEqual(
-                "ATTACKER",
-                db.Entry(transaction).Property<string?>("CreatedBy").CurrentValue);
+            Assert.InRange(
+                db.Entry(transaction).Property<DateTime>("CreatedAtUtc").CurrentValue,
+                auditWindowStart,
+                auditWindowEnd);
+            Assert.Null(db.Entry(transaction).Property<string?>("CreatedBy").CurrentValue);
             Assert.Null(db.Entry(transaction).Metadata.FindProperty("ModifiedBy"));
-            Assert.NotEqual(
-                new DateTime(2000, 1, 1),
-                db.Entry(transaction).Property<DateTime?>("ModifiedAtUtc").CurrentValue);
+            Assert.Null(db.Entry(transaction).Property<DateTime?>("ModifiedAtUtc").CurrentValue);
         });
         var storedOrders = await db.MoneyOrders
             .Include(order => order.IdentityVerification)
@@ -227,13 +229,25 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             Assert.NotEqual("ATTACKER-ID", order.Id);
             Assert.NotEqual("ATTACKER-TXN", order.TransactionId);
             Assert.Equal(SqlWebApplicationFactory.BranchCode, order.BranchCode!.Value);
-            Assert.NotEqual(new DateTime(2000, 1, 1), order.CreatedAtUtc!.Value.UtcDateTime);
-            Assert.NotEqual(
-                "ATTACKER",
-                db.Entry(order).Property<string?>("CreatedBy").CurrentValue);
+            Assert.InRange(order.CreatedAtUtc!.Value.UtcDateTime, auditWindowStart, auditWindowEnd);
+            Assert.Null(db.Entry(order).Property<string?>("CreatedBy").CurrentValue);
             Assert.Null(db.Entry(order).Metadata.FindProperty("ModifiedBy"));
             Assert.Equal("XXXX1234", order.IdentityVerification!.MaskedDocumentNumber);
         });
+        var saleAuditEntries = await db.AuditEntries
+            .Where(entry => entry.Controller == "Transactions" && entry.Action == "Create")
+            .ToArrayAsync();
+        Assert.Equal(2, saleAuditEntries.Length);
+        var auditedTransactionIds = new List<string>();
+        foreach (var entry in saleAuditEntries)
+        {
+            Assert.Equal(SqlWebApplicationFactory.StaffId, entry.StaffId);
+            Assert.DoesNotContain("ATTACKER", entry.RouteValuesJson, StringComparison.Ordinal);
+            using var routeValues = System.Text.Json.JsonDocument.Parse(entry.RouteValuesJson);
+            auditedTransactionIds.Add(
+                Assert.IsType<string>(routeValues.RootElement.GetProperty("transactionId").GetString()));
+        }
+        Assert.Equal(saleIds.Order(StringComparer.Ordinal), auditedTransactionIds.Order(StringComparer.Ordinal));
 
         using var auditor = await CreateAuthenticatedClientAsync(
             SqlWebApplicationFactory.AuditorEmail,
