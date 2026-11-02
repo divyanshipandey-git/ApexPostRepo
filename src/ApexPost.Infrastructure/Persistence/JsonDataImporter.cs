@@ -83,6 +83,60 @@ public sealed class JsonDataImporter(IDbContextFactory<ApexPostDbContext> contex
         }
     }
 
+    public async Task<JsonImportResult> ImportAuditLogAsync(string dataDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        var directory = Path.GetFullPath(dataDirectory);
+        if (!Directory.Exists(directory)) throw new DirectoryNotFoundException("The selected JSON data directory does not exist.");
+
+        var path = Path.Combine(directory, "audit.jsonl");
+        if (!File.Exists(path)) throw new FileNotFoundException("The selected JSON data directory does not contain audit.jsonl.", "audit.jsonl");
+
+        var contents = await File.ReadAllBytesAsync(path, cancellationToken);
+        var fingerprintInput = Encoding.UTF8.GetBytes("audit.jsonl\0").Concat(contents).ToArray();
+        var fingerprint = Convert.ToHexString(SHA256.HashData(fingerprintInput));
+        await using var stream = new MemoryStream(contents, writable: false);
+        var auditEvents = await ReadAuditEventsAsync(stream, cancellationToken);
+        if (auditEvents.Length == 0) throw new InvalidDataException("The selected audit log contains no events.");
+
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["auditEvents"] = auditEvents.Length
+        };
+        var strategyContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+        try
+        {
+            var strategy = strategyContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+                var existingRun = await db.ImportRuns.AsNoTracking().SingleOrDefaultAsync(
+                    row => row.SourceFingerprint == fingerprint, cancellationToken);
+                if (existingRun is not null)
+                    return new JsonImportResult(true, fingerprint, counts);
+
+                await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                db.AuditEntries.AddRange(auditEvents.Select(SqlEntityMapper.ToRecord));
+                db.ImportRuns.Add(new ImportRunRecord
+                {
+                    SourceFingerprint = fingerprint,
+                    ImportedAtUtc = DateTimeOffset.UtcNow,
+                    ImporterVersion = "AuditLog-1",
+                    SourceCount = auditEvents.Length,
+                    ImportedCount = auditEvents.Length,
+                    SkippedCount = 0
+                });
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return new JsonImportResult(false, fingerprint, counts);
+            });
+        }
+        finally
+        {
+            await strategyContext.DisposeAsync();
+        }
+    }
+
     private static async Task<bool> HasBusinessDataAsync(ApexPostDbContext db, CancellationToken cancellationToken) =>
         await db.Branches.AnyAsync(cancellationToken) || await db.Counters.AnyAsync(cancellationToken) ||
         await db.Staff.AnyAsync(cancellationToken) || await db.Products.AnyAsync(cancellationToken) ||
@@ -130,8 +184,14 @@ public sealed class JsonDataImporter(IDbContextFactory<ApexPostDbContext> contex
     {
         var path = Path.Combine(directory, "audit.jsonl");
         if (!File.Exists(path)) return [];
+        await using var stream = File.OpenRead(path);
+        return await ReadAuditEventsAsync(stream, cancellationToken);
+    }
+
+    private static async Task<AuditActionRecord[]> ReadAuditEventsAsync(Stream stream, CancellationToken cancellationToken)
+    {
         var records = new List<AuditActionRecord>();
-        using var reader = new StreamReader(File.OpenRead(path));
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
         var lineNumber = 0;
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {

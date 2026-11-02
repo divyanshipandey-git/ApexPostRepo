@@ -17,13 +17,84 @@ using Xunit;
 
 namespace ApexPost.Web.IntegrationTests;
 
-[CollectionDefinition("SQL Web Integration", DisableParallelization = true)]
-public sealed class SqlWebIntegrationCollection { }
+[CollectionDefinition("SQL Server Integration", DisableParallelization = true)]
+public sealed class SqlWebIntegrationCollection : ICollectionFixture<SqlWebIntegrationTestFixture> { }
 
-[Collection("SQL Web Integration")]
+public sealed class SqlWebIntegrationTestFixture : IAsyncLifetime
+{
+    public string ConnectionString { get; private set; } = string.Empty;
+
+    public Task InitializeAsync()
+    {
+        var configured = Environment.GetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            var builder = new SqlConnectionStringBuilder(configured);
+            if (!builder.InitialCatalog.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("SQL HTTP integration tests require an ApexPost_SqlIT_* database name.");
+            }
+
+            builder.InitialCatalog = $"ApexPost_SqlIT_Http_{Guid.NewGuid():N}"[..38];
+            ConnectionString = builder.ConnectionString;
+            Environment.SetEnvironmentVariable("APEXPOST_SQL_CONNECTION", ConnectionString);
+            Environment.SetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION", ConnectionString);
+            return Task.CompletedTask;
+        }
+        catch (Exception exception)
+        {
+            return Task.FromException(new InvalidOperationException("SQL HTTP integration test fixture failed to initialize.", exception));
+        }
+    }
+
+    public async Task DisposeAsync()
+    {
+        await DropDatabaseIfExistsAsync(ConnectionString);
+    }
+
+    private static async Task DropDatabaseIfExistsAsync(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        var databaseName = builder.InitialCatalog;
+        if (!databaseName.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        builder.InitialCatalog = "master";
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand(
+            $@"IF DB_ID(@databaseName) IS NOT NULL
+                BEGIN
+                    ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                    DROP DATABASE [{databaseName}];
+                END;",
+            connection);
+        command.Parameters.AddWithValue("@databaseName", databaseName);
+        await command.ExecuteNonQueryAsync();
+    }
+}
+
+[Collection("SQL Server Integration")]
 public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlWebApplicationFactory _factory = new();
+    private readonly SqlWebApplicationFactory _factory;
+
+    public SqlWebApplicationIntegrationTests(SqlWebIntegrationTestFixture fixture)
+    {
+        _factory = new SqlWebApplicationFactory(fixture.ConnectionString);
+    }
 
     public async Task InitializeAsync() => await _factory.InitializeAsync();
     public async Task DisposeAsync() => await _factory.DisposeAsync();
@@ -241,9 +312,9 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
     private readonly string _connectionString;
     private bool _initialized;
 
-    public SqlWebApplicationFactory()
+    public SqlWebApplicationFactory(string? configuredConnectionString = null)
     {
-        var configured = Environment.GetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION")
+        var configured = configuredConnectionString ?? Environment.GetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION")
             ?? throw new InvalidOperationException("APEXPOST_SQL_TEST_CONNECTION is required.");
         var builder = new SqlConnectionStringBuilder(configured);
         if (!builder.InitialCatalog.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
@@ -256,18 +327,74 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
     public async Task InitializeAsync()
     {
         if (_initialized) return;
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApexPostDbContext>();
-        await db.Database.MigrateAsync();
-        var hasher = scope.ServiceProvider.GetRequiredService<IStaffPasswordHasher>();
-        db.Branches.Add(new Branch(new BranchCode(BranchCode), "SQL HTTP Branch", "Test", new TimeOnly(0), new TimeOnly(23, 59)));
-        db.Counters.Add(new Counter(CounterId, new BranchCode(BranchCode), "SQL HTTP Counter"));
-        db.Staff.Add(new Staff(StaffId, "SQL HTTP Manager", Email, StaffRole.BranchManager, new BranchCode(BranchCode)));
-        db.StaffCredentials.Add(new StaffCredential(StaffId, hasher.HashPassword(Password)));
-        db.Products.Add(new Product(new Sku(Sku), "SQL HTTP Envelope", ProductCategory.Packaging, new Money(10m), TaxCategory.Standard));
-        db.BranchStock.Add(new InventoryStock(new BranchCode(BranchCode), new Sku(Sku), 5));
-        await db.SaveChangesAsync();
-        _initialized = true;
+        try
+        {
+            await using var connection = new SqlConnection(new SqlConnectionStringBuilder(_connectionString)
+            {
+                InitialCatalog = "master"
+            }.ConnectionString);
+            await connection.OpenAsync();
+            await using var createDb = new SqlCommand($"CREATE DATABASE [{new SqlConnectionStringBuilder(_connectionString).InitialCatalog}]", connection);
+            await createDb.ExecuteNonQueryAsync();
+
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApexPostDbContext>();
+            await db.Database.MigrateAsync();
+            var hasher = scope.ServiceProvider.GetRequiredService<IStaffPasswordHasher>();
+            db.Branches.Add(new Branch(new BranchCode(BranchCode), "SQL HTTP Branch", "Test", new TimeOnly(0), new TimeOnly(23, 59)));
+            db.Counters.Add(new Counter(CounterId, new BranchCode(BranchCode), "SQL HTTP Counter"));
+            db.Staff.Add(new Staff(StaffId, "SQL HTTP Manager", Email, StaffRole.BranchManager, new BranchCode(BranchCode)));
+            db.StaffCredentials.Add(new StaffCredential(StaffId, hasher.HashPassword(Password)));
+            db.Products.Add(new Product(new Sku(Sku), "SQL HTTP Envelope", ProductCategory.Packaging, new Money(10m), TaxCategory.Standard));
+            db.BranchStock.Add(new InventoryStock(new BranchCode(BranchCode), new Sku(Sku), 5));
+            await db.SaveChangesAsync();
+            _initialized = true;
+        }
+        catch
+        {
+            await DropDatabaseIfExistsAsync(_connectionString);
+            throw;
+        }
+    }
+
+    public new async Task DisposeAsync()
+    {
+        try
+        {
+            await base.DisposeAsync();
+        }
+        finally
+        {
+            await DropDatabaseIfExistsAsync(_connectionString);
+        }
+    }
+
+    private static async Task DropDatabaseIfExistsAsync(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        var databaseName = builder.InitialCatalog;
+        if (!databaseName.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        builder.InitialCatalog = "master";
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var dropDatabase = new SqlCommand(
+            $@"IF DB_ID(@databaseName) IS NOT NULL
+                BEGIN
+                    ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                    DROP DATABASE [{databaseName}];
+                END;",
+            connection);
+        dropDatabase.Parameters.AddWithValue("@databaseName", databaseName);
+        await dropDatabase.ExecuteNonQueryAsync();
     }
 
     public ApexPostDbContext CreateContext() => new(new DbContextOptionsBuilder<ApexPostDbContext>().UseSqlServer(_connectionString).Options);

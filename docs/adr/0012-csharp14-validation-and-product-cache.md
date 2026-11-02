@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; the Web product cache now wraps the scoped SQL catalogue repository. JSON repository behavior below is limited to legacy adapters; see [ADR-0015](0015-sql-runtime-and-reporting-boundary.md).
 
 ## Context
 

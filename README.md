@@ -1,6 +1,6 @@
 # ApexPost Counter Platform
 
-ASP.NET Core MVC counter platform for ApexPost Logistics. This repository is the Week 2 replacement for the Week 1 TechNova RMS console application.
+ASP.NET Core MVC counter platform for ApexPost Logistics. The Week 3 implementation preserves the Week 2 business workflows and uses SQL Server as the Web application's persistent runtime data source.
 
 ## Prerequisites
 
@@ -17,12 +17,14 @@ dotnet build ApexPost.sln --no-restore
 dotnet test ApexPost.sln --no-restore
 ```
 
-The SQL Server integration tests are opt-in. Set `APEXPOST_SQL_TEST_CONNECTION` to an isolated test database whose catalog starts with `ApexPost_SqlIT_` to include them; the suite applies migrations and retains its test database. Do not point it at `ApexPostDb` or another non-test database.
+The SQL Server integration tests are opt-in. Set `APEXPOST_SQL_TEST_CONNECTION` to a LocalDB connection string with a catalog prefix of `ApexPost_SqlIT_` to include them. The fixtures create uniquely named temporary databases, apply migrations, and clean them up automatically. Do not point the variable at `ApexPostDb` or another persistent database.
 
 ```powershell
 $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=ApexPost_SqlIT_Local;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False"
 dotnet test ApexPost.sln --no-restore
 ```
+
+The latest full run with the SQL test connection configured passed 379 tests: 112 Domain, 192 Application, and 75 Web integration tests, with 0 failures and 0 skips.
 
 Run the web application:
 
@@ -71,6 +73,14 @@ Keep the original JSON directory unchanged. Preview it before importing, then us
 dotnet run --project tools/ApexPost.DemoSeed -- --import-preview --data-directory C:\Path\To\JsonSource
 dotnet run --project tools/ApexPost.DemoSeed -- --import-json --data-directory C:\Path\To\JsonSource
 ```
+
+The full import only accepts a source snapshot when the target database is empty or the same fingerprint was already imported. If an existing SQL database contains a different business snapshot, do not rerun or merge the full import. The existing historical audit file can be imported separately and repeat-safely without changing business rows:
+
+```powershell
+dotnet run --project tools/ApexPost.DemoSeed -- --import-audit-jsonl --data-directory App_Data
+```
+
+This command imports only validated entries from `audit.jsonl`, writes an import-ledger record, and does not run during Web startup. The four initially empty operational tables—`IdentityVerifications`, `MoneyOrders`, `Shipments`, and `StockMovements`—are populated by their supported workflows, not artificial seed records. See the [Week 3 database guide](docs/WEEK3-DATABASE-GUIDE.md) for the latest observed counts and read-only SSMS verification queries.
 
 For isolated synthetic testing only, the tool can create a separate JSON source with 5 branches, 20 staff, 30 products and 200 explicitly synthetic transactions using `--demo-json-200 --data-directory <new-empty-directory>`. Configure `DemoData:Password` through user-secrets (or `APEXPOST_DEMO_DATA_PASSWORD` for the current shell); the generator has no built-in password. These records are test/demo data, never historical production evidence. The importer does not edit source files or import automatically at Web startup.
 
