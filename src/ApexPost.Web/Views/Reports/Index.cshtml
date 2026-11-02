@@ -12,8 +12,28 @@
 <form method="get" asp-action="Index" class="card surface-card mb-4">
     <div class="card-body d-flex align-items-end gap-3 flex-wrap">
         <div><label for="date" class="form-label">Report date (UTC)</label><input id="date" name="date" type="date" value="@Model.Date.ToString("yyyy-MM-dd")" class="form-control" /></div>
+        <div>
+            <label for="branchCode" class="form-label">Branch</label>
+            <select id="branchCode" name="branchCode" class="form-select">
+                @if (Model.BranchScope is null) { <option value="">All branches</option> }
+                @foreach (var branch in Model.Branches)
+                {
+                    if (string.Equals(branch.Code, Model.BranchScope, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@branch.Code" selected>@branch.Code — @branch.Name</option>
+                    }
+                    else
+                    {
+                        <option value="@branch.Code">@branch.Code — @branch.Name</option>
+                    }
+                }
+            </select>
+        </div>
+        <div>
+            <label for="threshold" class="form-label">Low-stock threshold</label>
+            <input id="threshold" name="threshold" type="number" min="0" max="100000" value="@Model.Threshold" class="form-control" />
+        </div>
         <button type="submit" class="button button-primary">Run reports</button>
-        @if (Model.BranchScope is not null) { <span class="form-hint">Branch scope: @Model.BranchScope</span> }
     </div>
 </form>
 
@@ -34,7 +54,7 @@
     else
     {
         <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Branch</th><th>SKU</th><th>Product</th><th>On hand</th><th>Reorder level</th></tr></thead><tbody>
-        @foreach (var row in Model.LowStock) { <tr><th>@row.BranchCode</th><td>@row.Sku</td><td>@row.ProductName</td><td>@row.QuantityOnHand</td><td>@row.ReorderLevel</td></tr> }
+        @foreach (var row in Model.LowStock) { <tr><th>@row.BranchCode</th><td>@row.Sku</td><td>@row.ProductName</td><td>@row.QuantityOnHand</td><td>@row.Threshold</td></tr> }
         </tbody></table></div>
     }
 </div></section>

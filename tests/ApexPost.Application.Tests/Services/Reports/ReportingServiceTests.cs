@@ -113,6 +113,45 @@ public sealed class ReportingServiceTests
     }
 
     [Fact]
+    public async Task GetLowStockReportAsync_UsesRequestedThreshold()
+    {
+        var source = new FakeReportDataSource
+        {
+            Inventory =
+            [
+                new("IND01", "SKU001", "Envelope", 2, 5),
+                new("IND01", "SKU002", "Box", 4, 5),
+                new("IND01", "SKU003", "Tape", 5, 5)
+            ]
+        };
+
+        var report = await new ReportingService(source)
+            .GetLowStockReportAsync("IND01", threshold: 4);
+
+        Assert.Equal(2, report.Count);
+        Assert.All(report, item => Assert.Equal(4, item.Threshold));
+        Assert.DoesNotContain(report, item => item.Sku == "SKU003");
+    }
+
+    [Fact]
+    public async Task GetLowStockReportAsync_RejectsNegativeThreshold()
+    {
+        var service = new ReportingService(new FakeReportDataSource());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.GetLowStockReportAsync(threshold: -1));
+    }
+
+    [Fact]
+    public async Task GetLowStockReportAsync_RejectsThresholdAboveSupportedRange()
+    {
+        var service = new ReportingService(new FakeReportDataSource());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.GetLowStockReportAsync(threshold: 100_001));
+    }
+
+    [Fact]
     public async Task GetShippingVolumeReportAsync_GroupsByZoneAndServiceLevel()
     {
         var timestamp = UtcTimestamp(ReportDate);

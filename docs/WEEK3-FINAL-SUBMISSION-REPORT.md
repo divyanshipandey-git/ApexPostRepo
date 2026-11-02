@@ -2,9 +2,9 @@
 
 ## 1. Assignment overview and objectives
 
-This submission covers the Week 3 SQL Server implementation for ApexPost Counter Platform. The work was completed on the branch `feature/week3-phase1-database-design` and validated with the full solution test suite using `APEXPOST_SQL_TEST_CONNECTION` configured to an isolated SQL Server LocalDB test database.
+This submission covers the Week 3 SQL remediation for ApexPost Counter Platform. The work is on branch `feature/week3-sql-gap-remediation` and was validated with the full solution test suite using `APEXPOST_SQL_TEST_CONNECTION` configured to an isolated SQL Server LocalDB test database.
 
-The objective was to move the persistence boundary from JSON files to SQL Server while preserving the Week 2 business rules, domain contracts, audit model, security model, MVC workflows, and test expectations. The implementation does not introduce Couchbase, offline sync, SyncInbox, or excluded functionally outside the Week 3 assignment scope.
+The objective was to preserve the Week 2 business rules while completing the SQL-backed reporting, transaction/error handling, EF behavior, and documentation gaps. The implementation does not introduce Couchbase, offline sync, SyncInbox, or conflict resolution.
 
 The repository remains aligned with the Week 2 requirement to preserve the application architecture: domain-first entities, application abstraction interfaces, infrastructure implementations, and an MVC web composition root.
 
@@ -18,7 +18,10 @@ Implemented in the current solution:
 - Code-first migrations with idempotent schema generation.
 - JSON snapshot import into an empty SQL database with duplicate-import protection.
 - Stored procedures for daily branch sales, low-stock reporting, and stock adjustments.
+- Date/branch/threshold report filters with SQL-side aggregation and role-aware branch scoping.
+- Administrator-only category price revision using a set-based SQL update.
 - Explicit transaction boundaries and concurrency handling.
+- Safe concurrency Problem Details and request-cancellation handling.
 - SQL-backed MVC business flows and audit persistence.
 - Tests for SQL persistence, web integration, and end-to-end validation.
 - Performance evidence preserved in the repository and documented in the performance files.
@@ -121,6 +124,7 @@ Key files:
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031173410_InitialCreate.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031173907_AddSqlReportingAndStockProcedures.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261101010000_UpdateDailyBranchSalesProcedure.cs`
+- `src/ApexPost.Infrastructure/Persistence/Migrations/20261102000000_AddReportFilters.cs`
 - `docs/sql/ApexPostDb-idempotent.sql`
 
 The migration history includes:
@@ -128,8 +132,9 @@ The migration history includes:
 - initial schema creation
 - SQL reporting and stock adjustment procedures
 - report procedure update and validation tightening
+- date/branch and low-stock threshold report filters, plus transactional stock procedure rollback handling
 
-The idempotent SQL script is preserved under `docs/sql/ApexPostDb-idempotent.sql` for deployment and auditing purposes.
+The idempotent SQL script is maintained under `database/schema/ApexPostDb-idempotent.sql`; the legacy `docs/sql/` copy is refreshed for existing references.
 
 ## 7. Repository and Unit of Work implementation
 
@@ -167,6 +172,8 @@ Evidence:
 - `src/ApexPost.Infrastructure/Persistence/Repositories/SqlRepositories.cs`
 
 The reports also use the SQL-backed `IReportDataSource` implementation, which is captured in the application service layer and used by the reporting screens.
+
+The report page accepts date, branch, and validated threshold input. Branch Managers remain restricted to their home branch; Auditors and Administrators may filter across branches. Shipping and branch service activity are filtered and grouped in SQL. The current report query translations are recorded in `PERFORMANCE.md`; actual-plan measurements for the changed filters remain an explicit follow-up before production capacity claims.
 
 ## 9. Transaction and concurrency handling
 
@@ -243,10 +250,12 @@ The final validation used the configured SQL integration environment. The full s
 
 Final result:
 
-- 379 passed
+- 390 passed
 - 0 failed
 - 0 skipped
-- total: 379
+- total: 390
+
+Project totals: 112 Domain, 201 Application, and 77 Web integration tests.
 
 Key test files:
 
@@ -326,7 +335,7 @@ The only new persistent `ApexPostDb` data from this audit is the 102 existing au
 
 ## 16. Conclusion
 
-SQL connectivity and SQL-only runtime behavior are verified. The historical audit data is now imported repeat-safely. The remaining four empty tables are explained and correctly remain empty in the persistent database because their operational workflows have not been executed there and no corresponding legacy JSON source files exist. All 379 tests passed, including SQL Server integration tests, with temporary test databases cleaned up. The SQL persistence submission is ready for review; do not interpret empty workflow-history tables as seeded-data defects.
+SQL connectivity and SQL-only runtime behavior are verified. The historical audit data is imported repeat-safely. The remaining four empty tables are explained and correctly remain empty in the persistent database because their operational workflows have not been executed there and no corresponding legacy JSON source files exist. All 390 tests passed, including SQL Server integration tests, with temporary test databases cleaned up. Actual-plan measurements for the newly filtered report shapes remain a documented performance limitation; see the [gap analysis](WEEK3-REQUIREMENT-GAP-ANALYSIS.md).
 
 ## 17. Final verdict
 

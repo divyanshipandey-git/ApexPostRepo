@@ -49,6 +49,8 @@ public static class DependencyInjection
         services.TryAddSingleton<IProductRepository>(provider =>
             new JsonProductRepository(
                 provider.GetRequiredService<JsonPersistenceOptions>().DataDirectory));
+        services.TryAddSingleton<IProductPriceRevisionRepository>(provider =>
+            (IProductPriceRevisionRepository)provider.GetRequiredService<IProductRepository>());
         services.TryAddSingleton<IStaffRepository>(provider =>
             new JsonStaffRepository(
                 provider.GetRequiredService<JsonPersistenceOptions>().DataDirectory));

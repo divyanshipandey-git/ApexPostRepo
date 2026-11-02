@@ -14,8 +14,8 @@ Web composition registers scoped EF Core SQL Server repositories, `IAuditStore`,
 
 `usp_AdjustStock` is a stored procedure because stock quantity and its durable movement row must be validated and changed atomically, with locking, negative-stock protection, and a single transactional error boundary. The procedure call uses EF parameter interpolation.
 
-`usp_DailyBranchSales` and `usp_LowStockReport` are parameterized database procedures used by `SqlReportDataSource`. The daily procedure returns separate retail, service, and total sales, while the low-stock procedure provides the SQL-backed low-stock report. Application report contracts stay provider-neutral through report DTOs.
+`usp_DailyBranchSales` and `usp_LowStockReport` are parameterized database procedures used by `SqlReportDataSource`. Daily sales returns separate retail, service, and overall totals for a selected UTC date and optional branch. Low stock accepts a validated branch and threshold. Shipping volume and money-order/identity-verification summaries are filtered and grouped in SQL, not loaded in full and filtered in memory. Report DTOs remain provider-neutral.
 
 ## Consequences
 
-Runtime SQL registration, SQL repository workflows, and SQL-backed MVC workflows are covered by opt-in LocalDB tests using isolated `ApexPost_SqlIT_*` catalogs. The role-authorization integration test logs in as each supported role and verifies report, inventory, counter-sale, stock, and branch-scope permissions. Existing Week 2 behavior tests continue to exercise JSON adapters in isolated test directories.
+Runtime SQL registration, SQL repository workflows, and SQL-backed MVC workflows are covered by opt-in LocalDB tests using isolated `ApexPost_SqlIT_*` catalogs. The role-authorization integration test logs in as each supported role and verifies report, inventory, counter-sale, stock, and branch-scope permissions. New filtered report and stored-procedure rollback assertions are also opt-in; they were not run in this environment because `APEXPOST_SQL_TEST_CONNECTION` is not configured. Existing Week 2 behavior tests continue to exercise JSON adapters in isolated test directories.

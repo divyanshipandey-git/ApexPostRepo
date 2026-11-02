@@ -120,10 +120,12 @@ dotnet test ApexPost.sln --logger "console;verbosity=minimal"
 
 With `APEXPOST_SQL_TEST_CONNECTION` configured, the validator result is:
 
-- Passed: 379
+- Passed: 390
 - Failed: 0
 - Skipped: 0
-- Total: 379
+- Total: 390
+
+Project totals: 112 Domain tests, 201 Application tests, and 77 Web integration tests. The SQL-backed Application and Web tests were enabled by the isolated LocalDB connection.
 
 The SQL coverage includes repository reads/writes, transaction rollback, audit persistence and repeat-safe import, inventory adjustment/reversal movements, shipment and money-order/identity persistence, and SQL-backed MVC reads/writes. The SQL-backed sale and reversal assertions re-read data through new contexts after the operation.
 

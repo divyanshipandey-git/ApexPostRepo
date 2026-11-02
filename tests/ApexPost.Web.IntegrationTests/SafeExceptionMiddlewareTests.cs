@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -27,5 +28,41 @@ public sealed class SafeExceptionMiddlewareTests
         using var problem = await JsonDocument.ParseAsync(body);
         Assert.Equal(StatusCodes.Status409Conflict, problem.RootElement.GetProperty("status").GetInt32());
         Assert.DoesNotContain("Provider details", problem.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MapsApplicationConcurrencyConflictToSafe409Problem()
+    {
+        var middleware = new SafeExceptionMiddleware(
+            _ => throw new ConcurrencyConflictException(
+                "The record changed.",
+                new InvalidOperationException("Provider details must not be returned.")),
+            NullLogger<SafeExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        await using var body = new MemoryStream();
+        context.Response.Body = body;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        body.Position = 0;
+        using var problem = await JsonDocument.ParseAsync(body);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.DoesNotContain("Provider details", problem.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_DoesNotTranslateClientCancellationToServerError()
+    {
+        using var abort = new CancellationTokenSource();
+        abort.Cancel();
+        var middleware = new SafeExceptionMiddleware(
+            _ => throw new OperationCanceledException(abort.Token),
+            NullLogger<SafeExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.RequestAborted = abort.Token;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => middleware.InvokeAsync(context));
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
     }
 }

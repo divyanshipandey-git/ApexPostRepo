@@ -124,7 +124,7 @@ public sealed class SqlServerIntegrationTests
     {
         await using var context = await CreateContextAsync();
         var applied = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal(5, applied.Count());
+        Assert.Equal(6, applied.Count());
         Assert.Contains("20261101010000_UpdateDailyBranchSalesProcedure", applied);
         Assert.True(await context.Database.CanConnectAsync());
     }
@@ -332,7 +332,8 @@ public sealed class SqlServerIntegrationTests
         var outcomes = await Task.WhenAll(SellAsync(), SellAsync());
 
         Assert.Equal(1, outcomes.Count(result => result.Status == CounterSaleStatus.Completed));
-        Assert.Equal(1, outcomes.Count(result => result.Status == CounterSaleStatus.InsufficientStock));
+        Assert.Equal(1, outcomes.Count(result =>
+            result.Status is CounterSaleStatus.InsufficientStock or CounterSaleStatus.ConcurrencyConflict));
         await using var verify = await CreateContextAsync();
         Assert.Equal(0, (await verify.BranchStock.SingleAsync(item => item.BranchCode == new BranchCode(seed.BranchCode) && item.Sku == new Sku(seed.Sku))).Quantity);
         var transactions = await verify.CounterTransactions.Where(item => item.BranchCode == new BranchCode(seed.BranchCode)).ToArrayAsync();
@@ -364,8 +365,85 @@ public sealed class SqlServerIntegrationTests
         Assert.Equal(1, daily.TransactionCount);
         Assert.Equal(11.8m, daily.RetailSales);
         Assert.Equal(70.8m, daily.ServiceSales);
-        var lowStock = await reports.GetLowStockAsync(seed.BranchCode);
+        Assert.Empty(await reports.GetDailyBranchSalesAsync(day.AddDays(-1), seed.BranchCode));
+        var lowStock = await reports.GetLowStockAsync(seed.BranchCode, 5, CancellationToken.None);
         Assert.Equal(5, Assert.Single(lowStock).QuantityOnHand);
+        Assert.Empty(await reports.GetLowStockAsync(seed.BranchCode, 4, CancellationToken.None));
+
+        var shipping = Assert.Single(await reports.GetShippingVolumeAsync(
+            day, seed.BranchCode, CancellationToken.None));
+        Assert.Equal("ZONE1", shipping.DestinationZone);
+        Assert.Equal(nameof(ShippingServiceLevel.Standard), shipping.ServiceLevel);
+        Assert.Equal(1, shipping.ShipmentCount);
+
+        var activity = Assert.Single(await reports.GetBranchServiceActivityAsync(
+            day, seed.BranchCode, CancellationToken.None));
+        Assert.Equal(0, activity.MoneyOrderCount);
+        Assert.Equal(0, activity.IdentityVerificationCount);
+    }
+
+    [SqlServerFact]
+    public async Task PriceRevision_UsesSetBasedUpdateAndLeavesOtherCategoriesUnchanged()
+    {
+        await using var provider = CreateProvider();
+        var seed = await SeedSaleAsync(provider, stockQuantity: 3);
+        var otherSku = $"Q{Guid.NewGuid():N}"[..20];
+        await using (var setup = await CreateContextAsync())
+        {
+            setup.Products.Add(new Product(
+                new Sku(otherSku),
+                "SQL Test Stationery",
+                ProductCategory.Stationery,
+                new Money(4m),
+                TaxCategory.Standard));
+            await setup.SaveChangesAsync();
+        }
+
+        int expectedUpdated;
+        await using (var countContext = await CreateContextAsync())
+        {
+            expectedUpdated = await countContext.Products.CountAsync(
+                item => item.Category == ProductCategory.Packaging);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<ProductPriceRevisionService>();
+            var updated = await service.SetCategoryPriceAsync(
+                nameof(ProductCategory.Packaging), 12.34m);
+            Assert.Equal(expectedUpdated, updated);
+        }
+
+        await using var verify = await CreateContextAsync();
+        Assert.Equal(12.34m, (await verify.Products.SingleAsync(
+            item => item.Sku == new Sku(seed.Sku))).UnitPrice.Amount);
+        Assert.Equal(4m, (await verify.Products.SingleAsync(
+            item => item.Sku == new Sku(otherSku))).UnitPrice.Amount);
+    }
+
+    [SqlServerFact]
+    public async Task StockAdjustmentProcedure_RollsBackStockMovementWhenAdjustmentWouldGoNegative()
+    {
+        await using var provider = CreateProvider();
+        var seed = await SeedSaleAsync(provider, stockQuantity: 5);
+        await using var context = await CreateContextAsync();
+        var stock = new SqlInventoryRepository(context);
+
+        await Assert.ThrowsAsync<SqlException>(() => stock.AdjustQuantityWithAuditAsync(
+            seed.BranchCode,
+            seed.Sku,
+            -6,
+            "negative stock test",
+            seed.StaffId));
+
+        await using var verify = await CreateContextAsync();
+        Assert.Equal(5, (await verify.BranchStock.SingleAsync(
+            item => item.BranchCode == new BranchCode(seed.BranchCode) &&
+                    item.Sku == new Sku(seed.Sku))).Quantity);
+        Assert.False(await verify.StockMovements.AnyAsync(
+            item => item.BranchCode == new BranchCode(seed.BranchCode) &&
+                    item.Sku == new Sku(seed.Sku) &&
+                    item.MovementType == "Adjustment"));
     }
 
     [SqlServerFact]

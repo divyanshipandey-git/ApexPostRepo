@@ -180,6 +180,17 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
         await using var db = _factory.CreateContext();
         Assert.True(await db.Branches.AnyAsync(item => item.Code == new BranchCode(SqlWebApplicationFactory.BranchCode)));
         Assert.True(await db.Products.AnyAsync(item => item.Sku == new Sku(SqlWebApplicationFactory.Sku)));
+
+        using var filteredReports = await client.GetAsync(
+            $"/Reports?date={DateOnly.FromDateTime(DateTime.UtcNow):yyyy-MM-dd}&branchCode={SqlWebApplicationFactory.BranchCode}&threshold=0");
+        Assert.Equal(HttpStatusCode.OK, filteredReports.StatusCode);
+        var reportHtml = await filteredReports.Content.ReadAsStringAsync();
+        Assert.Contains("name=\"branchCode\"", reportHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"threshold\"", reportHtml, StringComparison.Ordinal);
+        Assert.Contains("value=\"0\"", reportHtml, StringComparison.Ordinal);
+
+        using var invalidThreshold = await client.GetAsync("/Reports?threshold=100001");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidThreshold.StatusCode);
     }
 
     [SqlWebFact]
@@ -215,11 +226,13 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             var sale = await client.GetAsync("/Transactions/Create");
             var reports = await client.GetAsync("/Reports");
             var inventory = await client.GetAsync("/Inventory/Index");
+            var priceRevision = await client.GetAsync("/Products/PriceRevision");
             var stock = await client.GetAsync("/Stock/Index?branchCode=SQLHTTP1");
             var otherBranchStock = await client.GetAsync("/Stock/Index?branchCode=OTHER");
             var canSell = account.Role is StaffRole.Administrator or StaffRole.BranchManager or StaffRole.CounterClerk;
             var canUseReports = account.Role is StaffRole.Administrator or StaffRole.BranchManager or StaffRole.Auditor;
             var canUseInventory = account.Role is StaffRole.Administrator or StaffRole.BranchManager or StaffRole.CounterClerk;
+            var canRevisePrices = account.Role == StaffRole.Administrator;
             var canManageStock = account.Role is StaffRole.Administrator or StaffRole.BranchManager;
 
             await AssertStatusAsync(
@@ -237,6 +250,11 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
                 "/Inventory/Index",
                 canUseInventory ? HttpStatusCode.OK : HttpStatusCode.Redirect,
                 inventory);
+            await AssertStatusAsync(
+                account.Role,
+                "/Products/PriceRevision",
+                canRevisePrices ? HttpStatusCode.OK : HttpStatusCode.Redirect,
+                priceRevision);
             await AssertStatusAsync(
                 account.Role,
                 "/Stock/Index",

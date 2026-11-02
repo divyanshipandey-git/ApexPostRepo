@@ -10,11 +10,11 @@ Daily branch sales require a stable occurrence time and report projections must 
 
 ## Decision
 
-`CounterTransaction` stores an optional UTC `OccurredAtUtc`. New sales and demo seed transactions set it from `TimeProvider` or a fixed UTC seed date. Optionality preserves deserialization of earlier records. Reporting excludes records that lack a timestamp rather than assigning a synthetic date. `IReportDataSource` is implemented by `JsonReportDataSource`, which joins domain repositories into report DTOs. Dashboard sales and low-stock queries execute concurrently.
+`CounterTransaction` stores an optional UTC `OccurredAtUtc`. New sales and demo seed transactions set it from `TimeProvider` or a fixed UTC seed date. Optionality preserves deserialization of earlier records. Reporting excludes records that lack a timestamp rather than assigning a synthetic date. The Web `SqlReportDataSource` uses parameterized SQL for daily sales, the low-stock procedure for threshold queries, and SQL-side date/branch filtering and grouping for shipping and auditor aggregates. `JsonReportDataSource` remains only a legacy/test adapter. Dashboard sales and low-stock queries execute concurrently only in adapters that can safely do so; the scoped SQL context does not run concurrent operations.
 
 ## Consequences
 
 - New transactions participate in daily reporting with UTC date boundaries.
 - Existing timestamp-free records remain unchanged and are not included in date-based reports.
-- JSON repositories remain replaceable behind Application interfaces.
-- Existing multi-file crash consistency limits continue to apply; reports reflect whichever persisted records are present.
+- Report screens use SQL projections and stored procedures, return no sensitive identity document fields, and display an explicit empty-state message when no rows match.
+- The MVC report supports a UTC date, optional branch selection for Auditor/Administrator, Branch Manager home-branch scoping, and a validated threshold.

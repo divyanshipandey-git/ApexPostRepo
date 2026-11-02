@@ -191,6 +191,7 @@ public sealed class TransactionsController(
         {
             CounterSaleStatus.InvalidProduct => SaleValidationError(model, "Select a product that exists in the catalogue."),
             CounterSaleStatus.InsufficientStock => SaleConflict(model, "There is not enough stock to complete this sale."),
+            CounterSaleStatus.ConcurrencyConflict => SaleConflict(model, "Stock changed while you were completing this sale. Refresh and try again."),
             CounterSaleStatus.BranchClosed => SaleConflict(model, "This branch is closed and cannot accept transactions."),
             CounterSaleStatus.ShippingUnavailable => SaleValidationError(model, "The selected shipping service is unavailable or its details are invalid."),
             CounterSaleStatus.MoneyOrderVerificationRequired => SaleValidationError(model, "This money order amount requires successful identity verification. No order was issued."),
