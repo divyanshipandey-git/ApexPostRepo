@@ -44,7 +44,7 @@ Development connection strings belong in user-secrets, and schema changes are ap
 - Money orders and identity verification: configurable threshold and masked document identifier.
 - Branches, counters, staff and products: reference/business entities with explicit active status.
 
-The transaction owns its lifecycle, totals and composed line items. Inventory remains an independent aggregate reserved through the application boundary; shipment and money-order records remain separate and reference the transaction. This keeps business rules testable while making the JSON workflow's compensating, non-atomic writes explicit.
+The transaction owns its lifecycle, totals and composed line items. Inventory remains an independent aggregate reserved through the application boundary; shipment and money-order records remain separate and reference the transaction. SQL persistence commits supported multi-entity sales and reversals through the scoped unit of work and database transaction/concurrency safeguards. Historical JSON adapters retain their earlier compensating-write limitations but are not part of the Web runtime.
 
 ```mermaid
 classDiagram
@@ -126,7 +126,7 @@ Web runtime business data uses EF Core 10 with SQL Server and the `ApexPostDb` c
 
 Reads use no-tracking projections for reports and screens. Counter sale, stock reservation, payment, linked shipment/money-order, and reversal changes are staged through the unit of work and committed consistently. Stock and transaction rowversions, a unique reversal movement constraint, and database transactions protect concurrent writes. The stored procedures provide set-based daily sales and low-stock reports plus transactional stock adjustment; calls use parameterized EF APIs. Audit entries are written through the SQL audit store separately from the business commit so audit failure does not replace a completed business response.
 
-JSON repositories remain only as legacy test adapters. The opt-in importer reads a selected JSON source without modifying it and writes imported rows to SQL explicitly; the original `App_Data` files are not changed by Web startup. The opt-in demo tool can create fictional JSON fixtures in a separate, explicitly selected empty directory. Its password is required through user-secrets or an environment variable and only the password hash is written to the fixture. Neither tool is a Web startup hook.
+JSON repositories remain only as legacy test adapters. The opt-in importer reads a selected JSON source without modifying it and writes imported rows to SQL explicitly; the original `App_Data` files are not changed by Web startup. The separate `--import-audit-jsonl` command imports only validated events from `audit.jsonl` into an already-populated SQL database and uses the import ledger for repeat-safe execution; it does not rerun or merge the full business import. The opt-in demo tool can create fictional JSON fixtures in a separate, explicitly selected empty directory. Its password is required through user-secrets or an environment variable and only the password hash is written to the fixture. Neither tool is a Web startup hook.
 
 ## Advanced C# and performance choices
 

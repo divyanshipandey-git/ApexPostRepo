@@ -1,5 +1,7 @@
 # Security, Persistence, and Architecture Audit
 
+> Historical audit snapshot for the earlier Week 2 JSON runtime on `feature/application-layer`. Its JSON runtime findings and branch/status observations do not describe the current Week 3 Web application. The current composition uses SQL Server exclusively, with JSON limited to explicit import and isolated legacy adapters; see [ADR-0015](adr/0015-sql-runtime-and-reporting-boundary.md), the [Week 3 final report](WEEK3-FINAL-SUBMISSION-REPORT.md), and the [Week 3 database guide](WEEK3-DATABASE-GUIDE.md).
+
 Audit basis: the complete `apexpost.txt`, current implementation, configuration, tests, and documentation on `feature/application-layer`. Requirement-by-requirement status and evidence are tracked in `docs/RUBRIC-CHECKLIST.md`; this document records security, persistence, and deployment limits.
 
 ## Security and Git findings

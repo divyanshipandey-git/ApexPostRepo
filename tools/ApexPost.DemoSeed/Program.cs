@@ -89,7 +89,9 @@ if (args.Length == 3 && args[0] == "--demo-json-200" && args[1] == "--data-direc
     }
 }
 
-if (args.Length == 3 && (args[0] is "--import-preview" or "--import-json") && args[1] == "--data-directory")
+if (args.Length == 3 &&
+    (args[0] is "--import-preview" or "--import-json" or "--import-audit-jsonl") &&
+    args[1] == "--data-directory")
 {
     try
     {
@@ -108,8 +110,11 @@ if (args.Length == 3 && (args[0] is "--import-preview" or "--import-json") && ar
         }
         else
         {
-            var result = await importer.ImportAsync(args[2]);
-            await Console.Out.WriteLineAsync($"Import complete. Already imported: {result.AlreadyImported}. Fingerprint: {result.Fingerprint}. Counts: {string.Join(", ", result.ImportedCounts.Select(item => $"{item.Key}={item.Value}"))}.");
+            var result = args[0] == "--import-audit-jsonl"
+                ? await importer.ImportAuditLogAsync(args[2])
+                : await importer.ImportAsync(args[2]);
+            await Console.Out.WriteLineAsync(
+                $"Import complete. Already imported: {result.AlreadyImported}. Counts: {string.Join(", ", result.ImportedCounts.Select(item => $"{item.Key}={item.Value}"))}.");
         }
         return 0;
     }
@@ -120,7 +125,7 @@ if (args.Length == 3 && (args[0] is "--import-preview" or "--import-json") && ar
     }
 }
 
-await Console.Error.WriteLineAsync("Usage: dotnet run --project tools/ApexPost.DemoSeed -- --provision-local-test-accounts | --data-directory <existing-empty-directory> | --demo-json-200 --data-directory <existing-empty-directory> | --import-preview --data-directory <read-only-json-directory> | --import-json --data-directory <read-only-json-directory> | --query-diagnostics | --sql-report-smoke");
+await Console.Error.WriteLineAsync("Usage: dotnet run --project tools/ApexPost.DemoSeed -- --provision-local-test-accounts | --data-directory <existing-empty-directory> | --demo-json-200 --data-directory <existing-empty-directory> | --import-preview --data-directory <read-only-json-directory> | --import-json --data-directory <read-only-json-directory> | --import-audit-jsonl --data-directory <read-only-json-directory> | --query-diagnostics | --sql-report-smoke");
 return 2;
 
 static IConfiguration BuildConfiguration() =>

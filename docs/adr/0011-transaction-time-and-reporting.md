@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; the JSON compatibility statements below apply to the legacy adapters, while the current Web runtime uses SQL as documented in [ADR-0015](0015-sql-runtime-and-reporting-boundary.md).
 
 ## Context
 

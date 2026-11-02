@@ -17,17 +17,107 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Text.Json;
 using Xunit;
 
 namespace ApexPost.Application.Tests.Persistence;
 
 [CollectionDefinition("SQL Server Integration", DisableParallelization = true)]
-public sealed class SqlServerIntegrationCollection { }
+public sealed class SqlServerIntegrationCollection : ICollectionFixture<SqlServerIntegrationTestFixture> { }
+
+public sealed class SqlServerIntegrationTestFixture : IAsyncLifetime
+{
+    public string ConnectionString { get; private set; } = string.Empty;
+
+    public async Task InitializeAsync()
+    {
+        var configured = Environment.GetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return;
+        }
+
+        try
+        {
+            var builder = new SqlConnectionStringBuilder(configured);
+            if (!builder.InitialCatalog.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("SQL integration tests require a database named ApexPost_SqlIT_*; existing databases are not accepted.");
+            }
+
+            builder.InitialCatalog = $"ApexPost_SqlIT_{Guid.NewGuid():N}";
+            ConnectionString = builder.ConnectionString;
+            Environment.SetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION", ConnectionString);
+
+            await using (var master = new SqlConnection(new SqlConnectionStringBuilder(ConnectionString)
+            {
+                InitialCatalog = "master"
+            }.ConnectionString))
+            {
+                await master.OpenAsync();
+                await using var createDatabase = new SqlCommand(
+                    $"CREATE DATABASE [{builder.InitialCatalog}]", master);
+                await createDatabase.ExecuteNonQueryAsync();
+            }
+
+            await using (var context = new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>()
+                .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure()).Options))
+            {
+                await context.Database.MigrateAsync();
+            }
+        }
+        catch
+        {
+            await DropDatabaseIfExistsAsync(ConnectionString);
+            throw;
+        }
+    }
+
+    public async Task DisposeAsync()
+    {
+        await DropDatabaseIfExistsAsync(ConnectionString);
+    }
+
+    private static async Task DropDatabaseIfExistsAsync(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        if (!builder.InitialCatalog.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var databaseName = builder.InitialCatalog;
+        builder.InitialCatalog = "master";
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var dropDatabase = new SqlCommand(
+            $@"IF DB_ID(@databaseName) IS NOT NULL
+                BEGIN
+                    ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                    DROP DATABASE [{databaseName}];
+                END;",
+            connection);
+        dropDatabase.Parameters.AddWithValue("@databaseName", databaseName);
+        await dropDatabase.ExecuteNonQueryAsync();
+    }
+}
 
 [Collection("SQL Server Integration")]
 public sealed class SqlServerIntegrationTests
 {
+    private readonly SqlServerIntegrationTestFixture _fixture;
     private static readonly Lazy<Task> PrimarySchema = new(ApplyPrimaryMigrationsAsync);
+
+    public SqlServerIntegrationTests(SqlServerIntegrationTestFixture fixture)
+    {
+        _fixture = fixture;
+        Environment.SetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION", fixture.ConnectionString);
+    }
 
     [SqlServerFact]
     public async Task Migrations_CreateTheExpectedSchemaOnSqlServer()
@@ -367,7 +457,86 @@ public sealed class SqlServerIntegrationTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+            await DropDatabaseIfExistsAsync(connection);
         }
+    }
+
+    [SqlServerFact]
+    public async Task JsonAuditImport_AddsToExistingDatabaseAndIsRepeatSafe()
+    {
+        var existingBranch = NewBranch();
+        await using (var context = await CreateContextAsync())
+        {
+            context.Branches.Add(existingBranch);
+            await context.SaveChangesAsync();
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), $"apexpost-audit-import-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var correlationId = Guid.NewGuid().ToString("N");
+        try
+        {
+            var entry = new AuditActionRecord(
+                DateTimeOffset.UtcNow,
+                "sql-import-test",
+                "BranchManager",
+                existingBranch.Code.Value,
+                "Transactions",
+                "Void",
+                new Dictionary<string, string?> { ["transactionId"] = $"T{Guid.NewGuid():N}" },
+                200,
+                8,
+                correlationId);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, "audit.jsonl"),
+                JsonSerializer.Serialize(entry));
+
+            var importer = new JsonDataImporter(
+                new TestContextFactory(new DbContextOptionsBuilder<ApexPostDbContext>()
+                    .UseSqlServer(GetConnectionString())
+                    .Options));
+            var first = await importer.ImportAuditLogAsync(directory);
+            var repeated = await importer.ImportAuditLogAsync(directory);
+
+            Assert.False(first.AlreadyImported);
+            Assert.Equal(1, first.ImportedCounts["auditEvents"]);
+            Assert.True(repeated.AlreadyImported);
+            await using var verify = await CreateContextAsync();
+            Assert.True(await verify.Branches.AnyAsync(item => item.Code == existingBranch.Code));
+            Assert.Equal(1, await verify.AuditEntries.CountAsync(item => item.CorrelationId == correlationId));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static async Task DropDatabaseIfExistsAsync(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        if (!builder.InitialCatalog.StartsWith("ApexPost_SqlIT_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var databaseName = builder.InitialCatalog;
+        builder.InitialCatalog = "master";
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var dropDatabase = new SqlCommand(
+            $@"IF DB_ID(@databaseName) IS NOT NULL
+                BEGIN
+                    ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                    DROP DATABASE [{databaseName}];
+                END;",
+            connection);
+        dropDatabase.Parameters.AddWithValue("@databaseName", databaseName);
+        await dropDatabase.ExecuteNonQueryAsync();
     }
 
     private static async Task<bool> SaveRestoreAsync(ApexPostDbContext context)

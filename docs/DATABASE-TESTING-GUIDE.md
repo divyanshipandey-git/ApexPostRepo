@@ -119,7 +119,7 @@ These statements are read only. Restrict any `INSERT`, `UPDATE`, stored-procedur
 
 ## Safe test execution
 
-The SQL integration suite rejects unsafe catalog names. Create and retain an isolated `ApexPost_SqlIT_*` LocalDB catalog, then set its connection string only for the current shell:
+The SQL integration suite rejects unsafe catalog names. Provide an isolated LocalDB connection using an `ApexPost_SqlIT_*` catalog prefix, then set it only for the current shell. The fixtures create uniquely named databases from that prefix and drop them during cleanup:
 
 ```powershell
 $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=ApexPost_SqlIT_<your-name>;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False"
