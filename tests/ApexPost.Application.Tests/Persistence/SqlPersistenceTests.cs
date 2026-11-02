@@ -87,15 +87,15 @@ public sealed class SqlPersistenceTests
     }
 
     [Fact]
-    public void QueryDiagnostics_ProducesTranslatedSqlForFourReportShapes()
+    public void QueryDiagnostics_ProducesTranslatedSqlForFilteredReportShapes()
     {
         using var context = CreateContext();
         var sql = SqlQueryDiagnostics.Capture(context);
 
-        Assert.Equal(4, sql.Count);
-        Assert.Contains("CounterTransactions", sql["Paid branch sales"]);
-        Assert.Contains("BranchStock", sql["Low stock with product name"]);
-        Assert.Contains("Shipments", sql["Shipment volume by zone and service"]);
-        Assert.Contains("MoneyOrders", sql["Auditor money order search"]);
+        Assert.Equal(3, sql.Count);
+        Assert.Contains("BranchCode", sql["Filtered shipment volume"]);
+        Assert.Contains("GROUP BY", sql["Filtered shipment volume"]);
+        Assert.Contains("MoneyOrders", sql["Money-order activity by branch"]);
+        Assert.Contains("IdentityVerifications", sql["Identity verification activity by branch"]);
     }
 }

@@ -65,6 +65,16 @@ public sealed class JsonReportDataSource : IReportDataSource
             .Select(item => new LowStockReportItem(item.BranchCode, item.Sku, item.ProductName, item.QuantityOnHand, item.ReorderLevel))
             .ToArray();
 
+    public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
+        string? branchCode,
+        int threshold,
+        CancellationToken cancellationToken = default) =>
+        (await GetInventoryAsync(cancellationToken))
+            .Where(item => item.QuantityOnHand <= threshold &&
+                (branchCode is null || string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase)))
+            .Select(item => new LowStockReportItem(item.BranchCode, item.Sku, item.ProductName, item.QuantityOnHand, threshold))
+            .ToArray();
+
     public async Task<IReadOnlyList<ReportTransaction>> GetTransactionsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -142,7 +152,10 @@ public sealed class JsonReportDataSource : IReportDataSource
             .Select(order => new ReportMoneyOrder(
                 order.BranchCode!,
                 order.Id,
-                order.CreatedAtUtc!.Value))
+                order.CreatedAtUtc!.Value,
+                order.Amount.Amount,
+                order.Fee.Amount,
+                order.TransactionId))
             .ToArray();
     }
 
@@ -159,8 +172,69 @@ public sealed class JsonReportDataSource : IReportDataSource
             .Select(order => new ReportIdentityVerification(
                 order.BranchCode!,
                 order.IdentityVerification!.Id,
-                order.IdentityVerification.VerifiedAt))
+                order.IdentityVerification.VerifiedAt,
+                order.Id,
+                order.IdentityVerification.DocumentType,
+                order.IdentityVerification.MaskedDocumentNumber,
+                order.IdentityVerification.IsVerified))
             .ToArray();
+    }
+
+    public async Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        string? branchCode,
+        CancellationToken cancellationToken = default)
+    {
+        var branches = await _branches.GetAllAsync(cancellationToken);
+        var regions = branches
+            .Where(branch => branchCode is null ||
+                string.Equals(branch.Code.Value, branchCode, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(branch => branch.Code.Value, branch => branch.Region, StringComparer.OrdinalIgnoreCase);
+        var transactions = await ForBranchesAsync(
+            (branch, token) => _transactions.GetByBranchAsync(branch, token),
+            cancellationToken);
+        var start = fromDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = toDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var products = transactions
+            .Where(transaction => transaction.Status == TransactionStatus.Paid &&
+                transaction.OccurredAtUtc is { } occurred &&
+                occurred >= start && occurred < end &&
+                regions.ContainsKey(transaction.BranchCode.Value))
+            .SelectMany(transaction => transaction.LineItems
+                .Where(line => line.ItemType == "Retail" && !string.IsNullOrWhiteSpace(line.ReferenceId))
+                .Select(line =>
+                {
+                    var taxRate = transaction.TaxRates
+                        .SingleOrDefault(item => item.Category == line.TaxCategory);
+                    return new
+                    {
+                        Region = regions[transaction.BranchCode.Value],
+                        Sku = line.ReferenceId!,
+                        ProductName = line.Description,
+                        Revenue = line.LineTotal.Amount +
+                            (taxRate?.CalculateTax(line.LineTotal.Amount) ?? 0m)
+                    };
+                }))
+            .GroupBy(item => new { item.Region, item.Sku, item.ProductName })
+            .Select(group => new
+            {
+                group.Key.Region,
+                group.Key.Sku,
+                group.Key.ProductName,
+                Revenue = group.Sum(item => item.Revenue)
+            })
+            .GroupBy(item => item.Region)
+            .SelectMany(group => group
+                .OrderByDescending(item => item.Revenue)
+                .ThenBy(item => item.Sku, StringComparer.Ordinal)
+                .Take(10)
+                .Select((item, index) => new TopProductRevenueReportItem(
+                    item.Region, index + 1, item.Sku, item.ProductName, item.Revenue)))
+            .OrderBy(item => item.Region, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.RegionRank)
+            .ToArray();
+        return products;
     }
 
     private async Task<IReadOnlyList<T>> ForBranchesAsync<T>(

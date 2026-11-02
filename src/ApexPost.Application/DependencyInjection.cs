@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.TryAddSingleton(new MoneyOrderPolicy(moneyOrderSettings.VerificationThreshold));
         services.TryAddScoped<BranchService>();
         services.TryAddScoped<ProductCatalogService>();
+        services.TryAddScoped<ProductPriceRevisionService>();
         // The cache retains its repository, which is scoped for SQL persistence.
         services.TryAddScoped<ProductCatalogCache>();
         services.TryAddScoped<InventoryService>();

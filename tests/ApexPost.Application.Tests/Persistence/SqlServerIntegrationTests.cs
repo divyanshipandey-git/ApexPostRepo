@@ -14,10 +14,12 @@ using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Infrastructure.Persistence.SqlEntities;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Text.Json;
+using System.Data.Common;
 using Xunit;
 
 namespace ApexPost.Application.Tests.Persistence;
@@ -124,8 +126,8 @@ public sealed class SqlServerIntegrationTests
     {
         await using var context = await CreateContextAsync();
         var applied = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal(5, applied.Count());
-        Assert.Contains("20261101010000_UpdateDailyBranchSalesProcedure", applied);
+        Assert.Equal(7, applied.Count());
+        Assert.Contains("20261103000000_HardenReportingProcedures", applied);
         Assert.True(await context.Database.CanConnectAsync());
     }
 
@@ -156,6 +158,30 @@ public sealed class SqlServerIntegrationTests
     }
 
     [SqlServerFact]
+    public async Task TransactionRepository_LoadsCollectionsWithBoundedSplitQueryCommands()
+    {
+        await using var provider = CreateProvider();
+        var seed = await SeedSaleAsync(provider, stockQuantity: 3);
+        for (var index = 0; index < 4; index++)
+        {
+            await SeedPaidTransactionAsync(provider, seed);
+        }
+
+        var commandCounter = new ReaderCommandCounter();
+        await using var context = new ApexPostDbContext(
+            new DbContextOptionsBuilder<ApexPostDbContext>()
+                .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure())
+                .AddInterceptors(commandCounter)
+                .Options);
+
+        var transactions = await new SqlCounterTransactionRepository(context)
+            .GetByBranchAsync(seed.BranchCode);
+
+        Assert.Equal(4, transactions.Count);
+        Assert.Equal(3, commandCounter.Count);
+    }
+
+    [SqlServerFact]
     public async Task UnitOfWork_CommitsAndRollsBackOnSqlServer()
     {
         await using var provider = CreateProvider();
@@ -180,6 +206,23 @@ public sealed class SqlServerIntegrationTests
         await using var verify = await CreateContextAsync();
         Assert.True(await verify.Branches.AnyAsync(item => item.Code == committed.Code));
         Assert.False(await verify.Branches.AnyAsync(item => item.Code == rolledBack.Code));
+    }
+
+    [SqlServerFact]
+    public async Task UnitOfWork_TranslatesUniqueKeyViolationToApplicationConflict()
+    {
+        var branch = NewBranch();
+        await using (var setup = await CreateContextAsync())
+        {
+            setup.Branches.Add(branch);
+            await setup.SaveChangesAsync();
+        }
+
+        await using var context = await CreateContextAsync();
+        context.Branches.Add(branch);
+        var unit = new SqlUnitOfWork(context);
+
+        await Assert.ThrowsAsync<UniqueKeyConflictException>(() => unit.SaveChangesAsync());
     }
 
     [SqlServerFact]
@@ -239,6 +282,23 @@ public sealed class SqlServerIntegrationTests
             Assert.Contains(await reports.GetShipmentsAsync(), row => row.BranchCode == seed.BranchCode);
             Assert.Contains(await reports.GetMoneyOrdersAsync(), row => row.BranchCode == seed.BranchCode);
             Assert.Contains(await reports.GetIdentityVerificationsAsync(), row => row.BranchCode == seed.BranchCode);
+            var reportDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            var topProducts = await reports.GetTopProductsByRegionAsync(
+                reportDate, reportDate, seed.BranchCode);
+            var topProduct = Assert.Single(topProducts);
+            Assert.Equal(seed.Sku, topProduct.Sku, ignoreCase: true);
+            Assert.Equal(1, topProduct.RegionRank);
+            var moneyOrderPage = await reports.GetMoneyOrderPageAsync(
+                seed.BranchCode, reportDate, reportDate, pageNumber: 1, pageSize: 1);
+            Assert.Equal(1, moneyOrderPage.TotalCount);
+            Assert.Equal(15_000m, Assert.Single(moneyOrderPage.Items).Amount);
+            Assert.Empty((await reports.GetMoneyOrderPageAsync(
+                seed.BranchCode, null, null, pageNumber: 2, pageSize: 1)).Items);
+            var verificationPage = await reports.GetIdentityVerificationPageAsync(
+                seed.BranchCode, reportDate, reportDate, isVerified: true, pageNumber: 1, pageSize: 10);
+            var verification = Assert.Single(verificationPage.Items);
+            Assert.Equal("XXXX1234", verification.MaskedDocumentNumber);
+            Assert.True(verification.IsVerified);
             var shipment = await scope.ServiceProvider.GetRequiredService<IShipmentRepository>().GetByIdAsync(shipmentId);
             Assert.Equal(transactionId, shipment!.CounterTransactionId);
             var moneyOrder = Assert.Single(await scope.ServiceProvider.GetRequiredService<IMoneyOrderRepository>()
@@ -286,7 +346,11 @@ public sealed class SqlServerIntegrationTests
         {
             var result = await scope.ServiceProvider.GetRequiredService<CounterSaleService>().CompleteAsync(
                 new CounterSaleRequest(seed.CounterId,
-                    [new CounterSaleProductRequest(seed.Sku, 2)], PaymentMethod.Cash),
+                    [new CounterSaleProductRequest(seed.Sku, 2)],
+                    PaymentMethod.Cash,
+                    new CounterShippingRequest(
+                        "Parcel", 1m, 10m, 10m, 10m, "ZONE1", ShippingServiceLevel.Standard),
+                    new CounterMoneyOrderRequest(500m, "Sender", "Recipient")),
                 new AuthenticatedStaff(seed.StaffId, StaffRole.BranchManager, seed.BranchCode));
             Assert.Equal(CounterSaleStatus.PersistenceFailure, result.Status);
         }
@@ -294,6 +358,8 @@ public sealed class SqlServerIntegrationTests
         await using var verify = await CreateContextAsync();
         Assert.Equal(8, (await verify.BranchStock.SingleAsync(item => item.Sku == new Sku(seed.Sku))).Quantity);
         Assert.False(await verify.CounterTransactions.AnyAsync(item => item.BranchCode == new BranchCode(seed.BranchCode)));
+        Assert.Empty(await verify.MoneyOrders.Where(item => item.BranchCode == new BranchCode(seed.BranchCode)).ToArrayAsync());
+        Assert.Empty(await verify.Shipments.Where(item => item.BranchCode == new BranchCode(seed.BranchCode)).ToArrayAsync());
     }
 
     [SqlServerFact]
@@ -332,7 +398,8 @@ public sealed class SqlServerIntegrationTests
         var outcomes = await Task.WhenAll(SellAsync(), SellAsync());
 
         Assert.Equal(1, outcomes.Count(result => result.Status == CounterSaleStatus.Completed));
-        Assert.Equal(1, outcomes.Count(result => result.Status == CounterSaleStatus.InsufficientStock));
+        Assert.Equal(1, outcomes.Count(result =>
+            result.Status is CounterSaleStatus.InsufficientStock or CounterSaleStatus.ConcurrencyConflict));
         await using var verify = await CreateContextAsync();
         Assert.Equal(0, (await verify.BranchStock.SingleAsync(item => item.BranchCode == new BranchCode(seed.BranchCode) && item.Sku == new Sku(seed.Sku))).Quantity);
         var transactions = await verify.CounterTransactions.Where(item => item.BranchCode == new BranchCode(seed.BranchCode)).ToArrayAsync();
@@ -364,8 +431,90 @@ public sealed class SqlServerIntegrationTests
         Assert.Equal(1, daily.TransactionCount);
         Assert.Equal(11.8m, daily.RetailSales);
         Assert.Equal(70.8m, daily.ServiceSales);
-        var lowStock = await reports.GetLowStockAsync(seed.BranchCode);
+        var noSales = Assert.Single(await reports.GetDailyBranchSalesAsync(day.AddDays(-1), seed.BranchCode));
+        Assert.Equal(0, noSales.TransactionCount);
+        Assert.Equal(0m, noSales.RetailSales);
+        Assert.Equal(0m, noSales.ServiceSales);
+        await Assert.ThrowsAsync<SqlException>(() =>
+            reports.GetDailyBranchSalesAsync(day, "MISSING"));
+        var lowStock = await reports.GetLowStockAsync(seed.BranchCode, 5, CancellationToken.None);
         Assert.Equal(5, Assert.Single(lowStock).QuantityOnHand);
+        Assert.Empty(await reports.GetLowStockAsync(seed.BranchCode, 4, CancellationToken.None));
+
+        var shipping = Assert.Single(await reports.GetShippingVolumeAsync(
+            day, seed.BranchCode, CancellationToken.None));
+        Assert.Equal("ZONE1", shipping.DestinationZone);
+        Assert.Equal(nameof(ShippingServiceLevel.Standard), shipping.ServiceLevel);
+        Assert.Equal(1, shipping.ShipmentCount);
+
+        var activity = Assert.Single(await reports.GetBranchServiceActivityAsync(
+            day, seed.BranchCode, CancellationToken.None));
+        Assert.Equal(0, activity.MoneyOrderCount);
+        Assert.Equal(0, activity.IdentityVerificationCount);
+    }
+
+    [SqlServerFact]
+    public async Task PriceRevision_UsesSetBasedUpdateAndLeavesOtherCategoriesUnchanged()
+    {
+        await using var provider = CreateProvider();
+        var seed = await SeedSaleAsync(provider, stockQuantity: 3);
+        var otherSku = $"Q{Guid.NewGuid():N}"[..20];
+        await using (var setup = await CreateContextAsync())
+        {
+            setup.Products.Add(new Product(
+                new Sku(otherSku),
+                "SQL Test Stationery",
+                ProductCategory.Stationery,
+                new Money(4m),
+                TaxCategory.Standard));
+            await setup.SaveChangesAsync();
+        }
+
+        int expectedUpdated;
+        await using (var countContext = await CreateContextAsync())
+        {
+            expectedUpdated = await countContext.Products.CountAsync(
+                item => item.Category == ProductCategory.Packaging);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<ProductPriceRevisionService>();
+            var updated = await service.SetCategoryPriceAsync(
+                nameof(ProductCategory.Packaging), 12.34m);
+            Assert.Equal(expectedUpdated, updated);
+        }
+
+        await using var verify = await CreateContextAsync();
+        Assert.Equal(12.34m, (await verify.Products.SingleAsync(
+            item => item.Sku == new Sku(seed.Sku))).UnitPrice.Amount);
+        Assert.Equal(4m, (await verify.Products.SingleAsync(
+            item => item.Sku == new Sku(otherSku))).UnitPrice.Amount);
+    }
+
+    [SqlServerFact]
+    public async Task StockAdjustmentProcedure_RollsBackStockMovementWhenAdjustmentWouldGoNegative()
+    {
+        await using var provider = CreateProvider();
+        var seed = await SeedSaleAsync(provider, stockQuantity: 5);
+        await using var context = await CreateContextAsync();
+        var stock = new SqlInventoryRepository(context);
+
+        await Assert.ThrowsAsync<SqlException>(() => stock.AdjustQuantityWithAuditAsync(
+            seed.BranchCode,
+            seed.Sku,
+            -6,
+            "negative stock test",
+            seed.StaffId));
+
+        await using var verify = await CreateContextAsync();
+        Assert.Equal(5, (await verify.BranchStock.SingleAsync(
+            item => item.BranchCode == new BranchCode(seed.BranchCode) &&
+                    item.Sku == new Sku(seed.Sku))).Quantity);
+        Assert.False(await verify.StockMovements.AnyAsync(
+            item => item.BranchCode == new BranchCode(seed.BranchCode) &&
+                    item.Sku == new Sku(seed.Sku) &&
+                    item.MovementType == "Adjustment"));
     }
 
     [SqlServerFact]
@@ -650,6 +799,21 @@ public sealed class SqlServerIntegrationTests
     }
 
     private sealed record SaleSeed(string BranchCode, string CounterId, string StaffId, string Sku);
+
+    private sealed class ReaderCommandCounter : DbCommandInterceptor
+    {
+        public int Count { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Count++;
+            return ValueTask.FromResult(result);
+        }
+    }
 
     private sealed class SaleReservationGate(int participants)
     {

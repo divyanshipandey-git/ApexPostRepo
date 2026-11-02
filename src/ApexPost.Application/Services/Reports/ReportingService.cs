@@ -45,15 +45,18 @@ public sealed class ReportingService
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockReportAsync(
         string? branchCode = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int threshold = 5)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(threshold);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(threshold, 100_000);
 
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode)
             ? null
             : NormalizeBranch(branchCode);
 
-        return (await _dataSource.GetLowStockAsync(normalizedBranch, cancellationToken))
+        return (await _dataSource.GetLowStockAsync(normalizedBranch, threshold, cancellationToken))
             .OrderBy(item => item.BranchCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Sku, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -74,29 +77,7 @@ public sealed class ReportingService
             ? null
             : NormalizeBranch(branchCode);
 
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-
-        var shipments = await _dataSource.GetShipmentsAsync(cancellationToken);
-
-        return shipments
-            .Where(shipment =>
-                shipment.CreatedAt >= start
-                && shipment.CreatedAt < end
-                && (normalizedBranch is null
-                    || string.Equals(
-                        shipment.BranchCode,
-                        normalizedBranch,
-                        StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(shipment => new
-            {
-                Zone = shipment.DestinationZone.Trim().ToUpperInvariant(),
-                Level = shipment.ServiceLevel.Trim()
-            })
-            .Select(group => new ShippingVolumeReportItem(
-                group.Key.Zone,
-                group.Key.Level,
-                group.Count()))
+        return (await _dataSource.GetShippingVolumeAsync(date, normalizedBranch, cancellationToken))
             .OrderBy(item => item.DestinationZone, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.ServiceLevel, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -110,40 +91,84 @@ public sealed class ReportingService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
-
-        // SQL persistence uses a request-scoped DbContext. Keep these reads
-        // sequential because EF Core does not support concurrent operations on it.
-        var moneyOrders = (await _dataSource.GetMoneyOrdersAsync(cancellationToken))
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
-                (normalizedBranch is null || string.Equals(
-                    item.BranchCode,
-                    normalizedBranch,
-                    StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(item => NormalizeBranch(item.BranchCode))
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        var verifications = (await _dataSource.GetIdentityVerificationsAsync(cancellationToken))
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
-                (normalizedBranch is null || string.Equals(
-                    item.BranchCode,
-                    normalizedBranch,
-                    StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(item => NormalizeBranch(item.BranchCode))
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        return moneyOrders.Keys
-            .Union(verifications.Keys, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
-            .Select(code => new BranchServiceActivityReport(
-                code,
-                moneyOrders.GetValueOrDefault(code),
-                verifications.GetValueOrDefault(code)))
-            .ToArray();
+        return await _dataSource.GetBranchServiceActivityAsync(date, normalizedBranch, cancellationToken);
     }
 
     private static string NormalizeBranch(string branchCode) =>
         branchCode.Trim().ToUpperInvariant();
+
+    public Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        string? branchCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (fromDate > toDate)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetTopProductsByRegionAsync(
+            fromDate, toDate, normalizedBranch, cancellationToken);
+    }
+
+    public Task<PagedReport<ReportMoneyOrder>> GetMoneyOrderReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetMoneyOrderPageAsync(
+            normalizedBranch, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+    }
+
+    public Task<PagedReport<ReportIdentityVerification>> GetIdentityVerificationReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        bool? isVerified,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetIdentityVerificationPageAsync(
+            normalizedBranch, fromDate, toDate, isVerified, pageNumber, pageSize, cancellationToken);
+    }
+
+    private static void ValidatePageFilters(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize)
+    {
+        if (fromDate is { } start && toDate is { } end && start > end)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (pageNumber > int.MaxValue / pageSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber), "The requested page is too large.");
+        }
+    }
 }

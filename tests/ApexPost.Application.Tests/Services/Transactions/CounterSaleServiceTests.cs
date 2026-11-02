@@ -87,6 +87,48 @@ public sealed class CounterSaleServiceTests
     }
 
     [Fact]
+    public async Task CompleteAsync_CommitsMoneyOrderSaleOnceThroughUnitOfWork()
+    {
+        using var fixture = new CounterSaleFixture();
+        await fixture.SeedAsync();
+        var unitOfWork = new SpyAtomicUnitOfWork();
+
+        var result = await fixture.CreateService(unitOfWork: unitOfWork).CompleteAsync(
+            new CounterSaleRequest(
+                "C001",
+                [],
+                PaymentMethod.Cash,
+                MoneyOrder: new CounterMoneyOrderRequest(500m, "Sender", "Recipient")),
+            fixture.StaffIdentity);
+
+        Assert.Equal(CounterSaleStatus.Completed, result.Status);
+        Assert.Equal(1, unitOfWork.TransactionCount);
+        Assert.Equal(1, unitOfWork.CommitCount);
+        Assert.Single(await fixture.MoneyOrders.GetByBranchAsync("IND01"));
+        Assert.Single(await fixture.Transactions.GetByBranchAsync("IND01"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompleteAsync_CommitsSaleAndOptionalShipmentOnce(bool includeShipping)
+    {
+        using var fixture = new CounterSaleFixture(stockQuantity: 5);
+        await fixture.SeedAsync();
+        var unitOfWork = new SpyAtomicUnitOfWork();
+
+        var result = await fixture.CreateService(unitOfWork: unitOfWork).CompleteAsync(
+            fixture.CreateRequest(quantity: 1, includeShipping: includeShipping),
+            fixture.StaffIdentity);
+
+        Assert.Equal(CounterSaleStatus.Completed, result.Status);
+        Assert.Equal(1, unitOfWork.TransactionCount);
+        Assert.Equal(1, unitOfWork.CommitCount);
+        Assert.Single(await fixture.Transactions.GetByBranchAsync("IND01"));
+        Assert.Equal(includeShipping ? 1 : 0, (await fixture.Shipments.GetByBranchAsync("IND01")).Count);
+    }
+
+    [Fact]
     public async Task CompleteAsync_RejectsHighValueMoneyOrderWithoutVerificationBeforePersistence()
     {
         using var fixture = new CounterSaleFixture();
@@ -304,8 +346,11 @@ public sealed class CounterSaleServiceTests
             await Inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("ENV001"), _stockQuantity));
         }
 
-        public CounterSaleService CreateService(ICounterTransactionRepository? transactionRepository = null)
+        public CounterSaleService CreateService(
+            ICounterTransactionRepository? transactionRepository = null,
+            ApexPost.Application.Abstractions.Persistence.IUnitOfWork? unitOfWork = null)
         {
+            unitOfWork ??= new NoOpUnitOfWork();
             var shipping = new ShippingService(
                 Shipments,
                 [new ShippingPricingRule("ZONE1", ShippingServiceLevel.Standard, 20m, new Money(40m))]);
@@ -322,7 +367,8 @@ public sealed class CounterSaleServiceTests
                 new MoneyOrderSettings(new Money(10m), new Money(10_000m)),
                 Notifications,
                 [new TaxRate(TaxCategory.Standard, 0.18m), new TaxRate(TaxCategory.Exempt, 0m)],
-                TimeProvider.System);
+                TimeProvider.System,
+                unitOfWork);
         }
 
         public CounterSaleRequest CreateRequest(int quantity = 1, bool includeShipping = false) => new(
@@ -334,6 +380,30 @@ public sealed class CounterSaleServiceTests
                 : null);
 
         public void Dispose() => _directory.Dispose();
+    }
+
+    private sealed class SpyAtomicUnitOfWork : ApexPost.Application.Abstractions.Persistence.IUnitOfWork
+    {
+        public bool SupportsAtomicTransactions => true;
+        public int TransactionCount { get; private set; }
+        public int CommitCount { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CommitCount++;
+            return Task.FromResult(1);
+        }
+
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            TransactionCount++;
+            var result = await operation(cancellationToken);
+            await SaveChangesAsync(cancellationToken);
+            return result;
+        }
     }
 
     private sealed class FailingAddTransactionRepository(ICounterTransactionRepository inner)

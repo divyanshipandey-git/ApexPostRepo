@@ -1765,6 +1765,7 @@ public sealed class WebApplicationIntegrationTests
                 services.RemoveAll<IStaffRepository>();
                 services.RemoveAll<IStaffCredentialRepository>();
                 services.RemoveAll<IProductRepository>();
+                services.RemoveAll<IProductPriceRevisionRepository>();
                 services.RemoveAll<IInventoryRepository>();
                 services.RemoveAll<IStockRepository>();
                 services.RemoveAll<ICounterTransactionRepository>();

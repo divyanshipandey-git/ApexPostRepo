@@ -133,10 +133,12 @@ Relevant migration files:
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031174229_SeedShippingZonesAndRates.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031175835_GuardStockAdjustmentOverflow.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261101010000_UpdateDailyBranchSalesProcedure.cs`
+- `src/ApexPost.Infrastructure/Persistence/Migrations/20261102000000_AddReportFilters.cs`
+- `src/ApexPost.Infrastructure/Persistence/Migrations/20261103000000_HardenReportingProcedures.cs`
 
 The idempotent deployment script is:
 
-- `docs/sql/ApexPostDb-idempotent.sql`
+- `database/schema/ApexPostDb-idempotent.sql`
 
 The migration flow is designed to be reviewed and re-applied cleanly rather than creating ad hoc schema drift.
 
