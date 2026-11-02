@@ -373,8 +373,9 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
                         on new { line.TransactionId, line.TaxCategory }
                         equals new { taxRate.TransactionId, TaxCategory = taxRate.Category } into taxRates
                     from taxRate in taxRates.DefaultIfEmpty()
-                    where transaction.Status == TransactionStatus.Paid && transaction.OccurredAtUtc != null
-                        && (line.ItemType == "Retail" || line.ItemType == "Service")
+                    where transaction.Status == TransactionStatus.Paid &&
+                          transaction.OccurredAtUtc != null &&
+                          (line.ItemType == "Retail" || line.ItemType == "Service")
                     group new { line, taxRate } by new
                     {
                         transaction.Id,
@@ -388,12 +389,126 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
                         grouped.Key.Branch,
                         grouped.Key.At,
                         grouped.Key.Category,
-                        Gross = grouped.Sum(item => item.line.LineTotal + item.line.LineTotal * (item.taxRate == null ? 0m : item.taxRate.Rate))
+                        Gross = grouped.Sum(item => item.line.LineTotal +
+                            item.line.LineTotal * (item.taxRate == null ? 0m : item.taxRate.Rate))
                     };
         var rows = await query.ToArrayAsync(cancellationToken);
-        return rows.Select(row => new ReportTransaction(row.Id, row.Branch.Value, row.At,
-            row.Category == "Retail" ? ReportSaleCategory.Retail : ReportSaleCategory.Service, row.Gross, true)).ToArray();
+        return rows.Select(row => new ReportTransaction(
+            row.Id,
+            row.Branch.Value,
+            row.At,
+            row.Category == "Retail" ? ReportSaleCategory.Retail : ReportSaleCategory.Service,
+            row.Gross,
+            true)).ToArray();
     }
+
+    public async Task<PagedReport<ReportTransaction>> GetTransactionPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var transactions = FilterReportTransactions(db, branchCode, fromDate, toDate);
+        var countQuery = from transaction in transactions
+                         join line in db.TransactionLines.AsNoTracking()
+                             on transaction.Id equals line.TransactionId
+                         where line.ItemType == "Retail" || line.ItemType == "Service"
+                         group line by new { transaction.Id, line.ItemType } into grouped
+                         select grouped.Key;
+        var totalCount = await countQuery.CountAsync(cancellationToken);
+
+        var query = from transaction in transactions
+                    join line in db.TransactionLines.AsNoTracking()
+                        on transaction.Id equals line.TransactionId
+                    join taxRate in db.TransactionTaxRates.AsNoTracking()
+                        on new { line.TransactionId, line.TaxCategory }
+                        equals new { taxRate.TransactionId, TaxCategory = taxRate.Category } into taxRates
+                    from taxRate in taxRates.DefaultIfEmpty()
+                    where line.ItemType == "Retail" || line.ItemType == "Service"
+                    group new { line, taxRate } by new
+                    {
+                        transaction.Id,
+                        Branch = transaction.BranchCode,
+                        At = transaction.OccurredAtUtc!.Value,
+                        Category = line.ItemType
+                    } into grouped
+                    select new
+                    {
+                        grouped.Key.Id,
+                        grouped.Key.Branch,
+                        grouped.Key.At,
+                        grouped.Key.Category,
+                        Gross = grouped.Sum(item => item.line.LineTotal +
+                            item.line.LineTotal * (item.taxRate == null ? 0m : item.taxRate.Rate))
+                    };
+        var rows = await query
+            .OrderByDescending(row => row.At)
+            .ThenBy(row => row.Id)
+            .ThenBy(row => row.Category)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToArrayAsync(cancellationToken);
+        return new PagedReport<ReportTransaction>(
+            rows.Select(row => new ReportTransaction(
+                row.Id, row.Branch.Value, row.At,
+                row.Category == "Retail" ? ReportSaleCategory.Retail : ReportSaleCategory.Service,
+                row.Gross, true)).ToArray(),
+            pageNumber, pageSize, totalCount);
+    }
+
+    public async Task<PagedReport<ReportShipment>> GetShipmentPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var query = db.Shipments.AsNoTracking()
+            .Where(shipment => shipment.BranchCode != null && shipment.CreatedAtUtc != null);
+        if (branchCode is not null)
+        {
+            var branch = new BranchCode(branchCode);
+            query = query.Where(shipment => shipment.BranchCode == branch);
+        }
+        if (fromDate is { } startDate)
+        {
+            var start = startDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(shipment => shipment.CreatedAtUtc >= start);
+        }
+        if (toDate is { } endDate)
+        {
+            var end = endDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(shipment => shipment.CreatedAtUtc < end);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var rows = await query
+            .OrderByDescending(shipment => shipment.CreatedAtUtc)
+            .ThenBy(shipment => shipment.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(shipment => new
+            {
+                shipment.Id,
+                shipment.BranchCode,
+                shipment.DestinationZone,
+                shipment.ServiceLevel,
+                shipment.CreatedAtUtc
+            })
+            .ToArrayAsync(cancellationToken);
+        var items = rows.Select(row => new ReportShipment(
+            row.BranchCode!.Value,
+            row.DestinationZone,
+            row.ServiceLevel.ToString(),
+            row.CreatedAtUtc!.Value)).ToArray();
+        return new PagedReport<ReportShipment>(items, pageNumber, pageSize, totalCount);
+    }
+
     public async Task<IReadOnlyList<ReportInventoryItem>> GetInventoryAsync(CancellationToken cancellationToken = default) =>
         await (from stock in db.BranchStock.AsNoTracking() join product in db.Products.AsNoTracking() on stock.Sku equals product.Sku select new ReportInventoryItem(stock.BranchCode.Value, stock.Sku.Value, product.Name, stock.Quantity, 5)).ToArrayAsync(cancellationToken);
     public async Task<IReadOnlyList<ReportShipment>> GetShipmentsAsync(CancellationToken cancellationToken = default) =>
@@ -570,6 +685,59 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
 
         return rows.Select(row => new TopProductRevenueReportItem(
             row.Region, row.RegionRank, row.Sku, row.ProductName, row.Revenue)).ToArray();
+    }
+
+    private static IQueryable<CounterTransactionRecord> FilterReportTransactions(
+        ApexPostDbContext context,
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate)
+    {
+        var query = context.CounterTransactions.AsNoTracking()
+            .Where(transaction => transaction.Status == TransactionStatus.Paid &&
+                                  transaction.OccurredAtUtc != null);
+
+        if (branchCode is not null)
+        {
+            var branch = new BranchCode(branchCode);
+            query = query.Where(transaction => transaction.BranchCode == branch);
+        }
+        if (fromDate is { } startDate)
+        {
+            var start = startDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(transaction => transaction.OccurredAtUtc >= start);
+        }
+        if (toDate is { } endDate)
+        {
+            var end = endDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(transaction => transaction.OccurredAtUtc < end);
+        }
+
+        return query;
+    }
+
+    private static void ValidatePageFilters(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize)
+    {
+        if (fromDate is { } start && toDate is { } end && start > end)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (pageNumber > int.MaxValue / pageSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber), "The requested page is too large.");
+        }
     }
 }
 

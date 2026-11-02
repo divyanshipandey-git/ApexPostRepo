@@ -148,6 +148,34 @@ public sealed class ReportingService
             normalizedBranch, fromDate, toDate, isVerified, pageNumber, pageSize, cancellationToken);
     }
 
+    public Task<PagedReport<ReportTransaction>> GetTransactionReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetTransactionPageAsync(
+            normalizedBranch, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+    }
+
+    public Task<PagedReport<ReportShipment>> GetShipmentReportPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
+        return _dataSource.GetShipmentPageAsync(
+            normalizedBranch, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+    }
+
     private static void ValidatePageFilters(
         DateOnly? fromDate,
         DateOnly? toDate,

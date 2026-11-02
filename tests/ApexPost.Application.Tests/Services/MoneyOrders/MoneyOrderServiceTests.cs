@@ -3,6 +3,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.MoneyOrders;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
+using ApexPost.Application.Tests.TestSupport;
 using Xunit;
 
 namespace ApexPost.Application.Tests.Services.MoneyOrders;
@@ -15,7 +16,8 @@ public sealed class MoneyOrderServiceTests
         Assert.Throws<ArgumentNullException>(() =>
             new MoneyOrderService(
                 null!,
-                new MoneyOrderPolicy(new Money(1000m))));
+                new MoneyOrderPolicy(new Money(1000m)),
+                new RecordingUnitOfWork()));
     }
 
     [Fact]
@@ -24,14 +26,17 @@ public sealed class MoneyOrderServiceTests
         Assert.Throws<ArgumentNullException>(() =>
             new MoneyOrderService(
                 new FakeMoneyOrderRepository(),
-                null!));
+                null!,
+                new RecordingUnitOfWork()));
     }
 
     [Fact]
     public async Task CreateAsync_WhenAmountIsBelowThreshold_SavesOrder()
     {
         var repository = new FakeMoneyOrderRepository();
-        var service = CreateService(repository);
+        var unitOfWork = new RecordingUnitOfWork();
+        var service = new MoneyOrderService(
+            repository, new MoneyOrderPolicy(new Money(1000m)), unitOfWork);
 
         var result = await service.CreateAsync(
             "MO001",
@@ -47,6 +52,7 @@ public sealed class MoneyOrderServiceTests
         Assert.Same(result, repository.AddedMoneyOrder);
         Assert.Equal("IND01", result.BranchCode);
         Assert.Equal("TXN001", result.TransactionId);
+        Assert.Equal(1, unitOfWork.SaveChangesCount);
     }
 
     [Fact]
@@ -179,7 +185,7 @@ public sealed class MoneyOrderServiceTests
 
     private static MoneyOrderService CreateService(
         FakeMoneyOrderRepository repository) =>
-        new(repository, new MoneyOrderPolicy(new Money(1000m)));
+        new(repository, new MoneyOrderPolicy(new Money(1000m)), new RecordingUnitOfWork());
 
     private static IdentityVerification CreateVerification(bool isVerified) =>
         new(

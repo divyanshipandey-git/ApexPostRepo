@@ -22,6 +22,10 @@ The MVC audit filter must record important actions, but audit storage failure mu
 
 Audit writes are durable independently of the business transaction but are not atomically coupled to it. An audit failure is observable in logs and may leave an audit gap; a durable retry/outbox mechanism is not implemented.
 
+Business-row audit metadata is separate from `AuditEntries`: the current model has generic `CreatedAtUtc`/`CreatedBy` columns and selected `ModifiedAtUtc` shadow properties, but no persisted `ModifiedBy` property. The application records authenticated actor, role, action, and allowlisted route values in the independent `AuditEntries` row; stock movements also have their own `ChangedBy` field. No current business workflow or audit contract requires a second modifier identity on each transaction or money-order row. The generic `CreatedBy` column is nullable and is not populated by these sale workflows. Adding an unused `ModifiedBy` column would duplicate actor attribution without an identified business requirement, so the schema intentionally remains unchanged.
+
+A submitted `ModifiedBy` value is not part of the MVC write contract, is not mapped by EF, and is not written. SQL-backed over-posting coverage submits forged `CreatedBy` and `ModifiedAtUtc` values, then verifies that the persisted creation time comes from the server, `CreatedBy` remains null, and an unmodified transaction's `ModifiedAtUtc` remains null. It also checks that the independent audit entries retain the authenticated staff ID and the actual server-generated transaction IDs rather than attacker-supplied values.
+
 ## Implementation and verification
 
-See `SqlAuditStore`, `AuditActionFilter`, `AuditActionRecord`, and `SqlEntityMapper`. The filter logs write failures; SQL integration tests verify persistence, and focused Web tests verify safe audit data and that the filter does not replace the action result.
+See `SqlAuditStore`, `AuditActionFilter`, `AuditActionRecord`, and `SqlEntityMapper`. The filter logs write failures; SQL integration tests verify persistence, and SQL-backed Web tests verify actor attribution, safe route data, server-managed business-row audit columns, and that the filter does not replace the action result.

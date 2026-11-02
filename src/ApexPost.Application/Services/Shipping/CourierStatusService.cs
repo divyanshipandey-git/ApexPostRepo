@@ -10,17 +10,18 @@ public sealed class CourierStatusService
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _lookupTimeout;
     private readonly TimeSpan _simulatedLookupDelay;
-    private readonly IUnitOfWork? _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
 
     public CourierStatusService(
         IShipmentRepository shipmentRepository,
         TimeProvider timeProvider,
+        IUnitOfWork unitOfWork,
         TimeSpan? lookupTimeout = null,
-        TimeSpan? simulatedLookupDelay = null,
-        IUnitOfWork? unitOfWork = null)
+        TimeSpan? simulatedLookupDelay = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
         _shipmentRepository = shipmentRepository;
         _timeProvider = timeProvider;
         _lookupTimeout = lookupTimeout ?? TimeSpan.FromSeconds(2);
@@ -77,7 +78,7 @@ public sealed class CourierStatusService
             var normalizedStatus = status!.Trim();
             shipment.RecordCourierStatus(normalizedStatus, receivedAtUtc);
             await _shipmentRepository.UpdateAsync(shipment, linkedSource.Token);
-            if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(linkedSource.Token);
+            await _unitOfWork.SaveChangesAsync(linkedSource.Token);
 
             return new CourierStatusUpdateResult(
                 CourierStatusUpdateStatus.Updated,

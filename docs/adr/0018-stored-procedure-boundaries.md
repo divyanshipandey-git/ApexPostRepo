@@ -11,7 +11,7 @@ Daily sales and low-stock reports need a stable SQL result contract; stock adjus
 ## Decision
 
 - `usp_DailyBranchSales` performs the joined retail/service/tax aggregation with a half-open date range and optional branch filter.
-- `usp_LowStockReport` applies an optional branch filter and caller-supplied validated threshold; `OPTION (RECOMPILE)` is retained to avoid reusing one plan across materially different optional-branch/threshold selectivities.
+- `usp_LowStockReport` applies an optional branch filter and caller-supplied validated threshold using separate all-branch and branch-filtered statements. It does not use `OPTION (RECOMPILE)`: the separate statements avoid the optional-branch predicate shape, and no controlled comparison demonstrates that recompilation offsets its per-execution compile cost. Threshold selectivity can still vary; reconsider recompilation only after representative SQL Server plan and compile-cost measurements show a repeatable benefit.
 - `usp_AdjustStock` owns the lock, stock validation/update, movement-history insert, transaction, `XACT_ABORT`, `TRY...CATCH`, rollback, and `THROW` boundary.
 - Shipping and auditor aggregate queries remain parameterized EF projections because those result shapes are straightforward and do not require a multi-statement atomic boundary.
 
