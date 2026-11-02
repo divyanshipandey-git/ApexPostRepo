@@ -190,7 +190,11 @@ public sealed class SqlInventoryRepository(ApexPostDbContext db) : IStockReposit
 
 public sealed class SqlCounterTransactionRepository(ApexPostDbContext db) : ICounterTransactionRepository
 {
-    private IQueryable<CounterTransactionRecord> Full => db.CounterTransactions.Include(tx => tx.Lines).Include(tx => tx.TaxRates).Include(tx => tx.Payment);
+    private IQueryable<CounterTransactionRecord> Full => db.CounterTransactions
+        .Include(tx => tx.Lines)
+        .Include(tx => tx.TaxRates)
+        .Include(tx => tx.Payment)
+        .AsSplitQuery();
     public async Task<CounterTransaction?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var record = await Full.AsNoTracking().SingleOrDefaultAsync(tx => tx.Id == id, cancellationToken);
@@ -397,7 +401,185 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
     public async Task<IReadOnlyList<ReportMoneyOrder>> GetMoneyOrdersAsync(CancellationToken cancellationToken = default) =>
         await db.MoneyOrders.AsNoTracking().Where(x => x.BranchCode != null && x.CreatedAtUtc != null).Select(x => new ReportMoneyOrder(x.BranchCode!.Value, x.Id, x.CreatedAtUtc!.Value)).ToArrayAsync(cancellationToken);
     public async Task<IReadOnlyList<ReportIdentityVerification>> GetIdentityVerificationsAsync(CancellationToken cancellationToken = default) =>
-        await (from order in db.MoneyOrders.AsNoTracking() join identity in db.IdentityVerifications.AsNoTracking() on order.Id equals identity.MoneyOrderId where order.BranchCode != null select new ReportIdentityVerification(order.BranchCode!.Value, identity.Id, identity.VerifiedAtUtc)).ToArrayAsync(cancellationToken);
+        await (from order in db.MoneyOrders.AsNoTracking()
+               join identity in db.IdentityVerifications.AsNoTracking() on order.Id equals identity.MoneyOrderId
+               where order.BranchCode != null
+               select new ReportIdentityVerification(
+                   order.BranchCode!.Value,
+                   identity.Id,
+                   identity.VerifiedAtUtc,
+                   order.Id,
+                   identity.DocumentType,
+                   identity.MaskedDocumentNumber,
+                   identity.IsVerified))
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<PagedReport<ReportMoneyOrder>> GetMoneyOrderPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = db.MoneyOrders.AsNoTracking()
+            .Where(item => item.BranchCode != null && item.CreatedAtUtc != null);
+        if (branchCode is not null)
+        {
+            var branch = new BranchCode(branchCode);
+            query = query.Where(item => item.BranchCode == branch);
+        }
+
+        if (fromDate is { } startDate)
+        {
+            var start = startDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(item => item.CreatedAtUtc >= start);
+        }
+
+        if (toDate is { } endDate)
+        {
+            var end = endDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(item => item.CreatedAtUtc < end);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenBy(item => item.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(item => new ReportMoneyOrder(
+                item.BranchCode!.Value,
+                item.Id,
+                item.CreatedAtUtc!.Value,
+                item.Amount,
+                item.Fee,
+                item.TransactionId))
+            .ToArrayAsync(cancellationToken);
+        return new PagedReport<ReportMoneyOrder>(items, pageNumber, pageSize, totalCount);
+    }
+
+    public async Task<PagedReport<ReportIdentityVerification>> GetIdentityVerificationPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        bool? isVerified,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query =
+            from identity in db.IdentityVerifications.AsNoTracking()
+            join order in db.MoneyOrders.AsNoTracking()
+                on identity.MoneyOrderId equals order.Id
+            where order.BranchCode != null
+            select new { Identity = identity, Order = order };
+
+        if (branchCode is not null)
+        {
+            var branch = new BranchCode(branchCode);
+            query = query.Where(item => item.Order.BranchCode == branch);
+        }
+
+        if (fromDate is { } startDate)
+        {
+            var start = startDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(item => item.Identity.VerifiedAtUtc >= start);
+        }
+
+        if (toDate is { } endDate)
+        {
+            var end = endDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(item => item.Identity.VerifiedAtUtc < end);
+        }
+
+        if (isVerified is { } verified)
+        {
+            query = query.Where(item => item.Identity.IsVerified == verified);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(item => item.Identity.VerifiedAtUtc)
+            .ThenBy(item => item.Identity.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(item => new ReportIdentityVerification(
+                item.Order.BranchCode!.Value,
+                item.Identity.Id,
+                item.Identity.VerifiedAtUtc,
+                item.Order.Id,
+                item.Identity.DocumentType,
+                item.Identity.MaskedDocumentNumber,
+                item.Identity.IsVerified))
+            .ToArrayAsync(cancellationToken);
+        return new PagedReport<ReportIdentityVerification>(items, pageNumber, pageSize, totalCount);
+    }
+
+    public async Task<IReadOnlyList<TopProductRevenueReportItem>> GetTopProductsByRegionAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        string? branchCode,
+        CancellationToken cancellationToken = default)
+    {
+        var start = fromDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = toDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var rows = await db.Database.SqlQuery<TopProductRevenueProcedureRow>($"""
+            WITH ProductRevenue AS
+            (
+                SELECT branch.Region,
+                       product.Sku,
+                       product.Name AS ProductName,
+                       SUM(line.LineTotal + ROUND(line.LineTotal * tax.Rate, 2)) AS Revenue
+                FROM dbo.CounterTransactions AS transactionRow
+                INNER JOIN dbo.Branches AS branch
+                    ON branch.BranchCode = transactionRow.BranchCode
+                INNER JOIN dbo.TransactionLines AS line
+                    ON line.TransactionId = transactionRow.Id
+                   AND line.ItemType = 'Retail'
+                INNER JOIN dbo.Products AS product
+                    ON product.Sku = line.ReferenceId
+                INNER JOIN dbo.TransactionTaxRates AS tax
+                    ON tax.TransactionId = line.TransactionId
+                   AND tax.Category = line.TaxCategory
+                WHERE transactionRow.Status = 'Paid'
+                  AND transactionRow.OccurredAtUtc >= {start}
+                  AND transactionRow.OccurredAtUtc < {end}
+                  AND ({branchCode} IS NULL OR transactionRow.BranchCode = {branchCode})
+                GROUP BY branch.Region, product.Sku, product.Name
+            ),
+            RankedRevenue AS
+            (
+                SELECT Region,
+                       Sku,
+                       ProductName,
+                       Revenue,
+                       ROW_NUMBER() OVER
+                           (PARTITION BY Region ORDER BY Revenue DESC, Sku ASC) AS RegionRank
+                FROM ProductRevenue
+            )
+            SELECT Region,
+                   CAST(RegionRank AS int) AS RegionRank,
+                   Sku,
+                   ProductName,
+                   Revenue
+            FROM RankedRevenue
+            WHERE RegionRank <= 10
+            ORDER BY Region, RegionRank
+            """).ToArrayAsync(cancellationToken);
+
+        return rows.Select(row => new TopProductRevenueReportItem(
+            row.Region, row.RegionRank, row.Sku, row.ProductName, row.Revenue)).ToArray();
+    }
+}
+
+public sealed class TopProductRevenueProcedureRow
+{
+    public string Region { get; set; } = string.Empty;
+    public int RegionRank { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public decimal Revenue { get; set; }
 }
 
 public sealed class DailyBranchSalesProcedureRow

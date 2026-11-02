@@ -52,6 +52,65 @@ public sealed class SafeExceptionMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_MapsUniqueKeyConflictToSafe409Problem()
+    {
+        var middleware = new SafeExceptionMiddleware(
+            _ => throw new UniqueKeyConflictException(
+                "Duplicate key.",
+                new InvalidOperationException("Database details must not be returned.")),
+            NullLogger<SafeExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        await using var body = new MemoryStream();
+        context.Response.Body = body;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        body.Position = 0;
+        using var problem = await JsonDocument.ParseAsync(body);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.DoesNotContain("Database details", problem.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MapsValidationExceptionToSafe400Problem()
+    {
+        var middleware = new SafeExceptionMiddleware(
+            _ => throw new System.ComponentModel.DataAnnotations.ValidationException("Private validation message."),
+            NullLogger<SafeExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        await using var body = new MemoryStream();
+        context.Response.Body = body;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        body.Position = 0;
+        using var problem = await JsonDocument.ParseAsync(body);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.DoesNotContain("Private validation", problem.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MapsMissingResourceToSafe404Problem()
+    {
+        var middleware = new SafeExceptionMiddleware(
+            _ => throw new KeyNotFoundException("Private resource key."),
+            NullLogger<SafeExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        await using var body = new MemoryStream();
+        context.Response.Body = body;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        body.Position = 0;
+        using var problem = await JsonDocument.ParseAsync(body);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.DoesNotContain("Private resource key", problem.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvokeAsync_DoesNotTranslateClientCancellationToServerError()
     {
         using var abort = new CancellationTokenSource();

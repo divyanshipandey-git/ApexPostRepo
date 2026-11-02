@@ -1,4 +1,4 @@
-# ADR 0002: Pin patched PKCS dependency for SQL Server client
+# ADR 0025: Pin patched PKCS dependency for SQL Server client
 
 ## Status
 
@@ -23,3 +23,17 @@ the patched dependency.
 
 Restore resolves the patched package and retains the existing SQL Server provider.
 Revisit the pin when the provider dependency graph no longer requires the override.
+
+## Alternatives considered
+
+- Ignore the NuGet audit warning: rejected because audit warnings are treated as errors.
+- Remove the SQL Server client dependency: rejected because SQL Server is the Web runtime.
+- Upgrade the provider independently: rejected at the time because the required package
+  allowlist approval covered only the transitive security override.
+
+## Implementation and verification
+
+- `src/ApexPost.Infrastructure/ApexPost.Infrastructure.csproj` pins
+  `System.Security.Cryptography.Pkcs` to 9.0.21.
+- Restore/build verifies dependency resolution; run NuGet audit during normal CI.
+- No application behavior or SQL integration test is specific to this dependency pin.

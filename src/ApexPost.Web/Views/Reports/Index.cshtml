@@ -74,6 +74,7 @@
 {
     <section class="card surface-card"><div class="card-body">
         <h2 class="section-title">Money orders and identity checks by branch</h2>
+        <p><a asp-action="MoneyOrders">View paginated money order details</a> · <a asp-action="IdentityVerifications">View paginated identity verification details</a> · <a asp-action="TopProducts">Top products by region</a></p>
         @if (Model.ServiceActivity.Count == 0) { <p class="form-hint">No money orders or verification records were found for this date.</p> }
         else
         {

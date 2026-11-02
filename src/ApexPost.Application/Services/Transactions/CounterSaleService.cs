@@ -29,7 +29,7 @@ public sealed class CounterSaleService
     private readonly MoneyOrderSettings _moneyOrderSettings;
     private readonly INotificationService _notifications;
     private readonly ProductCatalogCache? _productCatalogCache;
-    private readonly IUnitOfWork? _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CounterSaleService>? _logger;
 
     public CounterSaleService(
@@ -46,8 +46,8 @@ public sealed class CounterSaleService
         INotificationService notifications,
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider,
+        IUnitOfWork unitOfWork,
         ProductCatalogCache? productCatalogCache = null,
-        IUnitOfWork? unitOfWork = null,
         ILogger<CounterSaleService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
@@ -63,6 +63,7 @@ public sealed class CounterSaleService
         ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(taxRates);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
 
         _transactionRepository = transactionRepository;
         _inventoryRepository = inventoryRepository;
@@ -300,69 +301,71 @@ public sealed class CounterSaleService
         }
 
         InventoryReservation? inventoryReservation = null;
-        if (quantities.Count > 0)
-        {
-            // Reserve the complete basket before writing linked records so concurrent sales cannot oversell stock.
-            var reservationResult = await _inventoryRepository.TryReserveAsync(
-                branchCode.Value,
-                quantities,
-                cancellationToken);
-            if (reservationResult.Status != InventoryReservationStatus.Reserved)
-            {
-                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
-            }
-
-            inventoryReservation = reservationResult.Reservation
-                ?? throw new InvalidOperationException("A successful stock reservation must include its rollback token.");
-        }
-
         var shipmentPersisted = false;
         var moneyOrderPersisted = false;
         try
         {
-            if (request.Shipping is not null)
-            {
-                var shipping = request.Shipping;
-                await _shippingService.CreateShipmentAsync(
-                    shipmentId!,
-                    shipping.ItemType,
-                    shipping.WeightKg,
-                    shipping.LengthCm,
-                    shipping.WidthCm,
-                    shipping.HeightCm,
-                    shipping.DestinationZone,
-                    shipping.ServiceLevel,
-                    cancellationToken,
-                    branchCode,
-                    transactionId);
-                shipmentPersisted = true;
-            }
+            var persistenceStatus = await _unitOfWork.ExecuteInTransactionAsync(
+                async token =>
+                {
+                    if (quantities.Count > 0)
+                    {
+                        // Keep the stock check and all sale writes inside the same SQL transaction.
+                        var reservationResult = await _inventoryRepository.TryReserveAsync(
+                            branchCode.Value,
+                            quantities,
+                            token);
+                        if (reservationResult.Status != InventoryReservationStatus.Reserved)
+                        {
+                            return CounterSaleStatus.InsufficientStock;
+                        }
 
-            if (moneyOrder is not null)
-            {
-                await _moneyOrderService.SavePreparedAsync(moneyOrder, cancellationToken);
-                moneyOrderPersisted = true;
-            }
+                        inventoryReservation = reservationResult.Reservation
+                            ?? throw new InvalidOperationException(
+                                "A successful stock reservation must include its rollback token.");
+                    }
 
-            await _transactionRepository.AddAsync(transaction, cancellationToken);
-            if (inventoryReservation is not null)
-            {
-                await _inventoryRepository.CommitReservationAsync(
-                    inventoryReservation,
-                    CancellationToken.None);
-            }
+                    if (request.Shipping is not null)
+                    {
+                        var shipping = request.Shipping;
+                        await _shippingService.CreateShipmentAsync(
+                            shipmentId!,
+                            shipping.ItemType,
+                            shipping.WeightKg,
+                            shipping.LengthCm,
+                            shipping.WidthCm,
+                            shipping.HeightCm,
+                            shipping.DestinationZone,
+                            shipping.ServiceLevel,
+                            token,
+                            branchCode,
+                            transactionId);
+                        shipmentPersisted = !_unitOfWork.SupportsAtomicTransactions;
+                    }
 
-            if (_unitOfWork is not null)
-            {
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-            }
+                    if (moneyOrder is not null)
+                    {
+                        await _moneyOrderService.SavePreparedAsync(moneyOrder, token);
+                        moneyOrderPersisted = !_unitOfWork.SupportsAtomicTransactions;
+                    }
 
+                    await _transactionRepository.AddAsync(transaction, token);
+                    if (inventoryReservation is not null)
+                    {
+                        await _inventoryRepository.CommitReservationAsync(inventoryReservation, token);
+                    }
+
+                    return CounterSaleStatus.Completed;
+                },
+                cancellationToken);
+
+            if (persistenceStatus == CounterSaleStatus.InsufficientStock)
+            {
+                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
+            }
         }
         catch (Exception persistenceException)
         {
-            // A SQL rowversion conflict means SaveChanges did not commit this scope.  Do not
-            // compensate a reservation that never reached the database, or it would add stock
-            // already sold by the winning concurrent request.
             if (persistenceException is ConcurrencyConflictException)
             {
                 _logger?.LogWarning(
@@ -372,36 +375,37 @@ public sealed class CounterSaleService
                 return new CounterSaleResult(CounterSaleStatus.ConcurrencyConflict);
             }
 
-            // Compensation uses a non-cancelable token so a disconnected client cannot strand reserved stock.
-            try
+            if (!_unitOfWork.SupportsAtomicTransactions)
             {
-                if (shipmentPersisted)
+                // Legacy JSON adapters persist independently; SQL sales use one database transaction
+                // and must never be repaired with compensating deletes after a failed commit.
+                try
                 {
-                    await _shipmentRepository.DeleteAsync(shipmentId!, CancellationToken.None);
-                }
+                    if (shipmentPersisted)
+                    {
+                        await _shipmentRepository.DeleteAsync(shipmentId!, CancellationToken.None);
+                    }
 
-                if (moneyOrderPersisted)
-                {
-                    await _moneyOrderService.DeleteAsync(moneyOrder!.Id, CancellationToken.None);
-                }
+                    if (moneyOrderPersisted)
+                    {
+                        await _moneyOrderService.DeleteAsync(moneyOrder!.Id, CancellationToken.None);
+                    }
 
-                if (inventoryReservation is not null)
-                {
-                    await _inventoryRepository.RestoreReservationAsync(
-                        inventoryReservation,
-                        CancellationToken.None);
-                }
+                    if (inventoryReservation is not null)
+                    {
+                        await _inventoryRepository.RestoreReservationAsync(
+                            inventoryReservation,
+                            CancellationToken.None);
+                    }
 
-                if (_unitOfWork is not null)
-                {
                     await _unitOfWork.SaveChangesAsync(CancellationToken.None);
                 }
-            }
-            catch (Exception rollbackException)
-            {
-                throw new InvalidOperationException(
-                    "A counter sale failed and its compensating rollback could not be confirmed.",
-                    new AggregateException(persistenceException, rollbackException));
+                catch (Exception rollbackException)
+                {
+                    throw new InvalidOperationException(
+                        "A counter sale failed and its compensating rollback could not be confirmed.",
+                        new AggregateException(persistenceException, rollbackException));
+                }
             }
 
             if (persistenceException is OperationCanceledException)
@@ -411,7 +415,7 @@ public sealed class CounterSaleService
 
             _logger?.LogError(
                 persistenceException,
-                "Counter sale persistence failed for counter {CounterId}; compensating changes completed.",
+                "Counter sale persistence failed for counter {CounterId}.",
                 request.CounterId);
             return new CounterSaleResult(CounterSaleStatus.PersistenceFailure);
         }

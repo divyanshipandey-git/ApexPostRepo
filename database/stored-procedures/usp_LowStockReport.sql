@@ -10,12 +10,25 @@ BEGIN
     IF @BranchCode IS NOT NULL AND NULLIF(LTRIM(RTRIM(@BranchCode)), '') IS NULL
         THROW 51008, 'Branch code cannot be blank.', 1;
 
-    SELECT stock.BranchCode, stock.Sku, product.Name AS ProductName,
-           stock.Quantity, @Threshold AS Threshold
-    FROM dbo.BranchStock AS stock
-    INNER JOIN dbo.Products AS product ON product.Sku = stock.Sku
-    WHERE stock.Quantity <= @Threshold
-      AND (@BranchCode IS NULL OR stock.BranchCode = @BranchCode)
-    ORDER BY stock.BranchCode, stock.Quantity, stock.Sku
-    OPTION (RECOMPILE);
+    IF @BranchCode IS NULL
+    BEGIN
+        SELECT stock.BranchCode, stock.Sku, product.Name AS ProductName,
+               stock.Quantity, @Threshold AS Threshold
+        FROM dbo.BranchStock AS stock
+        INNER JOIN dbo.Products AS product ON product.Sku = stock.Sku
+        WHERE stock.Quantity <= @Threshold
+        ORDER BY stock.BranchCode, stock.Quantity, stock.Sku;
+    END
+    ELSE
+    BEGIN
+        SET @BranchCode = LTRIM(RTRIM(@BranchCode));
+
+        SELECT stock.BranchCode, stock.Sku, product.Name AS ProductName,
+               stock.Quantity, @Threshold AS Threshold
+        FROM dbo.BranchStock AS stock
+        INNER JOIN dbo.Products AS product ON product.Sku = stock.Sku
+        WHERE stock.BranchCode = @BranchCode
+          AND stock.Quantity <= @Threshold
+        ORDER BY stock.BranchCode, stock.Quantity, stock.Sku;
+    END;
 END;

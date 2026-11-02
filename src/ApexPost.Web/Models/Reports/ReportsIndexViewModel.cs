@@ -14,3 +14,25 @@ public sealed record ReportsIndexViewModel(
     bool CanViewAuditorReport);
 
 public sealed record ReportBranchOption(string Code, string Name);
+
+public sealed record MoneyOrdersReportViewModel(
+    PagedReport<ReportMoneyOrder> Report,
+    IReadOnlyList<ReportBranchOption> Branches,
+    string? BranchCode,
+    DateOnly? FromDate,
+    DateOnly? ToDate);
+
+public sealed record IdentityVerificationsReportViewModel(
+    PagedReport<ReportIdentityVerification> Report,
+    IReadOnlyList<ReportBranchOption> Branches,
+    string? BranchCode,
+    DateOnly? FromDate,
+    DateOnly? ToDate,
+    bool? IsVerified);
+
+public sealed record TopProductsReportViewModel(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    IReadOnlyList<ReportBranchOption> Branches,
+    string? BranchCode,
+    IReadOnlyList<TopProductRevenueReportItem> Products);

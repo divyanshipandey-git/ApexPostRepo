@@ -148,6 +148,128 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
     }
 
     [SqlWebFact]
+    public async Task SqlBackedAuditorReports_FilterAndPaginateMoneyOrdersAndVerifications()
+    {
+        using var manager = await CreateAuthenticatedClientAsync();
+        var token = await GetAntiforgeryTokenAsync(manager, "/Transactions/Create");
+        var saleIds = new List<string>();
+        for (var index = 0; index < 2; index++)
+        {
+            using var sale = await manager.PostAsync("/Transactions/Create", Form(token,
+                ("CounterId", SqlWebApplicationFactory.CounterId),
+                ("PaymentMethod", "Cash"),
+                ("Products[0].Sku", SqlWebApplicationFactory.Sku),
+                ("Products[0].Quantity", "1"),
+                ("IncludeMoneyOrder", "true"),
+                ("MoneyOrderAmount", "15000"),
+                ("MoneyOrderSenderName", "Audit sender"),
+                ("MoneyOrderRecipientName", "Audit recipient"),
+                ("IdentityDocumentType", "Government ID"),
+                ("IdentityMaskedDocumentNumber", "XXXX1234"),
+                ("IdentityVerified", "true"),
+                ("Id", "ATTACKER-ID"),
+                ("TransactionId", "ATTACKER-TXN"),
+                ("BranchCode", "OTHER"),
+                ("Status", "Voided"),
+                ("CreatedAtUtc", "2000-01-01T00:00:00Z"),
+                ("ModifiedAtUtc", "2000-01-01T00:00:00Z"),
+                ("CreatedBy", "ATTACKER"),
+                ("ModifiedBy", "ATTACKER"),
+                ("PaymentAmount", "0.01"),
+                ("Subtotal", "0.01"),
+                ("Total", "0.01")));
+            Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
+            saleIds.Add(Assert.IsType<Uri>(sale.Headers.Location)
+                .OriginalString.Split('/', StringSplitOptions.RemoveEmptyEntries).Last());
+        }
+
+        await using var db = _factory.CreateContext();
+        var transactions = await db.CounterTransactions
+            .Include(transaction => transaction.Payment)
+            .Where(transaction => saleIds.Contains(transaction.Id))
+            .ToArrayAsync();
+        Assert.Equal(2, transactions.Length);
+        Assert.All(transactions, transaction =>
+        {
+            Assert.NotEqual("ATTACKER-ID", transaction.Id);
+            Assert.NotEqual("ATTACKER-TXN", transaction.Id);
+            Assert.Equal(TransactionStatus.Paid, transaction.Status);
+            Assert.Equal(SqlWebApplicationFactory.BranchCode, transaction.BranchCode.Value);
+            Assert.NotNull(transaction.Payment);
+            Assert.NotEqual(0.01m, transaction.Payment!.Amount);
+            Assert.NotEqual(
+                new DateTime(2000, 1, 1),
+                db.Entry(transaction).Property<DateTime>("CreatedAtUtc").CurrentValue);
+            Assert.NotEqual(
+                "ATTACKER",
+                db.Entry(transaction).Property<string?>("CreatedBy").CurrentValue);
+            Assert.NotEqual(
+                new DateTime(2000, 1, 1),
+                db.Entry(transaction).Property<DateTime?>("ModifiedAtUtc").CurrentValue);
+        });
+        var storedOrders = await db.MoneyOrders
+            .Include(order => order.IdentityVerification)
+            .Where(order => order.BranchCode == new BranchCode(SqlWebApplicationFactory.BranchCode))
+            .OrderByDescending(order => order.CreatedAtUtc)
+            .ThenBy(order => order.Id)
+            .ToArrayAsync();
+        Assert.Equal(2, storedOrders.Length);
+        Assert.All(storedOrders, order =>
+        {
+            Assert.NotEqual("ATTACKER-ID", order.Id);
+            Assert.NotEqual("ATTACKER-TXN", order.TransactionId);
+            Assert.Equal(SqlWebApplicationFactory.BranchCode, order.BranchCode!.Value);
+            Assert.NotEqual(new DateTime(2000, 1, 1), order.CreatedAtUtc!.Value.UtcDateTime);
+            Assert.NotEqual(
+                "ATTACKER",
+                db.Entry(order).Property<string?>("CreatedBy").CurrentValue);
+            Assert.Equal("XXXX1234", order.IdentityVerification!.MaskedDocumentNumber);
+        });
+
+        using var auditor = await CreateAuthenticatedClientAsync(
+            SqlWebApplicationFactory.AuditorEmail,
+            SqlWebApplicationFactory.AuditorPassword);
+        var date = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        using var firstPage = await auditor.GetAsync(
+            $"/Reports/MoneyOrders?branchCode={SqlWebApplicationFactory.BranchCode}&fromDate={date}&toDate={date}&pageSize=1");
+        Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
+        var firstHtml = await firstPage.Content.ReadAsStringAsync();
+        Assert.Contains("Page 1 of 2", firstHtml);
+        Assert.Contains(storedOrders[0].Id, firstHtml);
+        Assert.DoesNotContain(storedOrders[1].Id, firstHtml);
+
+        using var secondPage = await auditor.GetAsync(
+            $"/Reports/MoneyOrders?branchCode={SqlWebApplicationFactory.BranchCode}&fromDate={date}&toDate={date}&page=2&pageSize=1");
+        var secondHtml = await secondPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, secondPage.StatusCode);
+        Assert.Contains("Page 2 of 2", secondHtml);
+        Assert.Contains(storedOrders[1].Id, secondHtml);
+
+        using var identityPage = await auditor.GetAsync(
+            $"/Reports/IdentityVerifications?branchCode={SqlWebApplicationFactory.BranchCode}&fromDate={date}&toDate={date}&isVerified=true&pageSize=1");
+        var identityHtml = await identityPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, identityPage.StatusCode);
+        Assert.Contains("XXXX1234", identityHtml);
+        Assert.Contains("Page 1 of 2", identityHtml);
+
+        using var topProducts = await auditor.GetAsync(
+            $"/Reports/TopProducts?branchCode={SqlWebApplicationFactory.BranchCode}&fromDate={date}&toDate={date}");
+        Assert.Equal(HttpStatusCode.OK, topProducts.StatusCode);
+        Assert.Contains(SqlWebApplicationFactory.Sku, await topProducts.Content.ReadAsStringAsync());
+
+        using var invalidPage = await auditor.GetAsync("/Reports/MoneyOrders?pageSize=101");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
+        using var invalidDate = await auditor.GetAsync("/Reports/MoneyOrders?fromDate=not-a-date");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidDate.StatusCode);
+        using var invalidRange = await auditor.GetAsync(
+            $"/Reports/IdentityVerifications?fromDate={date}&toDate=2000-01-01");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidRange.StatusCode);
+
+        using var managerReport = await manager.GetAsync("/Reports/MoneyOrders");
+        Assert.Equal(HttpStatusCode.Redirect, managerReport.StatusCode);
+    }
+
+    [SqlWebFact]
     public async Task SqlBackedMvcVoid_UsesManagerAuthorizationRestoresStockAndWritesAudit()
     {
         var transactionId = await _factory.CreatePaidRetailTransactionAsync(quantity: 1);
@@ -323,8 +445,12 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
     public const string BranchCode = "SQLHTTP1";
     public const string CounterId = "SQLHTTP-COUNTER";
     public const string StaffId = "SQLHTTP-MANAGER";
+    public const string AuditorId = "SQLHTTP-REPORT-AUDITOR";
     public const string Email = "sqlhttp.manager@example.test";
+    public const string AuditorEmail = "sqlhttp.report-auditor@example.test";
     public static readonly string Password =
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+    public static readonly string AuditorPassword =
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public const string Sku = "SQLHTTPSKU";
     private readonly string _connectionString;
@@ -362,7 +488,9 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
             db.Branches.Add(new Branch(new BranchCode(BranchCode), "SQL HTTP Branch", "Test", new TimeOnly(0), new TimeOnly(23, 59)));
             db.Counters.Add(new Counter(CounterId, new BranchCode(BranchCode), "SQL HTTP Counter"));
             db.Staff.Add(new Staff(StaffId, "SQL HTTP Manager", Email, StaffRole.BranchManager, new BranchCode(BranchCode)));
+            db.Staff.Add(new Staff(AuditorId, "SQL HTTP Auditor", AuditorEmail, StaffRole.Auditor, new BranchCode(BranchCode)));
             db.StaffCredentials.Add(new StaffCredential(StaffId, hasher.HashPassword(Password)));
+            db.StaffCredentials.Add(new StaffCredential(AuditorId, hasher.HashPassword(AuditorPassword)));
             db.Products.Add(new Product(new Sku(Sku), "SQL HTTP Envelope", ProductCategory.Packaging, new Money(10m), TaxCategory.Standard));
             db.BranchStock.Add(new InventoryStock(new BranchCode(BranchCode), new Sku(Sku), 5));
             await db.SaveChangesAsync();

@@ -24,7 +24,7 @@ $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=Apex
 dotnet test ApexPost.sln --no-restore
 ```
 
-The latest full Release run with the SQL test connection configured passed 390 tests: 112 Domain, 201 Application, and 77 Web integration tests, with 0 failures and 0 skips.
+Latest verification on this remediation checkout: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 407 tests: 112 Domain, 214 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 trainer verification](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md) for scope, evidence, and limitations.
 
 Run the web application:
 
@@ -53,6 +53,8 @@ The generated idempotent deployment script is [database/schema/ApexPostDb-idempo
 ```powershell
 dotnet run --project src/ApexPost.Web
 ```
+
+The root [SQL guide](sql/README.md) indexes the canonical reporting queries and procedures and provides transaction and blocking demonstrations. Scripts with SQLCMD `:r` directives must be run in SQLCMD mode from the repository root.
 
 Provision the four fictional, SQL-backed local role accounts with the guarded tool documented in the [database testing guide](docs/DATABASE-TESTING-GUIDE.md). Passwords are generated into user-secrets and are never printed by the tool or stored in source control.
 
