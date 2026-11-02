@@ -17,17 +17,18 @@ public sealed class TransactionVoidService
     private readonly IStaffRepository _staffRepository;
     private readonly INotificationService? _notifications;
     private readonly IInventoryRepository? _inventoryRepository;
-    private readonly IUnitOfWork? _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
 
     public TransactionVoidService(
         ICounterTransactionRepository repository,
         IStaffRepository staffRepository,
+        IUnitOfWork unitOfWork,
         INotificationService? notifications = null,
-        IInventoryRepository? inventoryRepository = null,
-        IUnitOfWork? unitOfWork = null)
+        IInventoryRepository? inventoryRepository = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(staffRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
         _repository = repository;
         _staffRepository = staffRepository;
         _notifications = notifications;
@@ -128,7 +129,7 @@ public sealed class TransactionVoidService
 
         await RestoreSoldRetailStockAsync(transaction, reason.Trim(), staffId!, cancellationToken);
         await _repository.UpdateAsync(transaction, cancellationToken);
-        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         if (_notifications is not null)
         {
             await _notifications.NotifyTransactionVoidAsync(

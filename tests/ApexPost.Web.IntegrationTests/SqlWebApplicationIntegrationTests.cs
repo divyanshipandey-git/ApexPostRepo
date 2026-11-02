@@ -175,6 +175,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
                 ("ModifiedAtUtc", "2000-01-01T00:00:00Z"),
                 ("CreatedBy", "ATTACKER"),
                 ("ModifiedBy", "ATTACKER"),
+                ("OccurredAtUtc", "2000-01-01T00:00:00Z"),
                 ("PaymentAmount", "0.01"),
                 ("Subtotal", "0.01"),
                 ("Total", "0.01")));
@@ -195,14 +196,21 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             Assert.NotEqual("ATTACKER-TXN", transaction.Id);
             Assert.Equal(TransactionStatus.Paid, transaction.Status);
             Assert.Equal(SqlWebApplicationFactory.BranchCode, transaction.BranchCode.Value);
+            Assert.NotEqual(0.01m, transaction.Subtotal);
+            Assert.NotEqual(0.01m, transaction.Tax);
+            Assert.NotEqual(0.01m, transaction.Total);
             Assert.NotNull(transaction.Payment);
             Assert.NotEqual(0.01m, transaction.Payment!.Amount);
+            Assert.NotEqual(
+                new DateTime(2000, 1, 1),
+                transaction.OccurredAtUtc!.Value.UtcDateTime);
             Assert.NotEqual(
                 new DateTime(2000, 1, 1),
                 db.Entry(transaction).Property<DateTime>("CreatedAtUtc").CurrentValue);
             Assert.NotEqual(
                 "ATTACKER",
                 db.Entry(transaction).Property<string?>("CreatedBy").CurrentValue);
+            Assert.Null(db.Entry(transaction).Metadata.FindProperty("ModifiedBy"));
             Assert.NotEqual(
                 new DateTime(2000, 1, 1),
                 db.Entry(transaction).Property<DateTime?>("ModifiedAtUtc").CurrentValue);
@@ -223,6 +231,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             Assert.NotEqual(
                 "ATTACKER",
                 db.Entry(order).Property<string?>("CreatedBy").CurrentValue);
+            Assert.Null(db.Entry(order).Metadata.FindProperty("ModifiedBy"));
             Assert.Equal("XXXX1234", order.IdentityVerification!.MaskedDocumentNumber);
         });
 

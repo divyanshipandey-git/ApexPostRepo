@@ -10,7 +10,7 @@ The application needs replaceable persistence ports without leaking EF query com
 
 ## Decision
 
-Application defines repository and `IUnitOfWork` contracts. SQL repositories stage aggregate changes and do not call `SaveChangesAsync`; the use case commits. `SqlReportDataSource` may use the scoped `ApexPostDbContext` directly for read-only DTO projections and stored procedure results because it is an Infrastructure query adapter, not an aggregate repository. No `IQueryable` crosses the Infrastructure boundary. `SqlAuditStore` is separately scoped to a factory-created context (see ADR-0022).
+Application defines repository and `IUnitOfWork` contracts. SQL repositories stage aggregate changes and do not call `SaveChangesAsync`; the use case commits. Application write use cases that persist through the SQL runtime require an `IUnitOfWork` dependency and cannot silently omit the commit. The Web composition root resolves it as a required service. JSON-only tests/adapters must opt into their persistence behavior explicitly rather than relying on a missing unit of work. `SqlReportDataSource` may use the scoped `ApexPostDbContext` directly for read-only DTO projections and stored procedure results because it is an Infrastructure query adapter, not an aggregate repository. No `IQueryable` crosses the Infrastructure boundary. `SqlAuditStore` is separately scoped to a factory-created context (see ADR-0022).
 
 ## Alternatives considered
 

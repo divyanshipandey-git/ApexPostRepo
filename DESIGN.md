@@ -246,9 +246,9 @@ The receipt is available to the originating clerk and same-branch staff; Adminis
 
 ## Architecture decisions
 
-The active SQL/application decisions are linked from the [ADR index](docs/adr/). ADR-0003, ADR-0008, ADR-0009, and ADR-0014 describe the superseded Week 2 JSON implementation only; [ADR-0015](docs/adr/0015-sql-runtime-and-reporting-boundary.md) and ADR-0016 through ADR-0024 describe the SQL-only runtime. These records do not authorize any offline/Couchbase architecture.
+The active SQL/application decisions are linked from the [ADR index](docs/adr/). ADR-0003, ADR-0008, ADR-0009, and ADR-0014 describe the superseded Week 2 JSON implementation only; [ADR-0015](docs/adr/0015-sql-runtime-and-reporting-boundary.md) and ADR-0016 through ADR-0026 describe current SQL/application decisions. These records do not authorize any offline/Couchbase architecture.
 
-Integration tests exercise the real courier endpoint and transaction MVC actions with isolated per-test JSON directories. Test-only probe endpoints remain solely for middleware branches that are not reachable through the production routes.
+Integration coverage is split by persistence adapter. Legacy JSON-backed tests use isolated per-test JSON directories; the SQL-backed integration suites use LocalDB catalogs prefixed `ApexPost_SqlIT_`, apply EF migrations, and exercise SQL repositories, procedures, transaction boundaries, and MVC endpoints. The SQL fixtures create and drop isolated catalogs and must never target `ApexPostDb`. See the [database testing guide](docs/DATABASE-TESTING-GUIDE.md) for the opt-in connection-string safety rule. Test-only probe endpoints remain solely for middleware branches that are not reachable through the production routes.
 
 ## Verification
 
