@@ -4,6 +4,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Reports;
 using ApexPost.Application.Services.Auditing;
 using ApexPost.Application.Services.Products;
+using ApexPost.Application.Services.Reports;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Application.Services.Transactions;
@@ -119,6 +120,20 @@ public sealed class SqlServerIntegrationTests
     {
         _fixture = fixture;
         Environment.SetEnvironmentVariable("APEXPOST_SQL_TEST_CONNECTION", fixture.ConnectionString);
+    }
+
+    [Fact]
+    public void Address_IsNotPartOfTheCurrentSqlPersistenceModel()
+    {
+        using var context = new ApexPostDbContext(
+            new DbContextOptionsBuilder<ApexPostDbContext>()
+                .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=ApexPost_SqlIT_ModelOnly;Trusted_Connection=True;Encrypt=False")
+                .Options);
+
+        Assert.Null(context.Model.FindEntityType(typeof(Address)));
+        Assert.DoesNotContain(
+            context.Model.GetEntityTypes().SelectMany(entity => entity.GetProperties()),
+            property => property.ClrType == typeof(Address));
     }
 
     [SqlServerFact]
@@ -305,6 +320,76 @@ public sealed class SqlServerIntegrationTests
                 .GetByBranchAsync(seed.BranchCode));
             Assert.Equal("XXXX1234", moneyOrder.IdentityVerification!.MaskedDocumentNumber);
         }
+    }
+
+    [SqlServerFact]
+    public async Task TransactionAndShipmentReportPages_FilterAndPaginateInSql()
+    {
+        await using var provider = CreateProvider();
+        var branchSeed = await SeedSaleAsync(provider, stockQuantity: 8);
+        var otherBranchSeed = await SeedSaleAsync(provider, stockQuantity: 8);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var todayNoon = new DateTimeOffset(today.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
+        var yesterdayNoon = todayNoon.AddDays(-1);
+
+        await SeedPaidTransactionAsync(provider, branchSeed, todayNoon);
+        await SeedPaidTransactionAsync(provider, branchSeed, todayNoon.AddHours(1));
+        await SeedPaidTransactionAsync(provider, branchSeed, yesterdayNoon);
+        await SeedPaidTransactionAsync(provider, otherBranchSeed, todayNoon);
+
+        await SeedShipmentAsync(provider, branchSeed.BranchCode, "SHP-PAGE-1", todayNoon);
+        await SeedShipmentAsync(provider, branchSeed.BranchCode, "SHP-PAGE-2", todayNoon.AddHours(1));
+        await SeedShipmentAsync(provider, branchSeed.BranchCode, "SHP-PAGE-3", yesterdayNoon);
+        await SeedShipmentAsync(provider, otherBranchSeed.BranchCode, "SHP-PAGE-4", todayNoon);
+
+        var commandCounter = new ReaderCommandCounter();
+        await using var context = new ApexPostDbContext(
+            new DbContextOptionsBuilder<ApexPostDbContext>()
+                .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure())
+                .AddInterceptors(commandCounter)
+                .Options);
+        var reports = new ReportingService(new SqlReportDataSource(context));
+
+        var transactionPage1 = await reports.GetTransactionReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 1, pageSize: 1);
+        var transactionPage2 = await reports.GetTransactionReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 2, pageSize: 1);
+        var transactionPage3 = await reports.GetTransactionReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 3, pageSize: 1);
+        Assert.Equal(2, transactionPage1.TotalCount);
+        Assert.Equal(2, transactionPage2.TotalCount);
+        Assert.Single(transactionPage1.Items);
+        Assert.Single(transactionPage2.Items);
+        Assert.Empty(transactionPage3.Items);
+        Assert.Equal(2, transactionPage3.TotalCount);
+        Assert.NotEqual(
+            transactionPage1.Items.Single().OccurredAt,
+            transactionPage2.Items.Single().OccurredAt);
+        Assert.All(transactionPage1.Items.Concat(transactionPage2.Items),
+            item => Assert.Equal(branchSeed.BranchCode, item.BranchCode));
+
+        var shipmentPage1 = await reports.GetShipmentReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 1, pageSize: 1);
+        var shipmentPage2 = await reports.GetShipmentReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 2, pageSize: 1);
+        var shipmentPage3 = await reports.GetShipmentReportPageAsync(
+            branchSeed.BranchCode, today, today, pageNumber: 3, pageSize: 1);
+        Assert.Equal(2, shipmentPage1.TotalCount);
+        Assert.Equal(2, shipmentPage2.TotalCount);
+        Assert.Single(shipmentPage1.Items);
+        Assert.Single(shipmentPage2.Items);
+        Assert.Empty(shipmentPage3.Items);
+        Assert.Equal(2, shipmentPage3.TotalCount);
+        Assert.NotEqual(
+            shipmentPage1.Items.Single().CreatedAt,
+            shipmentPage2.Items.Single().CreatedAt);
+        Assert.All(shipmentPage1.Items.Concat(shipmentPage2.Items),
+            item => Assert.Equal(branchSeed.BranchCode, item.BranchCode));
+
+        Assert.Contains(commandCounter.CommandTexts,
+            command => command.Contains("OFFSET", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(commandCounter.CommandTexts,
+            command => command.Contains("COUNT", StringComparison.OrdinalIgnoreCase));
     }
 
     [SqlServerFact]
@@ -718,16 +803,32 @@ public sealed class SqlServerIntegrationTests
         return new SaleSeed(branchCode.Value, counterId, staffId, sku);
     }
 
-    private static async Task<string> SeedPaidTransactionAsync(IServiceProvider provider, SaleSeed seed)
+    private static async Task<string> SeedPaidTransactionAsync(
+        IServiceProvider provider,
+        SaleSeed seed,
+        DateTimeOffset? occurredAtUtc = null)
     {
         var transaction = new CounterTransaction($"T{Guid.NewGuid():N}", new BranchCode(seed.BranchCode), seed.CounterId,
-            seed.StaffId, [new TaxRate(TaxCategory.Standard, 0.18m)], DateTimeOffset.UtcNow);
+            seed.StaffId, [new TaxRate(TaxCategory.Standard, 0.18m)], occurredAtUtc ?? DateTimeOffset.UtcNow);
         transaction.AddLineItem(new TransactionLineItem("SQL test item", "Retail", 2, new Money(10m), TaxCategory.Standard, seed.Sku));
         transaction.CompletePayment(PaymentMethod.Cash);
         using var scope = provider.CreateScope();
         await scope.ServiceProvider.GetRequiredService<ICounterTransactionRepository>().AddAsync(transaction);
         await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
         return transaction.Id;
+    }
+
+    private static async Task SeedShipmentAsync(
+        IServiceProvider provider,
+        string branchCode,
+        string shipmentId,
+        DateTimeOffset createdAtUtc)
+    {
+        await using var context = await CreateContextAsync();
+        context.Shipments.Add(new Shipment(
+            shipmentId, "Parcel", new Weight(1m), 10m, 10m, 10m, "ZONE1",
+            ShippingServiceLevel.Standard, new BranchCode(branchCode), createdAtUtc: createdAtUtc));
+        await context.SaveChangesAsync();
     }
 
     private static ServiceProvider CreateProvider(bool failTransactionWrite = false, SaleReservationGate? saleGate = null)
@@ -803,6 +904,7 @@ public sealed class SqlServerIntegrationTests
     private sealed class ReaderCommandCounter : DbCommandInterceptor
     {
         public int Count { get; private set; }
+        public List<string> CommandTexts { get; } = [];
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command,
@@ -811,6 +913,7 @@ public sealed class SqlServerIntegrationTests
             CancellationToken cancellationToken = default)
         {
             Count++;
+            CommandTexts.Add(command.CommandText);
             return ValueTask.FromResult(result);
         }
     }

@@ -3,6 +3,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
+using ApexPost.Application.Tests.TestSupport;
 using StaffEntity = ApexPost.Domain.Entities.Staff;
 using Xunit;
 
@@ -14,7 +15,7 @@ public sealed class StaffServiceTests
     public async Task GetByIdAsync_ExistingStaff_ReturnsStaff()
     {
         var staff = CreateStaff();
-        var service = new StaffService(new FakeStaffRepository(staff));
+        var service = CreateService(new FakeStaffRepository(staff));
 
         var result = await service.GetByIdAsync("EMP001");
 
@@ -24,7 +25,7 @@ public sealed class StaffServiceTests
     [Fact]
     public async Task GetByIdAsync_UnknownStaff_ReturnsNull()
     {
-        var service = new StaffService(new FakeStaffRepository());
+        var service = CreateService(new FakeStaffRepository());
 
         var result = await service.GetByIdAsync("UNKNOWN");
 
@@ -36,7 +37,7 @@ public sealed class StaffServiceTests
     [InlineData("   ")]
     public async Task GetByIdAsync_BlankId_ThrowsArgumentException(string staffId)
     {
-        var service = new StaffService(new FakeStaffRepository());
+        var service = CreateService(new FakeStaffRepository());
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => service.GetByIdAsync(staffId));
@@ -53,8 +54,7 @@ public sealed class StaffServiceTests
             StaffRole.BranchManager,
             new BranchCode("IND01"));
 
-        var service = new StaffService(
-            new FakeStaffRepository(first, second));
+        var service = CreateService(new FakeStaffRepository(first, second));
 
         var result = await service.GetAllAsync();
 
@@ -68,7 +68,7 @@ public sealed class StaffServiceTests
     {
         var staff = CreateStaff();
         var repository = new FakeStaffRepository(staff);
-        var service = new StaffService(repository);
+        var service = CreateService(repository);
 
         var result = await service.GetByBranchAsync("ind01");
 
@@ -80,7 +80,7 @@ public sealed class StaffServiceTests
     public async Task GetByBranchAsync_NormalizesBranchCode()
     {
         var repository = new FakeStaffRepository();
-        var service = new StaffService(repository);
+        var service = CreateService(repository);
 
         await service.GetByBranchAsync(" ind01 ");
 
@@ -90,7 +90,7 @@ public sealed class StaffServiceTests
     [Fact]
     public async Task GetByBranchAsync_BlankBranchCode_ThrowsArgumentException()
     {
-        var service = new StaffService(new FakeStaffRepository());
+        var service = CreateService(new FakeStaffRepository());
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => service.GetByBranchAsync(" "));
@@ -101,7 +101,7 @@ public sealed class StaffServiceTests
     {
         var staff = CreateStaff();
         var repository = new FakeStaffRepository(staff);
-        var service = new StaffService(repository);
+        var service = CreateService(repository);
 
         var result = await service.SetActiveStatusAsync("EMP001", false);
 
@@ -117,7 +117,7 @@ public sealed class StaffServiceTests
         staff.Deactivate();
 
         var repository = new FakeStaffRepository(staff);
-        var service = new StaffService(repository);
+        var service = CreateService(repository);
 
         var result = await service.SetActiveStatusAsync("EMP001", true);
 
@@ -130,7 +130,7 @@ public sealed class StaffServiceTests
     public async Task SetActiveStatusAsync_UnknownStaff_ReturnsFalse()
     {
         var repository = new FakeStaffRepository();
-        var service = new StaffService(repository);
+        var service = CreateService(repository);
 
         var result = await service.SetActiveStatusAsync("UNKNOWN", false);
 
@@ -141,8 +141,7 @@ public sealed class StaffServiceTests
     [Fact]
     public async Task GetByIdAsync_CancelledToken_ThrowsOperationCanceledException()
     {
-        var service = new StaffService(
-            new FakeStaffRepository(CreateStaff()));
+        var service = CreateService(new FakeStaffRepository(CreateStaff()));
 
         using var cancellationSource = new CancellationTokenSource();
         await cancellationSource.CancelAsync();
@@ -156,8 +155,11 @@ public sealed class StaffServiceTests
     public void Constructor_NullRepository_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new StaffService(null!));
+            () => CreateService(null!));
     }
+
+    private static StaffService CreateService(IStaffRepository repository) =>
+        new(repository, new RecordingUnitOfWork());
 
     private static StaffEntity CreateStaff() =>
         new(

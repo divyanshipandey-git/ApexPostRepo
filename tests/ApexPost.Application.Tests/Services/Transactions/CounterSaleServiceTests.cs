@@ -353,7 +353,8 @@ public sealed class CounterSaleServiceTests
             unitOfWork ??= new NoOpUnitOfWork();
             var shipping = new ShippingService(
                 Shipments,
-                [new ShippingPricingRule("ZONE1", ShippingServiceLevel.Standard, 20m, new Money(40m))]);
+                [new ShippingPricingRule("ZONE1", ShippingServiceLevel.Standard, 20m, new Money(40m))],
+                unitOfWork);
             return new CounterSaleService(
                 transactionRepository ?? Transactions,
                 Inventory,
@@ -363,7 +364,7 @@ public sealed class CounterSaleServiceTests
                 Counters,
                 shipping,
                 Shipments,
-                new MoneyOrderService(MoneyOrders, new MoneyOrderPolicy(new Money(10_000m))),
+                new MoneyOrderService(MoneyOrders, new MoneyOrderPolicy(new Money(10_000m)), unitOfWork),
                 new MoneyOrderSettings(new Money(10m), new Money(10_000m)),
                 Notifications,
                 [new TaxRate(TaxCategory.Standard, 0.18m), new TaxRate(TaxCategory.Exempt, 0m)],

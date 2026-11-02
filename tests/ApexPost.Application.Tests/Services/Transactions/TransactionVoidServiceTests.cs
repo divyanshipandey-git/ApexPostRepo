@@ -3,6 +3,7 @@ using ApexPost.Application.Services.Notifications;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Notifications;
 using ApexPost.Application.Tests.Persistence;
+using ApexPost.Application.Tests.TestSupport;
 using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
@@ -20,12 +21,12 @@ public sealed class TransactionVoidServiceTests
         var inventory = new JsonInventoryRepository(directory.CreateOptions());
         await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
-        var access = new TransactionVoidService(
+        var access = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
             inventoryRepository: inventory);
         var notifications = new SimulatedNotificationService();
-        var service = new TransactionRefundService(repository, access, notifications);
+        var service = new TransactionRefundService(repository, access, notifications, new RecordingUnitOfWork());
 
         var result = await service.RefundAsync("TXN-APP-1", "Customer return", "staff-test-1");
 
@@ -46,13 +47,14 @@ public sealed class TransactionVoidServiceTests
     public async Task RefundAsync_AllowsAdministratorAcrossBranches()
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction("IND02"));
-        var access = new TransactionVoidService(
+        var access = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.Administrator, "IND01")));
         var service = new TransactionRefundService(
             repository,
             access,
-            new SimulatedNotificationService());
+            new SimulatedNotificationService(),
+            new RecordingUnitOfWork());
 
         var result = await service.RefundAsync("TXN-APP-1", "Approved refund", "staff-test-1");
 
@@ -70,13 +72,14 @@ public sealed class TransactionVoidServiceTests
         string transactionBranch)
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction(transactionBranch));
-        var access = new TransactionVoidService(
+        var access = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(role, staffBranch)));
         var service = new TransactionRefundService(
             repository,
             access,
-            new SimulatedNotificationService());
+            new SimulatedNotificationService(),
+            new RecordingUnitOfWork());
 
         var result = await service.RefundAsync("TXN-APP-1", "Customer return", "staff-test-1");
 
@@ -89,13 +92,14 @@ public sealed class TransactionVoidServiceTests
     public async Task RefundAsync_WhenReasonMissingOrTransactionNotPaid_DoesNotPersist()
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
-        var access = new TransactionVoidService(
+        var access = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
         var service = new TransactionRefundService(
             repository,
             access,
-            new SimulatedNotificationService());
+            new SimulatedNotificationService(),
+            new RecordingUnitOfWork());
 
         var missingReason = await service.RefundAsync("TXN-APP-1", " ", "staff-test-1");
         Assert.Equal(TransactionRefundStatus.InvalidReason, missingReason.Status);
@@ -117,7 +121,8 @@ public sealed class TransactionVoidServiceTests
         await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var staff = new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01"));
-        var service = new TransactionVoidService(repository, staff, inventoryRepository: inventory);
+        var unitOfWork = new RecordingUnitOfWork();
+        var service = CreateVoidService(repository, staff, inventory, unitOfWork);
 
         var result = await service.VoidAsync(
             "TXN-APP-1",
@@ -128,6 +133,7 @@ public sealed class TransactionVoidServiceTests
         Assert.Equal(TransactionStatus.Voided, repository.Transaction!.Status);
         Assert.Equal("Duplicate sale", repository.Transaction.Reason);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.Equal(1, unitOfWork.SaveChangesCount);
         Assert.Equal(2, (await inventory.GetByBranchAndSkuAsync("IND01", "SKU001"))!.Quantity);
 
         var retry = await service.VoidAsync("TXN-APP-1", "Duplicate retry", "staff-test-1");
@@ -145,7 +151,7 @@ public sealed class TransactionVoidServiceTests
         var repository = new JsonCounterTransactionRepository(options);
         await repository.AddAsync(CreatePaidTransaction());
         var failingInventory = new FailOnceInventoryRepository(inventory);
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
             inventoryRepository: failingInventory);
@@ -172,7 +178,7 @@ public sealed class TransactionVoidServiceTests
         var storedTransactions = new JsonCounterTransactionRepository(options);
         await storedTransactions.AddAsync(CreatePaidTransaction());
         var repository = new FailOnceTransactionRepository(storedTransactions);
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
             inventoryRepository: inventory);
@@ -199,7 +205,7 @@ public sealed class TransactionVoidServiceTests
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var staff = new FakeStaffRepository(CreateStaff(currentRole, currentBranch));
-        var service = new TransactionVoidService(repository, staff);
+        var service = CreateVoidService(repository, staff);
 
         var result = await service.VoidAsync("TXN-APP-1", "Reason", "staff-test-1");
 
@@ -214,7 +220,7 @@ public sealed class TransactionVoidServiceTests
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var currentStaff = CreateStaff(StaffRole.BranchManager, "IND01");
         currentStaff.Deactivate();
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(currentStaff));
 
@@ -230,7 +236,7 @@ public sealed class TransactionVoidServiceTests
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var currentStaff = CreateStaff(StaffRole.CounterClerk, "IND01");
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(currentStaff));
 
@@ -247,7 +253,7 @@ public sealed class TransactionVoidServiceTests
         var transaction = CreatePaidTransaction("IND02");
         var repository = new FakeCounterTransactionRepository(transaction);
         var staff = new FakeStaffRepository(CreateStaff(StaffRole.Administrator, "IND01"));
-        var service = new TransactionVoidService(repository, staff);
+        var service = CreateVoidService(repository, staff);
 
         var result = await service.VoidAsync("TXN-APP-1", "Approved correction", "staff-test-1");
 
@@ -261,7 +267,7 @@ public sealed class TransactionVoidServiceTests
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
         var currentStaff = CreateStaff(StaffRole.BranchManager, "IND02");
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(currentStaff));
 
@@ -276,7 +282,7 @@ public sealed class TransactionVoidServiceTests
     public async Task VoidAsync_WhenReasonIsMissing_DoesNotMutate()
     {
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")));
 
@@ -298,7 +304,7 @@ public sealed class TransactionVoidServiceTests
         await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var transaction = CreateOpenTransaction();
         var repository = new FakeCounterTransactionRepository(transaction);
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
             inventoryRepository: inventory);
@@ -322,7 +328,7 @@ public sealed class TransactionVoidServiceTests
         var inventory = new JsonInventoryRepository(directory.CreateOptions());
         await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.CounterClerk, "IND01")),
             inventoryRepository: inventory);
@@ -341,7 +347,7 @@ public sealed class TransactionVoidServiceTests
         var inventory = new JsonInventoryRepository(directory.CreateOptions());
         await inventory.AddAsync(new InventoryStock(new BranchCode("IND01"), new Sku("SKU001"), 1));
         var repository = new FakeCounterTransactionRepository(CreatePaidTransaction());
-        var service = new TransactionVoidService(
+        var service = CreateVoidService(
             repository,
             new FakeStaffRepository(CreateStaff(StaffRole.BranchManager, "IND01")),
             inventoryRepository: inventory);
@@ -361,6 +367,14 @@ public sealed class TransactionVoidServiceTests
         new BranchCode("IND01"),
         "COUNTER01",
         "CLERK01");
+
+    private static TransactionVoidService CreateVoidService(
+        ICounterTransactionRepository repository,
+        IStaffRepository staffRepository,
+        IInventoryRepository? inventoryRepository = null,
+        RecordingUnitOfWork? unitOfWork = null) =>
+        new(repository, staffRepository, unitOfWork ?? new RecordingUnitOfWork(),
+            inventoryRepository: inventoryRepository);
 
     private static StaffEntity CreateStaff(StaffRole role, string branchCode) => new(
         "staff-test-1",

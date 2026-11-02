@@ -22,6 +22,8 @@ The MVC audit filter must record important actions, but audit storage failure mu
 
 Audit writes are durable independently of the business transaction but are not atomically coupled to it. An audit failure is observable in logs and may leave an audit gap; a durable retry/outbox mechanism is not implemented.
 
+Business-row audit metadata is separate from `AuditEntries`: the current model has `CreatedAtUtc`/`CreatedBy` and selected `ModifiedAtUtc` shadow properties, but no persisted `ModifiedBy` property. A submitted field named `ModifiedBy` is therefore not mapped or written; tests assert this model boundary rather than implying a value is persisted.
+
 ## Implementation and verification
 
 See `SqlAuditStore`, `AuditActionFilter`, `AuditActionRecord`, and `SqlEntityMapper`. The filter logs write failures; SQL integration tests verify persistence, and focused Web tests verify safe audit data and that the filter does not replace the action result.

@@ -1,5 +1,7 @@
 # Week 3 requirement gap analysis
 
+> **Historical baseline:** This matrix records the pre-remediation audit and is retained for trainer-evidence traceability. The follow-up corrections and current test results are summarized in [the targeted gap-closure verification](WEEK3-FINAL-TRAINER-VERIFICATION.md#targeted-week-3-gap-closure); do not treat baseline statuses below as the current branch status.
+
 ## Scope and evidence
 
 This audit covers the Week 3 SQL remediation while preserving Week 2 behavior. It excludes Couchbase, CounterTerminal, offline operation, synchronization, SyncInbox/outbox, replication, and conflict resolution. SQL-backed tests were run with `APEXPOST_SQL_TEST_CONNECTION` targeting an isolated `ApexPost_SqlIT_*` catalog. The test fixtures applied migrations and removed their temporary catalogs.

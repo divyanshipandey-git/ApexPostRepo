@@ -1,6 +1,7 @@
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Domain.Entities;
+using ApexPost.Application.Tests.TestSupport;
 using Xunit;
 
 namespace ApexPost.Application.Tests.Services.Shipping;
@@ -13,6 +14,7 @@ public sealed class CourierStatusServiceTimeoutTests
         var service = new CourierStatusService(
             new EmptyShipmentRepository(),
             TimeProvider.System,
+            new RecordingUnitOfWork(),
             TimeSpan.FromMilliseconds(20),
             TimeSpan.FromMilliseconds(200));
 
@@ -27,6 +29,7 @@ public sealed class CourierStatusServiceTimeoutTests
         var service = new CourierStatusService(
             new EmptyShipmentRepository(),
             TimeProvider.System,
+            new RecordingUnitOfWork(),
             TimeSpan.FromSeconds(2),
             TimeSpan.FromSeconds(2));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));

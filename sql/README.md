@@ -35,9 +35,18 @@ Run the `:r` wrapper scripts from the repository root in SQLCMD mode (or use `sq
 
 ## Least-privilege application access
 
-Use a dedicated database role for the Web application's runtime identity; do not grant `db_owner` or `sysadmin`. Grant only required `SELECT`, `INSERT`, and `UPDATE` access on the runtime tables/views and `EXECUTE` on `dbo.usp_AdjustStock`, `dbo.usp_DailyBranchSales`, and `dbo.usp_LowStockReport`. Grant `DELETE` only if a verified runtime workflow requires it. The Web application does not run migrations at startup.
+Use a dedicated database role for the Web application's runtime identity. These grants describe the intended permission set; no deployed restricted principal was provisioned or inspected as part of this repository verification.
 
-Apply migrations with a separate deployment identity that has schema-change permissions, then remove those permissions from the runtime identity. Use managed identity or a secret store for credentials; never put credentials in scripts or source control. Verify effective access with `sys.database_permissions` and a runtime-identity smoke test.
+| Permission | Granted objects | Why the runtime needs it |
+|---|---|---|
+| `SELECT` | Branches, counters, staff, staff credentials, roles, products/categories, branch stock, shipping zones/rates, shipments, counter transactions/lines/tax rates/payments, money orders, identity verifications, and stock movements | Sign-in/role checks, branch and counter authorization, current price/stock validation, transaction and auditor reports, and loading existing records before state changes. |
+| `INSERT` | Branches, counters, staff, staff credentials, products, branch stock, counter transactions, transaction lines/tax rates, payments, shipments, money orders, identity verifications, stock movements, and audit entries | Supported Web workflows create these records; the stock-adjustment and transaction paths must insert their associated history, payment, and audit records. Grant only the subset actually used by enabled features. |
+| `UPDATE` | Branches, counters, staff, products, branch stock, counter transactions, shipments, and money orders | The runtime supports branch/counter/staff/product maintenance, stock adjustment, transaction void/refund state changes, courier status updates, and money-order state changes. |
+| `EXECUTE` | `dbo.usp_AdjustStock`, `dbo.usp_DailyBranchSales`, and `dbo.usp_LowStockReport` | The application calls these parameterized procedures for atomic stock changes and the daily-sales/low-stock report contracts. |
+
+Do **not** grant `DELETE`, `db_owner`, `sysadmin`, `ALTER`, schema ownership, migration-history write access, or database-level security/backup permissions to the runtime identity. The runtime has no startup migration or schema-management workflow; apply migrations through a separate deployment identity with time-bounded schema-change permissions. Do not grant a permission merely because it appears in the sample below: remove any operation or table not required by the deployed feature set.
+
+Use managed identity or a secret store for credentials; never put credentials in scripts or source control. For actual deployment verification, inspect effective access with `sys.database_permissions` and run a runtime-identity smoke test. These steps have not been performed against a deployed restricted identity.
 
 ```sql
 CREATE ROLE [ApexPostRuntime];

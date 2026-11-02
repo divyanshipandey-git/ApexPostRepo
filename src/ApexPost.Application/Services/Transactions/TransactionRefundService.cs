@@ -10,17 +10,18 @@ public sealed class TransactionRefundService
     private readonly ICounterTransactionRepository _transactionRepository;
     private readonly TransactionVoidService _accessService;
     private readonly INotificationService _notifications;
-    private readonly IUnitOfWork? _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
 
     public TransactionRefundService(
         ICounterTransactionRepository transactionRepository,
         TransactionVoidService accessService,
         INotificationService notifications,
-        IUnitOfWork? unitOfWork = null)
+        IUnitOfWork unitOfWork)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
         ArgumentNullException.ThrowIfNull(accessService);
         ArgumentNullException.ThrowIfNull(notifications);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
         _transactionRepository = transactionRepository;
         _accessService = accessService;
         _notifications = notifications;
@@ -71,7 +72,7 @@ public sealed class TransactionRefundService
 
         await _accessService.RestoreSoldRetailStockAsync(transaction, reason.Trim(), staffId!, cancellationToken);
         await _transactionRepository.UpdateAsync(transaction, cancellationToken);
-        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         await _notifications.NotifyTransactionRefundAsync(
             transaction.BranchCode.Value,
             transaction.Id,
