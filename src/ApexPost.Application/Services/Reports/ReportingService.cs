@@ -45,15 +45,18 @@ public sealed class ReportingService
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockReportAsync(
         string? branchCode = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int threshold = 5)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(threshold);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(threshold, 100_000);
 
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode)
             ? null
             : NormalizeBranch(branchCode);
 
-        return (await _dataSource.GetLowStockAsync(normalizedBranch, cancellationToken))
+        return (await _dataSource.GetLowStockAsync(normalizedBranch, threshold, cancellationToken))
             .OrderBy(item => item.BranchCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Sku, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -74,29 +77,7 @@ public sealed class ReportingService
             ? null
             : NormalizeBranch(branchCode);
 
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-
-        var shipments = await _dataSource.GetShipmentsAsync(cancellationToken);
-
-        return shipments
-            .Where(shipment =>
-                shipment.CreatedAt >= start
-                && shipment.CreatedAt < end
-                && (normalizedBranch is null
-                    || string.Equals(
-                        shipment.BranchCode,
-                        normalizedBranch,
-                        StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(shipment => new
-            {
-                Zone = shipment.DestinationZone.Trim().ToUpperInvariant(),
-                Level = shipment.ServiceLevel.Trim()
-            })
-            .Select(group => new ShippingVolumeReportItem(
-                group.Key.Zone,
-                group.Key.Level,
-                group.Count()))
+        return (await _dataSource.GetShippingVolumeAsync(date, normalizedBranch, cancellationToken))
             .OrderBy(item => item.DestinationZone, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.ServiceLevel, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -110,38 +91,8 @@ public sealed class ReportingService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
-
-        // SQL persistence uses a request-scoped DbContext. Keep these reads
-        // sequential because EF Core does not support concurrent operations on it.
-        var moneyOrders = (await _dataSource.GetMoneyOrdersAsync(cancellationToken))
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
-                (normalizedBranch is null || string.Equals(
-                    item.BranchCode,
-                    normalizedBranch,
-                    StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(item => NormalizeBranch(item.BranchCode))
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        var verifications = (await _dataSource.GetIdentityVerificationsAsync(cancellationToken))
-            .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
-                (normalizedBranch is null || string.Equals(
-                    item.BranchCode,
-                    normalizedBranch,
-                    StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(item => NormalizeBranch(item.BranchCode))
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        return moneyOrders.Keys
-            .Union(verifications.Keys, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
-            .Select(code => new BranchServiceActivityReport(
-                code,
-                moneyOrders.GetValueOrDefault(code),
-                verifications.GetValueOrDefault(code)))
-            .ToArray();
+        return await _dataSource.GetBranchServiceActivityAsync(date, normalizedBranch, cancellationToken);
     }
 
     private static string NormalizeBranch(string branchCode) =>

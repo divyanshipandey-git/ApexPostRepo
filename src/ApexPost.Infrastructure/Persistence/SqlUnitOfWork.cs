@@ -32,10 +32,21 @@ public sealed class SqlUnitOfWork(ApexPostDbContext context) : IUnitOfWork
                 await transaction.CommitAsync(cancellationToken);
                 return result;
             }
-            catch
+            catch (Exception operationException)
             {
-                await transaction.RollbackAsync(CancellationToken.None);
                 context.ChangeTracker.Clear();
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException(
+                        "The database operation failed and rollback could not be confirmed.",
+                        operationException,
+                        rollbackException);
+                }
+
                 throw;
             }
         });

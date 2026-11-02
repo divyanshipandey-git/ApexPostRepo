@@ -34,7 +34,7 @@
                 <tbody>
                 @foreach (var item in Model.LowStockItems)
                 {
-                    <tr><th scope="row">@item.Sku</th><td>@item.ProductName</td><td>@item.QuantityOnHand</td><td>@item.ReorderLevel</td></tr>
+                    <tr><th scope="row">@item.Sku</th><td>@item.ProductName</td><td>@item.QuantityOnHand</td><td>@item.Threshold</td></tr>
                 }
                 </tbody>
             </table></div>

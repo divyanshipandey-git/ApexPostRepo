@@ -4,6 +4,21 @@
 
 This matrix maps the authoritative `apexpost.txt` requirements to implementation and verification. “Verified” means the referenced code and/or automated test was inspected or run in this checkout. Simulations and documented deployment limits are called out instead of being presented as production integrations.
 
+## Week 3 SQL remediation status
+
+| Requirement area | Status | Evidence / limitation |
+|---|---|---|
+| MVC report filters and role scope | Verified | `/Reports` accepts UTC date, branch, and validated low-stock threshold. Branch Managers remain restricted to their home branch; Auditors and Administrators may filter by branch. |
+| SQL-side report work | Verified | Daily sales and low stock use parameterized stored procedures; shipment and branch service activity apply date/branch predicates and aggregate in SQL. Application returns report DTOs rather than exposing `IQueryable`. |
+| Administrator price revision | Verified with business-rule assumption | Category price updates use `ExecuteUpdateAsync` inside the SQL unit-of-work transaction. Current behavior sets an absolute fixed price for all products in a category; confirm this assumption before operational use. |
+| Exception and transaction handling | Verified | Concurrency conflicts map to HTTP 409, request cancellation propagates, unexpected exceptions return safe Problem Details, counter-sale persistence failures are logged/compensated, and audit-write failures do not replace business responses. See [exception handling review](EXCEPTION-HANDLING-REVIEW.md). |
+| Database scripts, migration, and ADRs | Verified | Six EF migrations are represented in the generated idempotent script; the latest migration includes rollback definitions. Standalone query/procedure/index/seed/verification scripts and ADR-0016 through ADR-0024 document the organization and decisions. |
+| Query translation and performance evidence | Partially verified | `PERFORMANCE.md` includes three current filtered `ToQueryString()` outputs and historical actual-plan/IO evidence. The actual-plan measurements predate the latest filter changes and do not establish production performance. |
+| Automated validation | Verified | Full SQL-enabled Release solution test run: 390 passed, 0 failed, 0 skipped (112 Domain, 201 Application, 77 Web integration); Release build succeeded with 0 warnings and 0 errors. |
+| Explicit exclusions | Verified | No Couchbase, CounterTerminal, offline mode, synchronization, SyncInbox/outbox, or conflict-resolution code was added. |
+
+For the complete request-by-request assessment and remaining caveats, see the [Week 3 requirement gap analysis](WEEK3-REQUIREMENT-GAP-ANALYSIS.md) and [Week 3 final submission report](WEEK3-FINAL-SUBMISSION-REPORT.md).
+
 ## Part A — Functional requirements
 
 | Spec | Requirement | Status | Evidence / limitation |

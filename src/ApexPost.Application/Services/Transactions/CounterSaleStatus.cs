@@ -14,6 +14,7 @@ public enum CounterSaleStatus
     CounterNotFound,
     CounterInactive,
     InsufficientStock,
+    ConcurrencyConflict,
     ShippingUnavailable,
     MoneyOrderVerificationRequired,
     PersistenceFailure

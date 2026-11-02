@@ -8,6 +8,7 @@ using ApexPost.Application.Services.MoneyOrders;
 using ApexPost.Application.Services.Products;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
+using Microsoft.Extensions.Logging;
 
 namespace ApexPost.Application.Services.Transactions;
 
@@ -29,6 +30,7 @@ public sealed class CounterSaleService
     private readonly INotificationService _notifications;
     private readonly ProductCatalogCache? _productCatalogCache;
     private readonly IUnitOfWork? _unitOfWork;
+    private readonly ILogger<CounterSaleService>? _logger;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -45,7 +47,8 @@ public sealed class CounterSaleService
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider,
         ProductCatalogCache? productCatalogCache = null,
-        IUnitOfWork? unitOfWork = null)
+        IUnitOfWork? unitOfWork = null,
+        ILogger<CounterSaleService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(transactionRepository);
         ArgumentNullException.ThrowIfNull(inventoryRepository);
@@ -76,6 +79,7 @@ public sealed class CounterSaleService
         _timeProvider = timeProvider;
         _productCatalogCache = productCatalogCache;
         _unitOfWork = unitOfWork;
+        _logger = logger;
     }
 
     public async Task<CounterSaleResult> CompleteAsync(
@@ -361,7 +365,11 @@ public sealed class CounterSaleService
             // already sold by the winning concurrent request.
             if (persistenceException is ConcurrencyConflictException)
             {
-                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
+                _logger?.LogWarning(
+                    persistenceException,
+                    "Counter sale was rejected by a stock concurrency conflict for counter {CounterId}.",
+                    request.CounterId);
+                return new CounterSaleResult(CounterSaleStatus.ConcurrencyConflict);
             }
 
             // Compensation uses a non-cancelable token so a disconnected client cannot strand reserved stock.
@@ -401,6 +409,10 @@ public sealed class CounterSaleService
                 throw;
             }
 
+            _logger?.LogError(
+                persistenceException,
+                "Counter sale persistence failed for counter {CounterId}; compensating changes completed.",
+                request.CounterId);
             return new CounterSaleResult(CounterSaleStatus.PersistenceFailure);
         }
 

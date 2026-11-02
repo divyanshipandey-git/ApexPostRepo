@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Inventory;
 using ApexPost.Domain.Entities;
@@ -84,6 +85,12 @@ public sealed class StockController(
                 Response.StatusCode = StatusCodes.Status400BadRequest;
                 return await BuildViewAsync(code, model, cancellationToken);
             }
+        }
+        catch (ConcurrencyConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "Stock changed while you were editing it. Refresh and try again.");
+            Response.StatusCode = StatusCodes.Status409Conflict;
+            return await BuildViewAsync(code, model, cancellationToken);
         }
         catch (InvalidOperationException exception)
         {

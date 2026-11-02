@@ -138,10 +138,10 @@ dotnet test ApexPost.sln --logger "console;verbosity=minimal"
 
 Expected result:
 
-- 379 passed
+- 390 passed
 - 0 failed
 - 0 skipped
-- 379 total
+- 390 total
 
 Then confirm the temporary databases were cleaned up after the run.
 

@@ -65,6 +65,16 @@ public sealed class JsonReportDataSource : IReportDataSource
             .Select(item => new LowStockReportItem(item.BranchCode, item.Sku, item.ProductName, item.QuantityOnHand, item.ReorderLevel))
             .ToArray();
 
+    public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
+        string? branchCode,
+        int threshold,
+        CancellationToken cancellationToken = default) =>
+        (await GetInventoryAsync(cancellationToken))
+            .Where(item => item.QuantityOnHand <= threshold &&
+                (branchCode is null || string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase)))
+            .Select(item => new LowStockReportItem(item.BranchCode, item.Sku, item.ProductName, item.QuantityOnHand, threshold))
+            .ToArray();
+
     public async Task<IReadOnlyList<ReportTransaction>> GetTransactionsAsync(
         CancellationToken cancellationToken = default)
     {

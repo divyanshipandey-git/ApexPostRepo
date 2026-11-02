@@ -133,6 +133,7 @@ Relevant migration files:
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031174229_SeedShippingZonesAndRates.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261031175835_GuardStockAdjustmentOverflow.cs`
 - `src/ApexPost.Infrastructure/Persistence/Migrations/20261101010000_UpdateDailyBranchSalesProcedure.cs`
+- `src/ApexPost.Infrastructure/Persistence/Migrations/20261102000000_AddReportFilters.cs`
 
 The idempotent deployment script is:
 

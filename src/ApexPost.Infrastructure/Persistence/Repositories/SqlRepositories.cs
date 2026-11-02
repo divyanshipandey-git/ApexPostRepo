@@ -69,6 +69,20 @@ public sealed class SqlProductRepository(ApexPostDbContext db) : IProductReposit
         await db.Products.AsNoTracking().ToArrayAsync(cancellationToken);
 }
 
+public sealed class SqlProductPriceRevisionRepository(ApexPostDbContext db)
+    : IProductPriceRevisionRepository
+{
+    public Task<int> SetCategoryPriceAsync(
+        ProductCategory category,
+        Money unitPrice,
+        CancellationToken cancellationToken = default) =>
+        db.Products
+            .Where(product => product.Category == category)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(product => product.UnitPrice, unitPrice),
+                cancellationToken);
+}
+
 public sealed class SqlInventoryRepository(ApexPostDbContext db) : IStockRepository
 {
     private readonly Dictionary<Guid, InventoryReservation> _reservations = [];
@@ -229,7 +243,7 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         CancellationToken cancellationToken = default)
     {
         var rows = await db.Database.SqlQuery<DailyBranchSalesProcedureRow>(
-                $"EXEC dbo.usp_DailyBranchSales @ReportDate={date}, @BranchCode={branchCode}")
+                $"EXEC dbo.usp_DailyBranchSales @BranchCode={branchCode}, @Date={date}")
             .ToArrayAsync(cancellationToken);
         return rows.Select(row => new ReportDailyBranchSales(
             row.BranchCode, DateOnly.FromDateTime(row.SaleDate), checked((int)row.TransactionCount),
@@ -241,10 +255,110 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         CancellationToken cancellationToken = default)
     {
         var rows = await db.Database.SqlQuery<LowStockProcedureRow>(
-                $"EXEC dbo.usp_LowStockReport @ReorderLevel={5}, @BranchCode={branchCode}")
+                $"EXEC dbo.usp_LowStockReport @Threshold={5}, @BranchCode={branchCode}")
             .ToArrayAsync(cancellationToken);
         return rows.Select(row => new LowStockReportItem(
-            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.ReorderLevel)).ToArray();
+            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
+        string? branchCode,
+        int threshold,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await db.Database.SqlQuery<LowStockProcedureRow>(
+                $"EXEC dbo.usp_LowStockReport @Threshold={threshold}, @BranchCode={branchCode}")
+            .ToArrayAsync(cancellationToken);
+        return rows.Select(row => new LowStockReportItem(
+            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<ShippingVolumeReportItem>> GetShippingVolumeAsync(
+        DateOnly date,
+        string? branchCode,
+        CancellationToken cancellationToken = default)
+    {
+        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var query = db.Shipments.AsNoTracking()
+            .Where(shipment => shipment.CreatedAtUtc >= start && shipment.CreatedAtUtc < end);
+        if (branchCode is not null)
+        {
+            var branch = new BranchCode(branchCode);
+            query = query.Where(shipment => shipment.BranchCode == branch);
+        }
+
+        var rows = await query
+            .GroupBy(shipment => new { shipment.DestinationZone, shipment.ServiceLevel })
+            .Select(group => new
+            {
+                group.Key.DestinationZone,
+                group.Key.ServiceLevel,
+                ShipmentCount = group.Count()
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return rows.Select(row => new ShippingVolumeReportItem(
+            row.DestinationZone.Trim().ToUpperInvariant(),
+            row.ServiceLevel.ToString(),
+            row.ShipmentCount)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<BranchServiceActivityReport>> GetBranchServiceActivityAsync(
+        DateOnly date,
+        string? branchCode,
+        CancellationToken cancellationToken = default)
+    {
+        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var orders = db.MoneyOrders.AsNoTracking()
+            .Where(order => order.CreatedAtUtc >= start && order.CreatedAtUtc < end && order.BranchCode != null);
+        if (branchCode is not null)
+        {
+            orders = orders.Where(order => order.BranchCode == new BranchCode(branchCode));
+        }
+
+        var orderCounts = await orders
+            .GroupBy(order => order.BranchCode)
+            .Select(group => new { BranchCode = group.Key, Count = group.Count() })
+            .ToArrayAsync(cancellationToken);
+
+        var verifications = from order in db.MoneyOrders.AsNoTracking()
+                            join identity in db.IdentityVerifications.AsNoTracking()
+                                on order.Id equals identity.MoneyOrderId
+                            where order.BranchCode != null &&
+                                  identity.VerifiedAtUtc >= start &&
+                                  identity.VerifiedAtUtc < end
+                            select new { BranchCode = order.BranchCode };
+        if (branchCode is not null)
+        {
+            var selectedBranch = new BranchCode(branchCode);
+            verifications = verifications.Where(item => item.BranchCode == selectedBranch);
+        }
+
+        var verificationCounts = await verifications
+            .GroupBy(item => item.BranchCode)
+            .Select(group => new { BranchCode = group.Key, Count = group.Count() })
+            .ToArrayAsync(cancellationToken);
+
+        var results = orderCounts.ToDictionary(
+            row => row.BranchCode!.Value,
+            row => (Orders: row.Count, Verifications: 0));
+        foreach (var row in verificationCounts)
+        {
+            var verificationBranch = row.BranchCode!.Value;
+            var current = results.GetValueOrDefault(verificationBranch);
+            results[verificationBranch] = (current.Orders, row.Count);
+        }
+        if (branchCode is not null)
+        {
+            results.TryAdd(new BranchCode(branchCode).Value, (0, 0));
+        }
+
+        return results.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => new BranchServiceActivityReport(
+                pair.Key, pair.Value.Orders, pair.Value.Verifications))
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<ReportTransaction>> GetTransactionsAsync(CancellationToken cancellationToken = default)
@@ -302,5 +416,5 @@ public sealed class LowStockProcedureRow
     public string Sku { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
-    public int ReorderLevel { get; set; }
+    public int Threshold { get; set; }
 }

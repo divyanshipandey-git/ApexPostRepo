@@ -19,9 +19,9 @@ The baseline forces the relevant primary-key access path with an `INDEX` hint on
 
 The source output contains actual plan XML following each labelled query, plus the exact SQL Server messages. Physical reads vary with cache state and are therefore not used to claim an improvement.
 
-## Generated SQL samples
+## Historical EF SQL samples (2026-11-01)
 
-These are the SQL Server translations captured with EF Core `ToQueryString()` by `SqlQueryDiagnostics.Capture` on 2026-11-01. The translation output is preserved here as emitted; parameterized runtime operations and stored-procedure calls remain separate from these read-query examples.
+These translations were captured before the current date/branch-filtered report paths were added. They are retained as historical diagnostics, not descriptions of the current MVC report queries. Stored-procedure-backed daily-sales and low-stock reports are invoked as parameterized commands and do not have `ToQueryString()` output.
 
 ### Paid branch sales
 
@@ -57,6 +57,50 @@ SELECT [m].[Id], [m].[BranchCode], [m].[Amount], [m].[Fee], [m].[TransactionId],
 FROM [MoneyOrders] AS [m]
 WHERE [m].[CreatedAtUtc] >= DATEADD(day, CAST(-30.0E0 AS int), CAST(SYSUTCDATETIME() AS datetimeoffset))
 ORDER BY [m].[CreatedAtUtc] DESC
+```
+
+## Current filtered EF query samples (2026-11-02)
+
+The following three translations were captured with EF Core `ToQueryString()` using the current `SqlQueryDiagnostics.Capture` implementation. They represent the current date-and-branch-filtered shipment and branch service activity query shapes. The sample uses UTC date `2026-11-02` and branch `P01`; capturing SQL does not execute the queries or measure their runtime.
+
+### Filtered shipment volume
+
+```sql
+DECLARE @p datetime2 = '2026-11-02T00:00:00.0000000Z';
+DECLARE @p1 datetime2 = '2026-11-03T00:00:00.0000000Z';
+DECLARE @branch varchar(10) = 'P01';
+
+SELECT [s].[ZoneCode] AS [DestinationZone], [s].[ServiceLevel], COUNT(*) AS [ShipmentCount]
+FROM [Shipments] AS [s]
+WHERE [s].[CreatedAtUtc] >= @p AND [s].[CreatedAtUtc] < @p1 AND [s].[BranchCode] = @branch
+GROUP BY [s].[ZoneCode], [s].[ServiceLevel]
+```
+
+### Money-order activity by branch
+
+```sql
+DECLARE @p datetime2 = '2026-11-02T00:00:00.0000000Z';
+DECLARE @p1 datetime2 = '2026-11-03T00:00:00.0000000Z';
+DECLARE @branch varchar(10) = 'P01';
+
+SELECT [m].[BranchCode], COUNT(*) AS [Count]
+FROM [MoneyOrders] AS [m]
+WHERE [m].[CreatedAtUtc] >= @p AND [m].[CreatedAtUtc] < @p1 AND [m].[BranchCode] IS NOT NULL AND [m].[BranchCode] = @branch
+GROUP BY [m].[BranchCode]
+```
+
+### Identity-verification activity by branch
+
+```sql
+DECLARE @p datetime2 = '2026-11-02T00:00:00.0000000Z';
+DECLARE @p1 datetime2 = '2026-11-03T00:00:00.0000000Z';
+DECLARE @branch varchar(10) = 'P01';
+
+SELECT [m].[BranchCode], COUNT(*) AS [Count]
+FROM [MoneyOrders] AS [m]
+INNER JOIN [IdentityVerifications] AS [i] ON [m].[Id] = [i].[MoneyOrderId]
+WHERE [m].[BranchCode] IS NOT NULL AND [i].[VerifiedAtUtc] >= @p AND [i].[VerifiedAtUtc] < @p1 AND [m].[BranchCode] = @branch
+GROUP BY [m].[BranchCode]
 ```
 
 ## Non-SARGable comparison

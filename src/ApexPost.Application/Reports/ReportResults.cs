@@ -14,7 +14,7 @@ public sealed record LowStockReportItem(
     string Sku,
     string ProductName,
     int QuantityOnHand,
-    int ReorderLevel);
+    int Threshold);
 
 public sealed record ShippingVolumeReportItem(
     string DestinationZone,

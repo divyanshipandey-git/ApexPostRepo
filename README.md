@@ -24,7 +24,7 @@ $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=Apex
 dotnet test ApexPost.sln --no-restore
 ```
 
-The latest full run with the SQL test connection configured passed 379 tests: 112 Domain, 192 Application, and 75 Web integration tests, with 0 failures and 0 skips.
+The latest full Release run with the SQL test connection configured passed 390 tests: 112 Domain, 201 Application, and 77 Web integration tests, with 0 failures and 0 skips.
 
 Run the web application:
 
@@ -48,7 +48,7 @@ Create/update the database explicitly. The Web application does not run migratio
 dotnet ef database update --project src/ApexPost.Infrastructure --startup-project src/ApexPost.Web
 ```
 
-The reviewed idempotent deployment script is [docs/sql/ApexPostDb-idempotent.sql](docs/sql/ApexPostDb-idempotent.sql). To run the Web app after migrations:
+The generated idempotent deployment script is [database/schema/ApexPostDb-idempotent.sql](database/schema/ApexPostDb-idempotent.sql). The [database guide](database/README.md) explains SQL file ownership, execution order, and verification. To run the Web app after migrations:
 
 ```powershell
 dotnet run --project src/ApexPost.Web
@@ -110,7 +110,13 @@ $headers = @{ "X-Api-Key" = $env:APEXPOST_INTEGRATION_API_KEY; "Content-Type" = 
 Invoke-RestMethod -Method Post -Uri "https://localhost:5001/api/integrations/courier/shipments/SHP-EXAMPLE/status" -Headers $headers -Body '{"status":"In transit"}'
 ```
 
-The staff MVC inventory inquiry is at `/Inventory/Index`; catalogue details are at `/Products`. Branch Managers and Administrators can adjust SQL-backed stock at `/Stock`. Staff administration is at `/Staff` and requires `Security:AdminAllowedIps`. Counter sales are created at `/Transactions/Create`; shipment, money-order, identity, transaction, payment, inventory, reporting, and audit persistence use SQL Server repositories in the running Web application. Voids and full refunds require an authorized manager/administrator and a reason; eligible retail stock is restored in the same database transaction with a unique reversal movement to prevent duplicate restoration. These workflows do not cancel shipments or money orders and do not call a payment provider. Shipping rates and tax values in `appsettings.json` are illustrative configuration and must be replaced with approved values before operational use. Successful sales use receipt redirects; receipt shipment links use the shipment service-line reference. The dashboard is `/`, reports are at `/Reports`, and transaction review is at `/Transactions`. Courier tracking and notifications remain simulations. The product cache is scoped to the SQL-backed repository lifetime.
+The staff MVC inventory inquiry is at `/Inventory/Index`; catalogue details are at `/Products`. Administrators can set a fixed unit price for a product category at `/Products/PriceRevision`; this is the current assumed price-revision business rule. Branch Managers and Administrators can adjust SQL-backed stock at `/Stock`. Staff administration is at `/Staff` and requires `Security:AdminAllowedIps`. Counter sales are created at `/Transactions/Create`; shipment, money-order, identity, transaction, payment, inventory, reporting, and audit persistence use SQL Server repositories in the running Web application. Voids and full refunds require an authorized manager/administrator and a reason; eligible retail stock is restored in the same database transaction with a unique reversal movement to prevent duplicate restoration. These workflows do not cancel shipments or money orders and do not call a payment provider. Shipping rates and tax values in `appsettings.json` are illustrative configuration and must be replaced with approved values before operational use. Successful sales use receipt redirects; receipt shipment links use the shipment service-line reference. The dashboard is `/`, reports are at `/Reports`, and transaction review is at `/Transactions`. Courier tracking and notifications remain simulations. The product cache is scoped to the SQL-backed repository lifetime.
+
+### Daily sales and reports
+
+Use an authorized Branch Manager, Auditor, or Administrator account and open `/Reports`. Select a UTC report date, select a branch (Auditors and Administrators can choose any branch or all branches; Branch Managers remain restricted to their home branch), and enter a non-negative low-stock threshold from 0 to 100000. The screen shows retail, services, and overall daily sales totals, low-stock SKUs and quantities, shipping counts grouped by zone/service, and (for Auditors/Administrators) branch-level money-order and verification counts. Empty results show an explicit no-records message; reports do not generate synthetic activity. Procedure/query invocation examples are under [database/queries](database/queries/).
+
+The remediation intentionally excludes Couchbase, `ApexPost.CounterTerminal`, offline-first behavior, synchronization, SyncInbox/outbox, and conflict-resolution workflows. See the [Week 3 requirement gap analysis](docs/WEEK3-REQUIREMENT-GAP-ANALYSIS.md) for implemented status and remaining evidence gaps, and the [exception handling review](docs/EXCEPTION-HANDLING-REVIEW.md) for transaction/error behavior.
 
 ## Architecture
 

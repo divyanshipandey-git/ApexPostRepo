@@ -1,0 +1,35 @@
+@model ApexPost.Web.Models.Products.PriceRevisionViewModel
+@{
+    ViewData["Title"] = "Revise category prices";
+    var categories = ViewData["PriceCategories"] as string[] ?? [];
+}
+
+<section class="page-heading">
+    <p class="eyebrow">Administrator</p>
+    <h1>Revise category prices</h1>
+    <p>Set a new unit price for every product in one category. The revision is committed as one SQL operation.</p>
+</section>
+
+<form asp-action="RevisePrices" method="post" class="card surface-card">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <div class="mb-3">
+            <label asp-for="Category" class="form-label">Product category</label>
+            <select asp-for="Category" class="form-select">
+                <option value="">Select a category</option>
+                @foreach (var category in categories)
+                {
+                    <option value="@category">@category</option>
+                }
+            </select>
+            <span asp-validation-for="Category" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="UnitPrice" class="form-label">New unit price (INR)</label>
+            <input asp-for="UnitPrice" class="form-control" type="number" min="0" max="1000000" step="0.01" />
+            <span asp-validation-for="UnitPrice" class="text-danger"></span>
+        </div>
+        <button type="submit" class="button button-primary">Apply price revision</button>
+        <a asp-action="Index" class="button button-secondary">Cancel</a>
+    </div>
+</form>

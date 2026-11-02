@@ -41,6 +41,7 @@ public static class SqlInfrastructureExtensions
         services.TryAddScoped<IStaffRepository, SqlStaffRepository>();
         services.TryAddScoped<IStaffCredentialRepository, SqlStaffCredentialRepository>();
         services.TryAddScoped<IProductRepository, SqlProductRepository>();
+        services.TryAddScoped<IProductPriceRevisionRepository, SqlProductPriceRevisionRepository>();
         services.TryAddScoped<SqlInventoryRepository>();
         services.TryAddScoped<IInventoryRepository>(provider => provider.GetRequiredService<SqlInventoryRepository>());
         services.TryAddScoped<IStockRepository>(provider => provider.GetRequiredService<SqlInventoryRepository>());
