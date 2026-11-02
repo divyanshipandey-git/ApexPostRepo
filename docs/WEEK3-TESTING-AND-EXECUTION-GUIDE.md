@@ -46,9 +46,7 @@ The existing EF Core migration structure is part of the repository:
 dotnet ef database update --project src/ApexPost.Infrastructure/ApexPost.Infrastructure.csproj --startup-project src/ApexPost.Web/ApexPost.Web.csproj
 ```
 
-The generated idempotent deployment script is available in:
-
-- `docs/sql/ApexPostDb-idempotent.sql`
+The generated idempotent deployment script is available at `database/schema/ApexPostDb-idempotent.sql`.
 
 ## 5. Run the application
 
@@ -118,14 +116,18 @@ dotnet test tests/ApexPost.Web.IntegrationTests/ApexPost.Web.IntegrationTests.cs
 dotnet test ApexPost.sln --logger "console;verbosity=minimal"
 ```
 
-With `APEXPOST_SQL_TEST_CONNECTION` configured, the validator result is:
+The latest SQL-enabled Release run on this remediation checkout reported:
 
-- Passed: 379
+- Passed: 407
 - Failed: 0
 - Skipped: 0
-- Total: 379
+- Total: 407
+
+Project totals: 112 Domain tests, 214 Application tests, and 81 Web integration tests. The SQL-backed Application and Web tests were enabled by the isolated LocalDB connection. The explicit Release build succeeded with 0 warnings and 0 errors.
 
 The SQL coverage includes repository reads/writes, transaction rollback, audit persistence and repeat-safe import, inventory adjustment/reversal movements, shipment and money-order/identity persistence, and SQL-backed MVC reads/writes. The SQL-backed sale and reversal assertions re-read data through new contexts after the operation.
+
+The SQL-enabled run exercised the current migrations, report queries and MVC paths, sale atomicity/rollback, role access, over-posting resistance, and fresh-context persistence. See [PERFORMANCE.md](../PERFORMANCE.md) for synthetic LocalDB query-plan and workload measurements. It is not a production-capacity claim.
 
 ## 9. Check test results and database cleanup
 
@@ -141,10 +143,7 @@ To verify manually:
 sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "SELECT name FROM sys.databases WHERE name LIKE 'ApexPost%' ORDER BY name;"
 ```
 
-Expected result:
-
-- `ApexPostDb`
-- no temporary `ApexPost_SqlIT_*` databases left behind
+Expected result: `ApexPostDb` remains, with no `ApexPost_SqlIT_*` or `ApexPost_PerfEvidence_*` databases left behind. The completed verification run found only `ApexPostDb` among those names.
 
 ## 10. Troubleshooting common errors
 

@@ -1,4 +1,5 @@
 ﻿
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Domain.Entities;
@@ -134,6 +135,37 @@ public sealed class ShippingServiceTests
         Assert.Null(repository.AddedShipment);
     }
 
+    [Fact]
+    public async Task CreateShipmentAsync_WhenStandalone_SavesOnce()
+    {
+        var repository = new FakeShipmentRepository();
+        var unitOfWork = new SpyUnitOfWork();
+        var service = new ShippingService(
+            repository,
+            new[]
+            {
+                new ShippingPricingRule(
+                    "ZONE1",
+                    ShippingServiceLevel.Standard,
+                    1m,
+                    new Money(50m))
+            },
+            unitOfWork: unitOfWork);
+
+        var shipment = await service.CreateShipmentAsync(
+            "SHIP001",
+            "Parcel",
+            1m,
+            10m,
+            10m,
+            10m,
+            "ZONE1",
+            ShippingServiceLevel.Standard);
+
+        Assert.Same(shipment, repository.AddedShipment);
+        Assert.Equal(1, unitOfWork.SaveChangesCount);
+    }
+
     private static ShippingService CreateService(
         decimal maximumWeightKg = 30m)
     {
@@ -206,5 +238,25 @@ public sealed class ShippingServiceTests
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class SpyUnitOfWork : IUnitOfWork
+    {
+        public bool SupportsAtomicTransactions => false;
+
+        public int SaveChangesCount { get; private set; }
+
+        public Task<int> SaveChangesAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SaveChangesCount++;
+            return Task.FromResult(1);
+        }
+
+        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

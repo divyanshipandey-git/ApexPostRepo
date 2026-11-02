@@ -3,9 +3,13 @@
     var dashboardIsActive = string.Equals(controller, "Home", StringComparison.OrdinalIgnoreCase);
     var inventoryIsActive = string.Equals(controller, "Inventory", StringComparison.OrdinalIgnoreCase);
     var reportsIsActive = string.Equals(controller, "Reports", StringComparison.OrdinalIgnoreCase);
+    var canViewAuditorDetails = User.IsInRole("Auditor") || User.IsInRole("Administrator");
     var transactionsIsActive = string.Equals(controller, "Transactions", StringComparison.OrdinalIgnoreCase);
     var moneyOrdersIsActive = string.Equals(controller, "MoneyOrders", StringComparison.OrdinalIgnoreCase);
     var action = ViewContext.RouteData.Values["action"]?.ToString();
+    var auditorMoneyOrdersIsActive = reportsIsActive && string.Equals(action, "MoneyOrders", StringComparison.OrdinalIgnoreCase);
+    var auditorIdentityIsActive = reportsIsActive && string.Equals(action, "IdentityVerifications", StringComparison.OrdinalIgnoreCase);
+    var auditorTopProductsIsActive = reportsIsActive && string.Equals(action, "TopProducts", StringComparison.OrdinalIgnoreCase);
     var newTransactionIsActive = transactionsIsActive && (action is "Create" or "Receipt");
     var canCreateTransactions = User.IsInRole("CounterClerk") || User.IsInRole("BranchManager") || User.IsInRole("Administrator");
     var canManageTransactions = User.IsInRole("BranchManager") || User.IsInRole("Administrator");
@@ -82,5 +86,11 @@
             <span class="navigation-icon" aria-hidden="true">▤</span>
             <span>Reports</span>
         </a>
+    }
+    @if (canViewAuditorDetails)
+    {
+        <a asp-controller="Reports" asp-action="MoneyOrders" class="nav-link navigation-link @(auditorMoneyOrdersIsActive ? "is-active active" : string.Empty)" aria-current="@(auditorMoneyOrdersIsActive ? "page" : null)">Money order audit</a>
+        <a asp-controller="Reports" asp-action="IdentityVerifications" class="nav-link navigation-link @(auditorIdentityIsActive ? "is-active active" : string.Empty)" aria-current="@(auditorIdentityIsActive ? "page" : null)">Identity verification audit</a>
+        <a asp-controller="Reports" asp-action="TopProducts" class="nav-link navigation-link @(auditorTopProductsIsActive ? "is-active active" : string.Empty)" aria-current="@(auditorTopProductsIsActive ? "page" : null)">Top products by region</a>
     }
 </nav>

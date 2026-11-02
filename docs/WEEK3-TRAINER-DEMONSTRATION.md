@@ -138,10 +138,12 @@ dotnet test ApexPost.sln --logger "console;verbosity=minimal"
 
 Expected result:
 
-- 379 passed
+- 407 passed
 - 0 failed
 - 0 skipped
-- 379 total
+- 407 total
+
+Project totals: 112 Domain, 214 Application, and 81 Web integration tests.
 
 Then confirm the temporary databases were cleaned up after the run.
 

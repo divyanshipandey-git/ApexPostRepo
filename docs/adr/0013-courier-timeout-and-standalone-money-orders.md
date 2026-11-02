@@ -17,4 +17,4 @@ Courier status processing needs bounded work, timeout handling, and separate cal
 
 - The endpoint can demonstrate a slow-courier timeout without blocking threads, and its simulation delay defaults to zero.
 - Money-order fee, identity policy, inventory/transaction persistence, audit filtering, and notification behavior remain centralized in the existing application workflow.
-- The label and money-order records remain limited by the current domain's missing recipient postal-address fields and non-atomic multi-file persistence.
+- The label preview remains limited by the domain's missing recipient postal-address fields. Current SQL persistence uses the scoped unit of work; the historical JSON compensation limitation is not a Web-runtime behavior.

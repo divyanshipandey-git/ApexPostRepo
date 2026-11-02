@@ -38,9 +38,32 @@ public sealed record ReportShipment(
 public sealed record ReportMoneyOrder(
     string BranchCode,
     string MoneyOrderId,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    decimal Amount = 0m,
+    decimal Fee = 0m,
+    string? TransactionId = null);
 
 public sealed record ReportIdentityVerification(
     string BranchCode,
     string VerificationId,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string MoneyOrderId = "",
+    string DocumentType = "",
+    string MaskedDocumentNumber = "",
+    bool IsVerified = false);
+
+public sealed record TopProductRevenueReportItem(
+    string Region,
+    int RegionRank,
+    string Sku,
+    string ProductName,
+    decimal Revenue);
+
+public sealed record PagedReport<T>(
+    IReadOnlyList<T> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount)
+{
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+}
