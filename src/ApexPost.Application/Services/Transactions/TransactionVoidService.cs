@@ -1,4 +1,5 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
@@ -16,12 +17,14 @@ public sealed class TransactionVoidService
     private readonly IStaffRepository _staffRepository;
     private readonly INotificationService? _notifications;
     private readonly IInventoryRepository? _inventoryRepository;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public TransactionVoidService(
         ICounterTransactionRepository repository,
         IStaffRepository staffRepository,
         INotificationService? notifications = null,
-        IInventoryRepository? inventoryRepository = null)
+        IInventoryRepository? inventoryRepository = null,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(staffRepository);
@@ -29,6 +32,7 @@ public sealed class TransactionVoidService
         _staffRepository = staffRepository;
         _notifications = notifications;
         _inventoryRepository = inventoryRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<TransactionVoidResult> GetAccessibleAsync(
@@ -122,8 +126,9 @@ public sealed class TransactionVoidService
             return new TransactionVoidResult(TransactionVoidStatus.InvalidReason, transaction);
         }
 
-        await RestoreSoldRetailStockAsync(transaction, cancellationToken);
+        await RestoreSoldRetailStockAsync(transaction, reason.Trim(), staffId!, cancellationToken);
         await _repository.UpdateAsync(transaction, cancellationToken);
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
         if (_notifications is not null)
         {
             await _notifications.NotifyTransactionVoidAsync(
@@ -138,6 +143,13 @@ public sealed class TransactionVoidService
 
     internal async Task RestoreSoldRetailStockAsync(
         CounterTransaction transaction,
+        CancellationToken cancellationToken = default)
+        => await RestoreSoldRetailStockAsync(transaction, transaction.Reason ?? "Transaction reversal", transaction.ClerkId, cancellationToken);
+
+    internal async Task RestoreSoldRetailStockAsync(
+        CounterTransaction transaction,
+        string reason,
+        string changedBy,
         CancellationToken cancellationToken = default)
     {
         if (_inventoryRepository is null)
@@ -156,6 +168,8 @@ public sealed class TransactionVoidService
                 transaction.Id,
                 transaction.BranchCode.Value,
                 quantities,
+                reason,
+                changedBy,
                 cancellationToken);
         }
     }

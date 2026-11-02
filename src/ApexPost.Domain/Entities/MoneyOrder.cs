@@ -64,7 +64,7 @@ public sealed class MoneyOrder
         BranchCode branchCode,
         string transactionId,
         IdentityVerification? identityVerification,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset? createdAtUtc)
     {
         ArgumentNullException.ThrowIfNull(branchCode);
         ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
@@ -74,7 +74,7 @@ public sealed class MoneyOrder
             throw new InvalidOperationException("A money order can only be attached to one counter transaction.");
         }
 
-        if (createdAtUtc.Offset != TimeSpan.Zero)
+        if (createdAtUtc.HasValue && createdAtUtc.Value.Offset != TimeSpan.Zero)
         {
             throw new ArgumentException("Money order timestamps must be UTC.", nameof(createdAtUtc));
         }

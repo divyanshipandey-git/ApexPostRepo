@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 
@@ -11,13 +12,15 @@ public sealed class ShippingService
     private readonly IReadOnlyCollection<ShippingPricingRule> _pricingRules;
     private readonly IReadOnlyDictionary<ShippingServiceLevel, decimal> _maximumWeightKgByServiceLevel;
     private readonly TimeProvider _timeProvider;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public ShippingService(
         IShipmentRepository shipmentRepository,
         IEnumerable<ShippingPricingRule> pricingRules,
         decimal maximumWeightKg = 30m,
         TimeProvider? timeProvider = null,
-        IReadOnlyDictionary<ShippingServiceLevel, decimal>? maximumWeightKgByServiceLevel = null)
+        IReadOnlyDictionary<ShippingServiceLevel, decimal>? maximumWeightKgByServiceLevel = null,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(pricingRules);
@@ -44,6 +47,7 @@ public sealed class ShippingService
             }
         }
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _unitOfWork = unitOfWork;
     }
 
     public Money CalculatePrice(
@@ -120,6 +124,8 @@ public sealed class ShippingService
         await _shipmentRepository.AddAsync(
             shipment,
             cancellationToken);
+        if (counterTransactionId is null && _unitOfWork is not null)
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return shipment;
     }

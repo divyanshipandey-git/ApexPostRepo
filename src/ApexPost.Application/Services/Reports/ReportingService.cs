@@ -23,36 +23,11 @@ public sealed class ReportingService
         cancellationToken.ThrowIfCancellationRequested();
 
         var normalizedBranch = NormalizeBranch(branchCode);
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-
-        var transactions = await _dataSource.GetTransactionsAsync(cancellationToken);
-
-        var completed = transactions
-            .Where(t =>
-                string.Equals(t.BranchCode, normalizedBranch, StringComparison.OrdinalIgnoreCase)
-                && t.IsCompleted
-                && t.OccurredAt >= start
-                && t.OccurredAt < end)
-            .ToArray();
-
-        var retail = completed
-            .Where(t => t.Category == ReportSaleCategory.Retail)
-            .Sum(t => t.Total);
-
-        var services = completed
-            .Where(t => t.Category == ReportSaleCategory.Service)
-            .Sum(t => t.Total);
-
-        return new DailyBranchSalesReport(
-            normalizedBranch,
-            date,
-            completed.Select(transaction => transaction.TransactionId)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count(),
-            retail,
-            services,
-            retail + services);
+        var report = (await _dataSource.GetDailyBranchSalesAsync(date, normalizedBranch, cancellationToken))
+            .SingleOrDefault();
+        return report is null
+            ? new DailyBranchSalesReport(normalizedBranch, date, 0, 0m, 0m, 0m)
+            : ToDailyReport(report);
     }
 
     public async Task<IReadOnlyList<DailyBranchSalesReport>> GetDailyBranchSalesReportsAsync(
@@ -62,29 +37,8 @@ public sealed class ReportingService
     {
         cancellationToken.ThrowIfCancellationRequested();
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
-        var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var transactions = await _dataSource.GetTransactionsAsync(cancellationToken);
-
-        return transactions
-            .Where(transaction => transaction.IsCompleted &&
-                transaction.OccurredAt >= start && transaction.OccurredAt < end &&
-                (normalizedBranch is null || string.Equals(
-                    transaction.BranchCode,
-                    normalizedBranch,
-                    StringComparison.OrdinalIgnoreCase)))
-            .GroupBy(transaction => NormalizeBranch(transaction.BranchCode), StringComparer.OrdinalIgnoreCase)
-            .Select(group => new DailyBranchSalesReport(
-                group.Key,
-                date,
-                group.Select(transaction => transaction.TransactionId)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Count(),
-                group.Where(transaction => transaction.Category == ReportSaleCategory.Retail)
-                    .Sum(transaction => transaction.Total),
-                group.Where(transaction => transaction.Category == ReportSaleCategory.Service)
-                    .Sum(transaction => transaction.Total),
-                group.Sum(transaction => transaction.Total)))
+        return (await _dataSource.GetDailyBranchSalesAsync(date, normalizedBranch, cancellationToken))
+            .Select(ToDailyReport)
             .OrderBy(report => report.BranchCode, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -99,26 +53,15 @@ public sealed class ReportingService
             ? null
             : NormalizeBranch(branchCode);
 
-        var inventory = await _dataSource.GetInventoryAsync(cancellationToken);
-
-        return inventory
-            .Where(item =>
-                item.QuantityOnHand <= item.ReorderLevel
-                && (normalizedBranch is null
-                    || string.Equals(
-                        item.BranchCode,
-                        normalizedBranch,
-                        StringComparison.OrdinalIgnoreCase)))
+        return (await _dataSource.GetLowStockAsync(normalizedBranch, cancellationToken))
             .OrderBy(item => item.BranchCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Sku, StringComparer.OrdinalIgnoreCase)
-            .Select(item => new LowStockReportItem(
-                NormalizeBranch(item.BranchCode),
-                item.Sku,
-                item.ProductName,
-                item.QuantityOnHand,
-                item.ReorderLevel))
             .ToArray();
     }
+
+    private static DailyBranchSalesReport ToDailyReport(ReportDailyBranchSales report) => new(
+        NormalizeBranch(report.BranchCode), report.Date, report.TransactionCount,
+        report.RetailSales, report.ServiceSales, report.RetailSales + report.ServiceSales);
 
     public async Task<IReadOnlyList<ShippingVolumeReportItem>> GetShippingVolumeReportAsync(
         DateOnly date,
@@ -171,12 +114,9 @@ public sealed class ReportingService
         var end = date.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var normalizedBranch = string.IsNullOrWhiteSpace(branchCode) ? null : NormalizeBranch(branchCode);
 
-        var moneyOrdersTask = _dataSource.GetMoneyOrdersAsync(cancellationToken);
-        var verificationsTask = _dataSource.GetIdentityVerificationsAsync(cancellationToken);
-
-        await Task.WhenAll(moneyOrdersTask, verificationsTask);
-
-        var moneyOrders = (await moneyOrdersTask)
+        // SQL persistence uses a request-scoped DbContext. Keep these reads
+        // sequential because EF Core does not support concurrent operations on it.
+        var moneyOrders = (await _dataSource.GetMoneyOrdersAsync(cancellationToken))
             .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
                 (normalizedBranch is null || string.Equals(
                     item.BranchCode,
@@ -185,7 +125,7 @@ public sealed class ReportingService
             .GroupBy(item => NormalizeBranch(item.BranchCode))
             .ToDictionary(group => group.Key, group => group.Count());
 
-        var verifications = (await verificationsTask)
+        var verifications = (await _dataSource.GetIdentityVerificationsAsync(cancellationToken))
             .Where(item => item.CreatedAt >= start && item.CreatedAt < end &&
                 (normalizedBranch is null || string.Equals(
                     item.BranchCode,

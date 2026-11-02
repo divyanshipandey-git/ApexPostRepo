@@ -18,20 +18,29 @@ public enum DemoDataProvisioningResult
 public sealed class DemoDataProvisioner
 {
     public const string MarkerFileName = ".apexpost-demo-seed.json";
-    public const string DemoPassword = "ApexPost-Demo-Only-2026!";
     private const int SeedVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public async Task<DemoDataProvisioningResult> ProvisionAsync(
         string dataDirectory,
-        CancellationToken cancellationToken = default)
+        string initialPassword,
+        CancellationToken cancellationToken = default,
+        int transactionCount = 40)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(initialPassword);
+        if (initialPassword.Length is < 12 or > 256)
+        {
+            throw new ArgumentException("The demo password must contain between 12 and 256 characters.", nameof(initialPassword));
+        }
+
         var directory = JsonPersistenceOptions.ResolveDataDirectory(dataDirectory);
         if (!Directory.Exists(directory))
         {
             throw new ArgumentException("The selected data directory must already exist.", nameof(dataDirectory));
         }
+        if (transactionCount is < 0 or > 10_000)
+            throw new ArgumentOutOfRangeException(nameof(transactionCount), "The demo transaction count must be between 0 and 10,000.");
 
         var markerPath = Path.Combine(directory, MarkerFileName);
         if (File.Exists(markerPath))
@@ -54,7 +63,7 @@ public sealed class DemoDataProvisioner
         var products = new JsonProductRepository(directory);
         var inventory = new JsonInventoryRepository(options);
         var transactions = new JsonCounterTransactionRepository(options);
-        var passwordHash = new Pbkdf2StaffPasswordHasher().HashPassword(DemoPassword);
+        var passwordHash = new Pbkdf2StaffPasswordHasher().HashPassword(initialPassword);
         var expectedFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var branch in CreateBranches())
@@ -88,7 +97,7 @@ public sealed class DemoDataProvisioner
         }
 
         var rates = CreateTaxRates();
-        for (var index = 0; index < 40; index++)
+        for (var index = 0; index < transactionCount; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var branchCode = branchCodes[index % branchCodes.Length];
@@ -101,7 +110,7 @@ public sealed class DemoDataProvisioner
                 CounterId(branchCode.Value),
                 clerk.Id,
                 rates,
-                new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-(39 - index)), TimeSpan.Zero));
+                new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-(transactionCount - 1 - index)), TimeSpan.Zero));
             transaction.AddLineItem(new TransactionLineItem(
                 product.Name,
                 "Retail",

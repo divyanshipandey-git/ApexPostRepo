@@ -1,4 +1,5 @@
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 
 namespace ApexPost.Application.Services.Shipping;
 
@@ -9,12 +10,14 @@ public sealed class CourierStatusService
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _lookupTimeout;
     private readonly TimeSpan _simulatedLookupDelay;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public CourierStatusService(
         IShipmentRepository shipmentRepository,
         TimeProvider timeProvider,
         TimeSpan? lookupTimeout = null,
-        TimeSpan? simulatedLookupDelay = null)
+        TimeSpan? simulatedLookupDelay = null,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(shipmentRepository);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -22,6 +25,7 @@ public sealed class CourierStatusService
         _timeProvider = timeProvider;
         _lookupTimeout = lookupTimeout ?? TimeSpan.FromSeconds(2);
         _simulatedLookupDelay = simulatedLookupDelay ?? TimeSpan.Zero;
+        _unitOfWork = unitOfWork;
         if (_lookupTimeout <= TimeSpan.Zero || _simulatedLookupDelay < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(lookupTimeout));
@@ -73,6 +77,7 @@ public sealed class CourierStatusService
             var normalizedStatus = status!.Trim();
             shipment.RecordCourierStatus(normalizedStatus, receivedAtUtc);
             await _shipmentRepository.UpdateAsync(shipment, linkedSource.Token);
+            if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(linkedSource.Token);
 
             return new CourierStatusUpdateResult(
                 CourierStatusUpdateStatus.Updated,

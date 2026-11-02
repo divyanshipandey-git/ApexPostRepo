@@ -1,5 +1,7 @@
 # Assignment requirement traceability
 
+> Historical Week 2 traceability snapshot: the JSON persistence references below document how those assignment requirements were originally implemented and tested. Week 3 supersedes JSON as the Web runtime persistence mechanism; the current SQL-only runtime, migrations, import boundary, and verification state are documented in [ADR-0015](adr/0015-sql-runtime-and-reporting-boundary.md) and the [Week 3 final report](WEEK3-FINAL-SUBMISSION-REPORT.md). The Week 2 business requirements remain in scope.
+
 This matrix maps the authoritative `apexpost.txt` requirements to implementation and verification. “Verified” means the referenced code and/or automated test was inspected or run in this checkout. Simulations and documented deployment limits are called out instead of being presented as production integrations.
 
 ## Part A — Functional requirements
