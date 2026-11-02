@@ -111,10 +111,10 @@ public static class DependencyInjection
         services.AddScoped<ShippingService>(provider => new ShippingService(
             provider.GetRequiredService<IShipmentRepository>(),
             shippingRules,
+            provider.GetRequiredService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>(),
             maximumWeight,
             provider.GetRequiredService<TimeProvider>(),
-            maximumWeightsByServiceLevel,
-            provider.GetService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>()));
+            maximumWeightsByServiceLevel));
 
         var courierTimeoutSeconds = configuration.GetValue<int?>("Shipping:CourierTrackingTimeoutSeconds") ?? 2;
         var simulatedTrackingDelayMilliseconds = configuration.GetValue<int?>("Shipping:SimulatedTrackingDelayMilliseconds") ?? 0;
@@ -127,9 +127,9 @@ public static class DependencyInjection
         services.AddScoped(provider => new CourierStatusService(
             provider.GetRequiredService<IShipmentRepository>(),
             provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>(),
             TimeSpan.FromSeconds(courierTimeoutSeconds),
-            TimeSpan.FromMilliseconds(simulatedTrackingDelayMilliseconds),
-            provider.GetService<ApexPost.Application.Abstractions.Persistence.IUnitOfWork>()));
+            TimeSpan.FromMilliseconds(simulatedTrackingDelayMilliseconds)));
 
         foreach (var section in configuration.GetSection("Tax:Rates").GetChildren())
         {

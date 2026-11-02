@@ -11,18 +11,19 @@ public sealed class MoneyOrderService
     private readonly IMoneyOrderRepository _moneyOrderRepository;
     private readonly MoneyOrderPolicy _moneyOrderPolicy;
     private readonly TimeProvider _timeProvider;
-    private readonly IUnitOfWork? _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
 
     public Money VerificationThreshold => _moneyOrderPolicy.VerificationThreshold;
 
     public MoneyOrderService(
         IMoneyOrderRepository moneyOrderRepository,
         MoneyOrderPolicy moneyOrderPolicy,
-        TimeProvider? timeProvider = null,
-        IUnitOfWork? unitOfWork = null)
+        IUnitOfWork unitOfWork,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(moneyOrderRepository);
         ArgumentNullException.ThrowIfNull(moneyOrderPolicy);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
 
         _moneyOrderRepository = moneyOrderRepository;
         _moneyOrderPolicy = moneyOrderPolicy;
@@ -63,7 +64,7 @@ public sealed class MoneyOrderService
         await _moneyOrderRepository.AddAsync(
             moneyOrder,
             cancellationToken);
-        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return moneyOrder;
     }

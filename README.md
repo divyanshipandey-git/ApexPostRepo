@@ -24,7 +24,7 @@ $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=Apex
 dotnet test ApexPost.sln --no-restore
 ```
 
-Latest verification on this remediation checkout: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 407 tests: 112 Domain, 214 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 trainer verification](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md) for scope, evidence, and limitations.
+Latest verification on the targeted remediation branch: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 409 tests: 112 Domain, 216 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 trainer verification](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md) for scope, evidence, and limitations.
 
 Run the web application:
 
@@ -55,6 +55,17 @@ dotnet run --project src/ApexPost.Web
 ```
 
 The root [SQL guide](sql/README.md) indexes the canonical reporting queries and procedures and provides transaction and blocking demonstrations. Scripts with SQLCMD `:r` directives must be run in SQLCMD mode from the repository root.
+
+### Week 3 verification index
+
+- [Trainer criteria and evidence](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md)
+- [SQL reporting, procedures, and test setup](docs/WEEK3-DATABASE-GUIDE.md)
+- [Testing and execution guide](docs/WEEK3-TESTING-AND-EXECUTION-GUIDE.md)
+- [Performance methodology and measured results](PERFORMANCE.md)
+- [Current SQL/application ADRs](docs/adr/README.md)
+- [SQLCMD scripts and least-privilege guidance](sql/README.md)
+
+Historical Week 3 gap analyses and process records are retained under `docs/`; the links above identify the current implementation and verification entry points.
 
 Provision the four fictional, SQL-backed local role accounts with the guarded tool documented in the [database testing guide](docs/DATABASE-TESTING-GUIDE.md). Passwords are generated into user-secrets and are never printed by the tool or stored in source control.
 

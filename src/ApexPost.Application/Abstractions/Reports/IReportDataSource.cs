@@ -151,6 +151,72 @@ public interface IReportDataSource
         return Paginate(filtered, pageNumber, pageSize);
     }
 
+    async Task<PagedReport<ReportTransaction>> GetTransactionPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var rows = await GetTransactionsAsync(cancellationToken);
+        var filtered = rows
+            .Where(item => branchCode is null ||
+                string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(item => fromDate is null || DateOnly.FromDateTime(item.OccurredAt.UtcDateTime) >= fromDate)
+            .Where(item => toDate is null || DateOnly.FromDateTime(item.OccurredAt.UtcDateTime) <= toDate)
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenBy(item => item.TransactionId, StringComparer.Ordinal)
+            .ThenBy(item => item.Category);
+        return Paginate(filtered.ToArray(), pageNumber, pageSize);
+    }
+
+    async Task<PagedReport<ReportShipment>> GetShipmentPageAsync(
+        string? branchCode,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePageFilters(fromDate, toDate, pageNumber, pageSize);
+        var rows = await GetShipmentsAsync(cancellationToken);
+        var filtered = rows
+            .Where(item => branchCode is null ||
+                string.Equals(item.BranchCode, branchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(item => fromDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) >= fromDate)
+            .Where(item => toDate is null || DateOnly.FromDateTime(item.CreatedAt.UtcDateTime) <= toDate)
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenBy(item => item.DestinationZone, StringComparer.Ordinal)
+            .ThenBy(item => item.ServiceLevel, StringComparer.Ordinal);
+        return Paginate(filtered.ToArray(), pageNumber, pageSize);
+    }
+
+    private static void ValidatePageFilters(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        int pageNumber,
+        int pageSize)
+    {
+        if (fromDate is { } start && toDate is { } end && start > end)
+        {
+            throw new ArgumentException("The start date must be on or before the end date.");
+        }
+        if (toDate == DateOnly.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toDate), "The end date must be earlier than the maximum supported date.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (pageNumber > int.MaxValue / pageSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber), "The requested page is too large.");
+        }
+    }
+
     private static PagedReport<T> Paginate<T>(
         IReadOnlyList<T> filtered,
         int pageNumber,

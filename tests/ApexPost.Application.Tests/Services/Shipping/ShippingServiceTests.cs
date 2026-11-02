@@ -4,6 +4,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Services.Shipping;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
+using ApexPost.Application.Tests.TestSupport;
 using Xunit;
 
 namespace ApexPost.Application.Tests.Services.Shipping;
@@ -16,7 +17,8 @@ public sealed class ShippingServiceTests
         Assert.Throws<ArgumentNullException>(() =>
             new ShippingService(
                 null!,
-                Array.Empty<ShippingPricingRule>()));
+                Array.Empty<ShippingPricingRule>(),
+                new RecordingUnitOfWork()));
     }
 
     [Fact]
@@ -25,7 +27,8 @@ public sealed class ShippingServiceTests
         Assert.Throws<ArgumentNullException>(() =>
             new ShippingService(
                 new FakeShipmentRepository(),
-                null!));
+                null!,
+                new RecordingUnitOfWork()));
     }
 
     [Theory]
@@ -38,6 +41,7 @@ public sealed class ShippingServiceTests
             new ShippingService(
                 new FakeShipmentRepository(),
                 Array.Empty<ShippingPricingRule>(),
+                new RecordingUnitOfWork(),
                 maximumWeight));
     }
 
@@ -119,7 +123,8 @@ public sealed class ShippingServiceTests
         var repository = new FakeShipmentRepository();
         var service = new ShippingService(
             repository,
-            Array.Empty<ShippingPricingRule>());
+            Array.Empty<ShippingPricingRule>(),
+            new RecordingUnitOfWork());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreateShipmentAsync(
@@ -150,7 +155,7 @@ public sealed class ShippingServiceTests
                     1m,
                     new Money(50m))
             },
-            unitOfWork: unitOfWork);
+            unitOfWork);
 
         var shipment = await service.CreateShipmentAsync(
             "SHIP001",
@@ -178,6 +183,7 @@ public sealed class ShippingServiceTests
         return new ShippingService(
             new FakeShipmentRepository(),
             new[] { rule },
+            new RecordingUnitOfWork(),
             maximumWeightKg);
     }
 
@@ -194,7 +200,7 @@ public sealed class ShippingServiceTests
             [ShippingServiceLevel.Registered] = 10m
         };
 
-        return new ShippingService(new FakeShipmentRepository(), rules,
+        return new ShippingService(new FakeShipmentRepository(), rules, new RecordingUnitOfWork(),
             maximumWeightKgByServiceLevel: limits);
     }
 

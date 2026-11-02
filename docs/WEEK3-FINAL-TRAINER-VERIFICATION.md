@@ -1,5 +1,15 @@
 # Week 3 final trainer verification
 
+> **Targeted-remediation update (2026-11-03):** The baseline verification below predates the `remediation/week3-gap-closure` branch. Current branch corrections and fresh verification are summarized in [Targeted Week 3 gap closure](#targeted-week-3-gap-closure). The tables below remain as the historical audit evidence for the original baseline.
+
+## Targeted Week 3 gap closure
+
+The remediation branch is based on the verified `master` commit `89d616b2da14393fb1ccb025d956bb5a19bfcdc5`. It changes the no-sales query to the requested `LEFT JOIN ... IS NULL` form; keeps low-stock recompilation disabled because the procedure has separate filtered/unfiltered paths and no measured compile-cost benefit; adds SQL-filtered/count/paginated transaction and shipment detail pages; makes the affected write services require `IUnitOfWork`; documents why `Address` is not persisted; and strengthens over-posting assertions. The schema intentionally has no row-level `ModifiedBy`: authenticated actor and action attribution is held in `AuditEntries`, while transaction `CreatedAtUtc` and selected `ModifiedAtUtc` columns remain server-managed. The SQL-backed over-posting test verifies forged creation/modification audit values are not persisted and the audit entries retain the authenticated staff identity and generated transaction IDs. No unneeded schema column was added.
+
+`PERFORMANCE.md`, ADR-0017/0018, `DESIGN.md`, `sql/README.md`, and the repository documentation index now describe the measured scope, parameter-sensitive plan risks, permission rationale, and current SQL-backed test split. Synthetic LocalDB results remain distinct from production evidence.
+
+Fresh SQL-enabled Release validation on this branch passed **409 tests**: 112 Domain, 216 Application (including SQL integration tests), and 81 Web integration; 0 failed and 0 skipped. The SQL test fixture used an isolated `ApexPost_SqlIT_*` catalog. Live restricted-role deployment verification and submission ZIP contents remain unverified and require external/manual evidence.
+
 ## Verification scope
 
 This report records the Week 3 SQL remediation in this checkout, including the implementation changes, SQL-enabled tests, LocalDB performance evidence, and remaining limitations. SQL tests and synthetic measurements used disposable databases named with the required `ApexPost_SqlIT_` and `ApexPost_PerfEvidence_` prefixes. `ApexPostDb` was not used as a test or performance target.
@@ -28,11 +38,11 @@ This report records the Week 3 SQL remediation in this checkout, including the i
 
 ## Build, tests, and database safety
 
-The final validation commands were:
+The final SQL-enabled Release validation used:
 
 ```powershell
 dotnet build ApexPost.sln --configuration Release
-$env:APEXPOST_SQL_TEST_CONNECTION = 'Server=(localdb)\MSSQLLocalDB;Database=ApexPost_SqlIT_Remediation;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False'
+$env:APEXPOST_SQL_TEST_CONNECTION = 'Server=(localdb)\MSSQLLocalDB;Database=ApexPost_SqlIT_Week3Closure;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False'
 dotnet test ApexPost.sln --configuration Release
 ```
 
@@ -41,9 +51,9 @@ Results:
 | Project | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | Domain tests | 112 | 0 | 0 |
-| Application tests, including SQL integration | 214 | 0 | 0 |
+| Application tests, including SQL integration | 216 | 0 | 0 |
 | Web integration tests, including SQL-backed HTTP | 81 | 0 | 0 |
-| **Total** | **407** | **0** | **0** |
+| **Total** | **409** | **0** | **0** |
 
 The explicit Release build completed with 0 warnings and 0 errors. LocalDB inventory after testing contained `ApexPostDb` and no `ApexPost_SqlIT_*` or `ApexPost_PerfEvidence_*` catalogs. The persistent `ApexPostDb` was not used for tests or performance fixture writes; its physical-only integrity check completed successfully.
 
@@ -63,7 +73,7 @@ Full measurements, plan operators, SQL text, index page figures, and caveats are
 
 1. Provision and verify a least-privilege SQL runtime principal in the deployment environment.
 2. Add SQL-backed HTTP coverage for duplicate-key and optimistic-concurrency conflict responses.
-3. Decide whether optional Unit of Work dependencies in non-sale write workflows should be removed under a broader transaction-boundary requirement.
+3. Verify the contents of any submission ZIP externally; no ZIP archive is present in this repository.
 4. Run SQLCMD wrapper and two-session concurrency demonstrations only in an approved disposable SQL environment.
 5. Capture production-like query and concurrency measurements before making production-capacity claims.
 

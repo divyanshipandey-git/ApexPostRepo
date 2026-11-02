@@ -43,6 +43,14 @@ The non-SARGable `YEAR(OccurredAtUtc)` and equivalent half-open year range each 
 
 These are actual LocalDB execution-plan observations from this synthetic fixture, not production capacity evidence. The test catalog was removed after capture. The SQL-backed test `TransactionRepository_LoadsCollectionsWithBoundedSplitQueryCommands` also ran with the isolated SQL suite and passed its assertion of three reader commands for four transactions.
 
+## Plan stability, statistics, and recompilation
+
+The low-stock procedure uses separate statements for the all-branch and branch-filtered paths. This avoids a single optional-branch predicate that can force one cached plan to serve both shapes. `OPTION (RECOMPILE)` is not currently used: the corrected synthetic run showed identical low-stock reads and elapsed time with the supporting index present or absent, but it did not compare compilation cost or repeat the workload across threshold values. There is therefore no measured evidence that recompiling on every execution is worth its compile CPU and plan-cache tradeoff.
+
+SQL Server statistics can become stale as inventory and transaction distributions change. Stale statistics can produce cardinality estimates that diverge from current row counts and lead the optimizer to choose an unsuitable scan, seek, join, or memory grant. Review statistics freshness and actual-versus-estimated rows when a representative workload regresses; do not treat the synthetic fixture's estimates as production guidance.
+
+Parameter sniffing can make a cached plan unsuitable when branch sizes or low-stock thresholds have materially different selectivities. The low-stock procedure's two statements reduce optional-branch shape variability but do not remove threshold skew. Consider `OPTION (RECOMPILE)` only if repeated, representative measurements show parameter-sensitive regressions, and compare execution duration/reads and compile CPU before and after. Other options, such as a suitable parameterized plan strategy or query/index redesign, should also be evaluated. No stale-statistics incident, parameter-sniffing regression, or recompilation benefit has been verified on production data by this synthetic LocalDB run.
+
 ## Historical EF SQL samples (2026-11-01)
 
 These translations were captured before the current date/branch-filtered report paths were added. They are retained as historical diagnostics, not descriptions of the current MVC report queries. Stored-procedure-backed daily-sales and low-stock reports are invoked as parameterized commands and do not have `ToQueryString()` output.

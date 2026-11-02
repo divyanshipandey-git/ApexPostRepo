@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the retained schema indexes; performance evidence is pending a corrected SQL Server run.
+Accepted for the retained schema indexes; corrected synthetic LocalDB measurements are recorded, while production performance remains unverified.
 
 ## Context
 
@@ -20,8 +20,8 @@ Retain the EF-owned indexes on branch/quantity/SKU, branch/occurrence/status, zo
 
 ## Consequences
 
-The previously recorded LocalDB comparison forced primary-key indexes and therefore does not establish whether the retained secondary indexes help. The corrected scripts have not yet been executed; no before/after performance result is currently verified.
+The previously recorded LocalDB comparison forced primary-key indexes and therefore does not establish whether the retained secondary indexes help. The corrected setup and measurement scripts have since been executed against a disposable synthetic LocalDB catalog. `PERFORMANCE.md` records those measured results, including the observed money-order seek benefit and the absence of observed benefit for the other tested read indexes. These measurements do not establish production performance or justify unmeasured index changes.
 
 ## Implementation and verification
 
-Index definitions are in `ApexPostEntityConfigurations.cs` and EF migrations. Corrected measurement setup and limitations are in `PERFORMANCE.md`, `database/performance/`, and `database/indexes/VerifyReportIndexes.sql`. Run those scripts against representative SQL Server data before making performance claims.
+Index definitions are in `ApexPostEntityConfigurations.cs` and EF migrations. Corrected measurement setup, captured output, and limitations are in `PERFORMANCE.md`, `database/performance/`, and `docs/performance-plans/actual-plans-and-statistics.txt`. The scripts are suitable for disposable measurement catalogs only. Run a separately controlled workload against representative SQL Server data before making production performance claims.
