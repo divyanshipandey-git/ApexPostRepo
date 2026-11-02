@@ -28,22 +28,21 @@ public sealed class ReportsController(
             ? staff.HomeBranchCode.Value
             : null;
         var reportDate = date ?? DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-        var salesTask = reportingService.GetDailyBranchSalesReportsAsync(reportDate, branchScope, cancellationToken);
-        var lowStockTask = reportingService.GetLowStockReportAsync(branchScope, cancellationToken);
-        var shippingTask = reportingService.GetShippingVolumeReportAsync(reportDate, branchScope, cancellationToken);
+        var sales = await reportingService.GetDailyBranchSalesReportsAsync(reportDate, branchScope, cancellationToken);
+        var lowStock = await reportingService.GetLowStockReportAsync(branchScope, cancellationToken);
+        var shipping = await reportingService.GetShippingVolumeReportAsync(reportDate, branchScope, cancellationToken);
         var canViewAuditorReport = staff.Role is StaffRole.Auditor or StaffRole.Administrator;
-        var servicesTask = canViewAuditorReport
-            ? reportingService.GetBranchServiceActivityReportAsync(reportDate, cancellationToken: cancellationToken)
-            : Task.FromResult<IReadOnlyList<BranchServiceActivityReport>>([]);
-        await Task.WhenAll(salesTask, lowStockTask, shippingTask, servicesTask);
+        var services = canViewAuditorReport
+            ? await reportingService.GetBranchServiceActivityReportAsync(reportDate, cancellationToken: cancellationToken)
+            : [];
 
         return View(new ReportsIndexViewModel(
             reportDate,
             branchScope,
-            await salesTask,
-            await lowStockTask,
-            await shippingTask,
-            await servicesTask,
+            sales,
+            lowStock,
+            shipping,
+            services,
             canViewAuditorReport));
     }
 

@@ -40,14 +40,16 @@ public sealed class BranchDashboardService
 
         var branchCode = staff.HomeBranchCode.Value;
         var date = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
-        var salesTask = _reportingService.GetDailyBranchSalesAsync(branchCode, date, cancellationToken);
-        var lowStockTask = _reportingService.GetLowStockReportAsync(branchCode, cancellationToken);
-        await Task.WhenAll(salesTask, lowStockTask);
+        // Both report paths share the request-scoped DbContext under SQL persistence.
+        // EF Core permits one active operation per context, so run these independent reads
+        // sequentially rather than starting concurrent commands on the same context.
+        var sales = await _reportingService.GetDailyBranchSalesAsync(branchCode, date, cancellationToken);
+        var lowStock = await _reportingService.GetLowStockReportAsync(branchCode, cancellationToken);
 
         return new BranchDashboardResult(
             branchCode,
             date,
-            await salesTask,
-            await lowStockTask);
+            sales,
+            lowStock);
     }
 }

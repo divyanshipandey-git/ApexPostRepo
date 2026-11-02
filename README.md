@@ -1,6 +1,6 @@
 # ApexPost Counter Platform
 
-ASP.NET Core MVC counter platform for ApexPost Logistics. This repository is the Week 2 replacement for the Week 1 TechNova RMS console application.
+ASP.NET Core MVC counter platform for ApexPost Logistics. The Week 3 implementation preserves the Week 2 business workflows and uses SQL Server as the Web application's persistent runtime data source.
 
 ## Prerequisites
 
@@ -12,10 +12,19 @@ ASP.NET Core MVC counter platform for ApexPost Logistics. This repository is the
 
 ```powershell
 dotnet --info
-dotnet restore
-dotnet build --no-restore
-dotnet test --no-build
+dotnet restore ApexPost.sln
+dotnet build ApexPost.sln --no-restore
+dotnet test ApexPost.sln --no-restore
 ```
+
+The SQL Server integration tests are opt-in. Set `APEXPOST_SQL_TEST_CONNECTION` to a LocalDB connection string with a catalog prefix of `ApexPost_SqlIT_` to include them. The fixtures create uniquely named temporary databases, apply migrations, and clean them up automatically. Do not point the variable at `ApexPostDb` or another persistent database.
+
+```powershell
+$env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=ApexPost_SqlIT_Local;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False"
+dotnet test ApexPost.sln --no-restore
+```
+
+The latest full run with the SQL test connection configured passed 379 tests: 112 Domain, 192 Application, and 75 Web integration tests, with 0 failures and 0 skips.
 
 Run the web application:
 
@@ -23,54 +32,57 @@ Run the web application:
 dotnet run --project src/ApexPost.Web
 ```
 
-The application uses JSON files in its configured data directory. It does not ship production data. A development-only console tool can provision synthetic demo records in an explicitly chosen empty directory.
+The Web application uses SQL Server as its only runtime business-data source. JSON repositories remain for isolated legacy tests and for the explicit read-only preview/initial-import workflow; Web startup does not register them and does not fall back to JSON if SQL Server is unavailable. No production data is included in source control.
 
-By default, JSON files are stored in `<solution-root>\App_Data` (for this checkout: `C:\DotNetTraining\Day1\ApexPost.CounterPlatform\App_Data`), outside `bin` and `obj`. The solution root is discovered from the running assembly location, so Web, test, and seed-tool processes do not depend on the shell's current directory. In Visual Studio, open the solution folder and browse to `App_Data`; JSON files appear there as the application writes them. Missing files are treated as empty collections and are created on the first write. The directory and runtime logs are ignored by Git, and Web static-file serving is limited to `wwwroot`.
+## SQL Server development setup
 
-`JsonPersistence:DataDirectory` remains an explicit override. Use the same directory for the seed tool and Web application. For a new local demo dataset, inspect the target first. If `App_Data` does not exist, create it; if it already exists, inspect and back it up before proceeding. Run from the solution root:
+Install .NET 10 and SQL Server LocalDB (or provide a SQL Server connection string). Configure the Development connection string in user-secrets; the application fails at startup with a setup message if it is missing:
 
 ```powershell
-if (-not (Test-Path .\App_Data)) { New-Item -ItemType Directory -Path .\App_Data }
-Get-ChildItem .\App_Data -Force
-# Continue only when this is a new, empty directory or the seed tool can verify its unchanged manifest.
-dotnet run --project tools/ApexPost.DemoSeed -- --data-directory App_Data
+dotnet user-secrets set "ConnectionStrings:ApexPost" "Server=(localdb)\MSSQLLocalDB;Database=ApexPostDb;Trusted_Connection=True;MultipleActiveResultSets=true;Encrypt=False" --project src/ApexPost.Web
+```
+
+Create/update the database explicitly. The Web application does not run migrations on startup and does not call `EnsureCreated`:
+
+```powershell
+dotnet ef database update --project src/ApexPost.Infrastructure --startup-project src/ApexPost.Web
+```
+
+The reviewed idempotent deployment script is [docs/sql/ApexPostDb-idempotent.sql](docs/sql/ApexPostDb-idempotent.sql). To run the Web app after migrations:
+
+```powershell
 dotnet run --project src/ApexPost.Web
 ```
 
-Both commands now resolve relative `App_Data` to the solution root, which is also the Web default. If using a different directory, supply that same absolute path to both sides:
+Provision the four fictional, SQL-backed local role accounts with the guarded tool documented in the [database testing guide](docs/DATABASE-TESTING-GUIDE.md). Passwords are generated into user-secrets and are never printed by the tool or stored in source control.
 
-```powershell
-dotnet run --project tools/ApexPost.DemoSeed -- --data-directory C:\ApexPostData
-dotnet user-secrets set "JsonPersistence:DataDirectory" "C:\ApexPostData" --project src/ApexPost.Web
+Check database rows using SQL Server Object Explorer or `sqlcmd`, for example:
+
+```sql
+SELECT COUNT(*) AS BranchCount FROM dbo.Branches;
+SELECT COUNT(*) AS StaffCount FROM dbo.Staff;
+SELECT COUNT(*) AS ProductCount FROM dbo.Products;
+SELECT COUNT(*) AS TransactionCount FROM dbo.CounterTransactions;
 ```
 
-You can inspect or change the Web override in Visual Studio's project User Secrets, or set the equivalent environment variable `JsonPersistence__DataDirectory`. If you previously used the old development output path, select it explicitly with User Secrets, for example `C:\DotNetTraining\Day1\ApexPost.CounterPlatform\src\ApexPost.Web\bin\Debug\net10.0\App_Data`. Existing files are never moved, merged, replaced, or deleted automatically. Before changing directories, back up both locations and decide which dataset is authoritative; do not seed a non-empty directory unless the tool verifies its existing seed manifest.
+### JSON source preview and import
 
-### Provision isolated demo data
-
-`App_Data` is the default target. The seed tool refuses a non-empty directory unless it verifies that directory's own seed manifest, so inspect/backup existing data first. To seed in a separate location, use the same path for the tool and Web:
+Keep the original JSON directory unchanged. Preview it before importing, then use the separate import command after migrations. The importer is read-only against its source and repeatable for the same source fingerprint:
 
 ```powershell
-New-Item -ItemType Directory -Path C:\ApexPostDemoData
-dotnet run --project tools/ApexPost.DemoSeed -- --data-directory C:\ApexPostDemoData
-dotnet user-secrets set "JsonPersistence:DataDirectory" "C:\ApexPostDemoData" --project src/ApexPost.Web
-dotnet run --project src/ApexPost.Web
+dotnet run --project tools/ApexPost.DemoSeed -- --import-preview --data-directory C:\Path\To\JsonSource
+dotnet run --project tools/ApexPost.DemoSeed -- --import-json --data-directory C:\Path\To\JsonSource
 ```
 
-The tool provisions 5 synthetic branches, 20 synthetic staff accounts across all four roles, 30 products, branch stock, and 40 paid sample transactions. New seeded transactions carry UTC occurrence timestamps and support historical daily reports. Existing transaction JSON without a timestamp remains readable and is excluded from date-based reports rather than being assigned a fabricated date. `src/ApexPost.Web/appsettings.json` supplies 10 destination zones (12 zone/service-level pricing rules total).
+The full import only accepts a source snapshot when the target database is empty or the same fingerprint was already imported. If an existing SQL database contains a different business snapshot, do not rerun or merge the full import. The existing historical audit file can be imported separately and repeat-safely without changing business rows:
 
-The login page is for provisioned staff only. Public self-registration and password recovery are not implemented. Administrators can add staff with an initial password, update role/branch/profile details, and activate or deactivate accounts at `/Staff`. New initial passwords are hashed before they are persisted.
+```powershell
+dotnet run --project tools/ApexPost.DemoSeed -- --import-audit-jsonl --data-directory App_Data
+```
 
-Demo sign-in uses the following synthetic accounts. These are local training credentials only; change them before any shared or deployed use. All demo accounts use the password `ApexPost-Demo-Only-2026!`.
+This command imports only validated entries from `audit.jsonl`, writes an import-ledger record, and does not run during Web startup. The four initially empty operational tables—`IdentityVerifications`, `MoneyOrders`, `Shipments`, and `StockMovements`—are populated by their supported workflows, not artificial seed records. See the [Week 3 database guide](docs/WEEK3-DATABASE-GUIDE.md) for the latest observed counts and read-only SSMS verification queries.
 
-| Role | Demo email | Branch |
-| --- | --- | --- |
-| Counter Clerk | `counterclerk01@example.test` | AP001 |
-| Branch Manager | `branchmanager02@example.test` | AP002 |
-| Auditor | `auditor03@example.test` | AP003 |
-| Administrator | `administrator04@example.test` | AP004 |
-
-The seed command refuses a non-empty directory unless its manifest exists and every seeded file still matches the recorded SHA-256 digest. An unchanged seeded directory is a no-op on rerun. If provisioning is interrupted before the manifest is written, the partial directory is deliberately left untouched and cannot be reseeded automatically; inspect it and select a fresh empty directory. The tool never removes existing data. Its credentials and code are isolated in the console project and are not registered in the Web application.
+For isolated synthetic testing only, the tool can create a separate JSON source with 5 branches, 20 staff, 30 products and 200 explicitly synthetic transactions using `--demo-json-200 --data-directory <new-empty-directory>`. Configure `DemoData:Password` through user-secrets (or `APEXPOST_DEMO_DATA_PASSWORD` for the current shell); the generator has no built-in password. These records are test/demo data, never historical production evidence. The importer does not edit source files or import automatically at Web startup.
 
 ## Configuration and secrets
 
@@ -98,19 +110,19 @@ $headers = @{ "X-Api-Key" = $env:APEXPOST_INTEGRATION_API_KEY; "Content-Type" = 
 Invoke-RestMethod -Method Post -Uri "https://localhost:5001/api/integrations/courier/shipments/SHP-EXAMPLE/status" -Headers $headers -Body '{"status":"In transit"}'
 ```
 
-The staff MVC inventory inquiry is at `/Inventory/Index`; catalogue details are at `/Products`. Branch Managers and Administrators can adjust stock at `/Stock`; updates are serialized against the shared JSON file and cannot reduce a quantity below zero. Administrators can manage staff at `/Staff`, which requires `Security:AdminAllowedIps` to be configured. The counter sale form is `/Transactions/Create`; `/MoneyOrders/Create` provides a standalone transaction-linked money-order and identity-verification flow. Both are for active Counter Clerks, Branch Managers, and Administrators and apply the same Application service rules. The configured fee defaults to 10 and the identity-verification threshold to 10,000 in `appsettings.json`; an order above the threshold requires a successful in-person identity check in that transaction. Only a masked document value in `XXXX1234` form is accepted. The order's amount plus fee appears as a tax-exempt service line in the receipt. A transaction failure after writing the order triggers a compensating delete. These writes remain across separate JSON files and are not crash-atomic. The shipping pricing rules and tax rates in `appsettings.json` are demonstration configuration and must be replaced with approved business values before operational use. Add destination zones under `Shipping:PricingRules` as needed. Successful sales are Paid immediately and use a receipt redirect. Their receipt links to a branch-authorized printable shipping label preview at `/Shipping/Label/{id}`. The branch dashboard is `/`, and daily sales, low stock, shipping volume, and money-order/identity-verification reports are at `/Reports`; managers are restricted to their home branch while auditors and administrators can see all branches. Branch Managers and Administrators can review transactions at `/Transactions`; branch authorization uses the current staff record, with Administrators allowed across branches. On transaction details, an authorized manager or administrator can void or record a **full** refund for a Paid transaction with a reason. Both workflows update the transaction state and publish a simulated notification. A refund is not a payment-provider reversal, and partial refunds are not supported by the current domain model. Both workflows restore eligible retail stock to the transaction branch. New sale lines retain their SKU for restoration; older sales without SKU references cannot be restored automatically. These workflows do not cancel shipments or money orders. JSON stock reservation is atomic within one application process; failure paths compensate inventory, shipment, and money-order writes, but separate JSON files do not provide crash-atomic multi-file transactions. Courier status processing has a two-second timeout by default and returns 504 when its simulated lookup exceeds the limit; caller cancellation remains separate. The product cache lives for two minutes and must be invalidated if a catalogue write path is added. See `docs/performance-measurement.md` for the local timing demonstration. The demo accounts above are created only by the explicit local seed command. Use configuration files only for non-secret settings. Do not commit real credentials.
+The staff MVC inventory inquiry is at `/Inventory/Index`; catalogue details are at `/Products`. Branch Managers and Administrators can adjust SQL-backed stock at `/Stock`. Staff administration is at `/Staff` and requires `Security:AdminAllowedIps`. Counter sales are created at `/Transactions/Create`; shipment, money-order, identity, transaction, payment, inventory, reporting, and audit persistence use SQL Server repositories in the running Web application. Voids and full refunds require an authorized manager/administrator and a reason; eligible retail stock is restored in the same database transaction with a unique reversal movement to prevent duplicate restoration. These workflows do not cancel shipments or money orders and do not call a payment provider. Shipping rates and tax values in `appsettings.json` are illustrative configuration and must be replaced with approved values before operational use. Successful sales use receipt redirects; receipt shipment links use the shipment service-line reference. The dashboard is `/`, reports are at `/Reports`, and transaction review is at `/Transactions`. Courier tracking and notifications remain simulations. The product cache is scoped to the SQL-backed repository lifetime.
 
 ## Architecture
 
 - `ApexPost.Domain`: business entities, value objects, aggregates, domain rules and domain events. No framework or infrastructure references.
 - `ApexPost.Application`: use cases, DTOs, repository/service abstractions and orchestration. References Domain.
-- `ApexPost.Infrastructure`: JSON repositories, audit store, notifications and external-service simulations. Implements Application abstractions.
+- `ApexPost.Infrastructure`: SQL Server repositories, EF Core persistence and the explicit JSON import/legacy test adapters. Implements Application abstractions.
 - `ApexPost.Web`: MVC controllers, Razor views, authentication, middleware and filters. Composition root references Application and Infrastructure.
 - `tests/`: domain/application unit tests and web integration tests.
 
 See [DESIGN.md](DESIGN.md) and [docs/adr](docs/adr/).
 
-The verified requirement status, security findings, and persistence limitations are recorded in [the security, persistence, and architecture audit](docs/SECURITY-PERSISTENCE-ARCHITECTURE-AUDIT.md).
+The SQL schema, migrations, import boundary, persistence status, and remaining performance limitations are recorded in [DESIGN.md](DESIGN.md), [PERFORMANCE.md](PERFORMANCE.md), and [docs/WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md). See the [database testing and access guide](docs/DATABASE-TESTING-GUIDE.md) for LocalDB connection, migration, query, and safe test instructions. The earlier JSON-era audit remains historical context: [security, persistence, and architecture audit](docs/SECURITY-PERSISTENCE-ARCHITECTURE-AUDIT.md).
 
 ## Git workflow
 

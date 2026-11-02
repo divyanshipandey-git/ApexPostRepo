@@ -15,6 +15,13 @@ public sealed record ReportTransaction(
     decimal Total,
     bool IsCompleted = true);
 
+public sealed record ReportDailyBranchSales(
+    string BranchCode,
+    DateOnly Date,
+    int TransactionCount,
+    decimal RetailSales,
+    decimal ServiceSales);
+
 public sealed record ReportInventoryItem(
     string BranchCode,
     string Sku,

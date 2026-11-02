@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; the JSON persistence statement below records the earlier implementation. Current Web shipment persistence uses SQL, while courier tracking remains a simulation; see [ADR-0015](0015-sql-runtime-and-reporting-boundary.md).
 
 ## Context
 

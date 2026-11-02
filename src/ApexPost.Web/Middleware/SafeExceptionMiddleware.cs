@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ApexPost.Web.Middleware;
 
@@ -13,6 +14,25 @@ public sealed class SafeExceptionMiddleware(
         try
         {
             await next(context);
+        }
+        catch (DbUpdateConcurrencyException exception) when (!context.Response.HasStarted)
+        {
+            var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+            logger.LogWarning(exception, "A concurrent database update was rejected. TraceId {TraceId}", traceId);
+            context.Response.Clear();
+            context.Response.StatusCode = StatusCodes.Status409Conflict;
+            context.Response.ContentType = "application/problem+json";
+            var problem = new ProblemDetails
+            {
+                Type = "about:blank",
+                Title = "The record changed while this operation was in progress.",
+                Status = StatusCodes.Status409Conflict
+            };
+            problem.Extensions["traceId"] = traceId;
+            await JsonSerializer.SerializeAsync(
+                context.Response.Body,
+                problem,
+                cancellationToken: context.RequestAborted);
         }
         catch (Exception exception) when (!context.Response.HasStarted)
         {

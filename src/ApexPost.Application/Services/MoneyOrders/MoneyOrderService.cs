@@ -1,5 +1,6 @@
 ﻿
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 
@@ -10,13 +11,15 @@ public sealed class MoneyOrderService
     private readonly IMoneyOrderRepository _moneyOrderRepository;
     private readonly MoneyOrderPolicy _moneyOrderPolicy;
     private readonly TimeProvider _timeProvider;
+    private readonly IUnitOfWork? _unitOfWork;
 
     public Money VerificationThreshold => _moneyOrderPolicy.VerificationThreshold;
 
     public MoneyOrderService(
         IMoneyOrderRepository moneyOrderRepository,
         MoneyOrderPolicy moneyOrderPolicy,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IUnitOfWork? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(moneyOrderRepository);
         ArgumentNullException.ThrowIfNull(moneyOrderPolicy);
@@ -24,6 +27,7 @@ public sealed class MoneyOrderService
         _moneyOrderRepository = moneyOrderRepository;
         _moneyOrderPolicy = moneyOrderPolicy;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<MoneyOrder> CreateAsync(
@@ -59,6 +63,7 @@ public sealed class MoneyOrderService
         await _moneyOrderRepository.AddAsync(
             moneyOrder,
             cancellationToken);
+        if (_unitOfWork is not null) await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return moneyOrder;
     }

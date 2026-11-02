@@ -8,6 +8,7 @@ using ApexPost.Application.Services.MoneyOrders;
 using ApexPost.Application.Services.Notifications;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Application.Abstractions.Notifications;
 using ApexPost.Application.Services.Reports;
 using ApexPost.Domain.Entities;
@@ -28,7 +29,8 @@ public static class DependencyInjection
         services.TryAddSingleton(new MoneyOrderPolicy(moneyOrderSettings.VerificationThreshold));
         services.TryAddScoped<BranchService>();
         services.TryAddScoped<ProductCatalogService>();
-        services.TryAddSingleton<ProductCatalogCache>();
+        // The cache retains its repository, which is scoped for SQL persistence.
+        services.TryAddScoped<ProductCatalogCache>();
         services.TryAddScoped<InventoryService>();
         services.TryAddScoped<InventoryInquiryService>();
         services.TryAddScoped<StaffAuthenticationService>();
@@ -37,7 +39,8 @@ public static class DependencyInjection
         services.TryAddScoped<CourierStatusService>();
         services.TryAddScoped<ShippingService>(provider => new ShippingService(
             provider.GetRequiredService<IShipmentRepository>(),
-            Array.Empty<ShippingPricingRule>()));
+            provider.GetServices<ShippingPricingRule>(),
+            unitOfWork: provider.GetService<IUnitOfWork>()));
         services.TryAddScoped<CounterSaleService>();
         services.TryAddScoped<TransactionVoidService>();
         services.TryAddScoped<TransactionRefundService>();
