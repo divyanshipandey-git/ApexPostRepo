@@ -261,7 +261,10 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
      CancellationToken cancellationToken = default)
     {
         var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
-        var dateParam = new SqlParameter("@Date", date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        var dateParam = new SqlParameter("@Date", date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+        {
+            SqlDbType = System.Data.SqlDbType.Date
+        };
 
         var rows = await db.Set<DailyBranchSalesProcedureRow>()
             .FromSqlRaw("EXEC dbo.usp_DailyBranchSales @BranchCode, @Date", branchParam, dateParam)
