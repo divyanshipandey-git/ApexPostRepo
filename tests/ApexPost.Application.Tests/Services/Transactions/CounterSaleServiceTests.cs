@@ -369,7 +369,9 @@ public sealed class CounterSaleServiceTests
                 Notifications,
                 [new TaxRate(TaxCategory.Standard, 0.18m), new TaxRate(TaxCategory.Exempt, 0m)],
                 TimeProvider.System,
-                unitOfWork);
+                unitOfWork,
+                MoneyOrders,
+                null);
         }
 
         public CounterSaleRequest CreateRequest(int quantity = 1, bool includeShipping = false) => new(

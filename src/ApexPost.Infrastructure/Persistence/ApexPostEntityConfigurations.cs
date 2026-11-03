@@ -53,15 +53,7 @@ public sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(branch => branch.ClosingTime).HasColumnType("time(0)");
         builder.Property(branch => branch.IsActive).HasDefaultValue(true);
 
-        // Owned type for Address
-        builder.OwnsOne(branch => branch.Address, addressBuilder =>
-        {
-            addressBuilder.Property(a => a.Street).HasColumnName("AddressStreet").HasMaxLength(200).IsUnicode(false);
-            addressBuilder.Property(a => a.City).HasColumnName("AddressCity").HasMaxLength(100).IsUnicode(false);
-            addressBuilder.Property(a => a.State).HasColumnName("AddressState").HasMaxLength(100).IsUnicode(false);
-            addressBuilder.Property(a => a.PostalCode).HasColumnName("AddressPostalCode").HasMaxLength(20).IsUnicode(false);
-            addressBuilder.Property(a => a.Country).HasColumnName("AddressCountry").HasMaxLength(100).IsUnicode(false);
-        });
+        // Address is not persisted per ADR-0026
 
         SqlMapping.AddAuditColumns(builder, modified: true);
     }

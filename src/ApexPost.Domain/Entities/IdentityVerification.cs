@@ -9,6 +9,16 @@ public sealed class IdentityVerification
     public bool IsVerified { get; }
     public DateTimeOffset VerifiedAt { get; }
 
+    // Private constructor for EF Core materialization
+    private IdentityVerification()
+    {
+        Id = default!;
+        DocumentType = default!;
+        MaskedDocumentNumber = default!;
+        IsVerified = default;
+        VerifiedAt = default;
+    }
+
     public IdentityVerification(
         string id,
         string documentType,

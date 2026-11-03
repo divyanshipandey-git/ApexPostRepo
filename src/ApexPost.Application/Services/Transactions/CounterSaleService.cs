@@ -31,6 +31,7 @@ public sealed class CounterSaleService
     private readonly ProductCatalogCache? _productCatalogCache;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CounterSaleService>? _logger;
+    private readonly IMoneyOrderRepository _moneyOrderRepository;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -47,6 +48,7 @@ public sealed class CounterSaleService
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider,
         IUnitOfWork unitOfWork,
+        IMoneyOrderRepository moneyOrderRepository,
         ProductCatalogCache? productCatalogCache = null,
         ILogger<CounterSaleService>? logger = null)
     {
@@ -64,6 +66,7 @@ public sealed class CounterSaleService
         ArgumentNullException.ThrowIfNull(taxRates);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(moneyOrderRepository);
 
         _transactionRepository = transactionRepository;
         _inventoryRepository = inventoryRepository;
@@ -80,6 +83,7 @@ public sealed class CounterSaleService
         _timeProvider = timeProvider;
         _productCatalogCache = productCatalogCache;
         _unitOfWork = unitOfWork;
+        _moneyOrderRepository = moneyOrderRepository;
         _logger = logger;
     }
 
@@ -299,32 +303,32 @@ public sealed class CounterSaleService
             return new CounterSaleResult(CounterSaleStatus.InvalidRequest);
         }
 
-        // Execute the entire sale (stock reservation, shipment, money order, transaction)
+        // Reserve stock first (outside the transaction so we can restore it if the transaction fails)
+        InventoryReservation? inventoryReservation = null;
+        if (quantities.Count > 0)
+        {
+            var reservationResult = await _inventoryRepository.TryReserveAsync(
+                branchCode.Value,
+                quantities,
+                cancellationToken);
+            if (reservationResult.Status != InventoryReservationStatus.Reserved)
+            {
+                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
+            }
+
+            inventoryReservation = reservationResult.Reservation
+                ?? throw new InvalidOperationException(
+                    "A successful stock reservation must include its rollback token.");
+        }
+
+        // Execute the entire sale (shipment, money order, transaction, stock commit)
         // in a single database transaction via ExecuteInTransactionAsync.
-        // If anything fails, the transaction rolls back automatically - no compensating deletes needed.
+        // If anything fails, the transaction rolls back and we restore the stock reservation.
         try
         {
             var result = await _unitOfWork.ExecuteInTransactionAsync(
                 async token =>
                 {
-                    InventoryReservation? inventoryReservation = null;
-
-                    if (quantities.Count > 0)
-                    {
-                        var reservationResult = await _inventoryRepository.TryReserveAsync(
-                            branchCode.Value,
-                            quantities,
-                            token);
-                        if (reservationResult.Status != InventoryReservationStatus.Reserved)
-                        {
-                            return CounterSaleStatus.InsufficientStock;
-                        }
-
-                        inventoryReservation = reservationResult.Reservation
-                            ?? throw new InvalidOperationException(
-                                "A successful stock reservation must include its rollback token.");
-                    }
-
                     if (request.Shipping is not null)
                     {
                         var shipping = request.Shipping;
@@ -346,6 +350,8 @@ public sealed class CounterSaleService
                     }
 
                     await _transactionRepository.AddAsync(transaction, token);
+
+                    // Commit the stock reservation (makes the stock decrease permanent)
                     if (inventoryReservation is not null)
                     {
                         await _inventoryRepository.CommitReservationAsync(inventoryReservation, token);
@@ -362,6 +368,54 @@ public sealed class CounterSaleService
         }
         catch (Exception persistenceException)
         {
+            // Restore stock reservation if the transaction failed
+            if (inventoryReservation is not null)
+            {
+                try
+                {
+                    await _inventoryRepository.RestoreReservationAsync(inventoryReservation, CancellationToken.None);
+                }
+                catch (Exception restoreException)
+                {
+                    _logger?.LogError(
+                        restoreException,
+                        "Failed to restore stock reservation after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
+            // Remove staged money order if the transaction failed
+            if (moneyOrder is not null)
+            {
+                try
+                {
+                    await _moneyOrderRepository.DeleteAsync(moneyOrder.Id, CancellationToken.None);
+                }
+                catch (Exception deleteException)
+                {
+                    _logger?.LogError(
+                        deleteException,
+                        "Failed to remove staged money order after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
+            // Remove staged shipment if the transaction failed
+            if (shipmentId is not null)
+            {
+                try
+                {
+                    await _shipmentRepository.DeleteAsync(shipmentId, CancellationToken.None);
+                }
+                catch (Exception deleteException)
+                {
+                    _logger?.LogError(
+                        deleteException,
+                        "Failed to remove staged shipment after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
             if (persistenceException is ConcurrencyConflictException)
             {
                 _logger?.LogWarning(

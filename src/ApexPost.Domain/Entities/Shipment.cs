@@ -23,6 +23,17 @@ public sealed class Shipment
     [JsonInclude]
     public DateTimeOffset? CreatedAtUtc { get; private set; }
 
+    // Private constructor for EF Core materialization
+    private Shipment()
+    {
+        Id = default!;
+        ItemType = default!;
+        Weight = default!;
+        Dimensions = default!;
+        DestinationZone = default!;
+        ServiceLevel = default;
+    }
+
     public Shipment(
         string id,
         string itemType,
