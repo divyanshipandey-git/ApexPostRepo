@@ -1,11 +1,12 @@
-using System.Collections.ObjectModel;
-using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Reports;
+using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Reports;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Infrastructure.Persistence.SqlEntities;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.ObjectModel;
 
 namespace ApexPost.Infrastructure.Persistence.Repositories;
 
@@ -85,7 +86,7 @@ public sealed class SqlProductPriceRevisionRepository(ApexPostDbContext db)
 
 public sealed class SqlInventoryRepository(ApexPostDbContext db) : IStockRepository
 {
-    private readonly Dictionary<Guid, InventoryReservation> _reservations = [];
+    private readonly Dictionary<Guid, InventoryReservation> _reservations = new();
 
     public async Task<InventoryReservationResult> TryReserveAsync(string branchCode, IReadOnlyDictionary<string, int> quantities, CancellationToken cancellationToken = default)
     {
@@ -241,26 +242,50 @@ public sealed class SqlMoneyOrderRepository(ApexPostDbContext db) : IMoneyOrderR
 
 public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSource
 {
+    //public async Task<IReadOnlyList<ReportDailyBranchSales>> GetDailyBranchSalesAsync(
+    //    DateOnly date,
+    //    string? branchCode = null,
+    //    CancellationToken cancellationToken = default)
+    //{
+    //    var rows = await db.Database.SqlQuery<DailyBranchSalesProcedureRow>(
+    //            $"EXEC dbo.usp_DailyBranchSales @BranchCode={branchCode}, @Date={date}")
+    //        .ToArrayAsync(cancellationToken);
+    //    return rows.Select(row => new ReportDailyBranchSales(
+    //        row.BranchCode, DateOnly.FromDateTime(row.SaleDate), checked((int)row.TransactionCount),
+    //        row.RetailSales, row.ServiceSales)).ToArray();
+    //}
+
     public async Task<IReadOnlyList<ReportDailyBranchSales>> GetDailyBranchSalesAsync(
-        DateOnly date,
-        string? branchCode = null,
-        CancellationToken cancellationToken = default)
+     DateOnly date,
+     string? branchCode = null,             
+     CancellationToken cancellationToken = default)
     {
-        var rows = await db.Database.SqlQuery<DailyBranchSalesProcedureRow>(
-                $"EXEC dbo.usp_DailyBranchSales @BranchCode={branchCode}, @Date={date}")
+        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
+        var dateParam = new SqlParameter("@Date", date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+
+        var rows = await db.Set<DailyBranchSalesProcedureRow>()
+            .FromSqlRaw("EXEC dbo.usp_DailyBranchSales @BranchCode, @Date", branchParam, dateParam)
             .ToArrayAsync(cancellationToken);
+
         return rows.Select(row => new ReportDailyBranchSales(
-            row.BranchCode, DateOnly.FromDateTime(row.SaleDate), checked((int)row.TransactionCount),
-            row.RetailSales, row.ServiceSales)).ToArray();
+            row.BranchCode,
+            DateOnly.FromDateTime(row.SaleDate),
+            checked((int)row.TransactionCount),
+            row.RetailSales,
+            row.ServiceSales)).ToArray();
     }
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
         string? branchCode = null,
         CancellationToken cancellationToken = default)
     {
-        var rows = await db.Database.SqlQuery<LowStockProcedureRow>(
-                $"EXEC dbo.usp_LowStockReport @Threshold={5}, @BranchCode={branchCode}")
+        var thresholdParam = new SqlParameter("@Threshold", 5);
+        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
+
+        var rows = await db.Set<LowStockProcedureRow>()
+            .FromSqlRaw("EXEC dbo.usp_LowStockReport @Threshold, @BranchCode", thresholdParam, branchParam)
             .ToArrayAsync(cancellationToken);
+
         return rows.Select(row => new LowStockReportItem(
             row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
     }
@@ -270,9 +295,13 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         int threshold,
         CancellationToken cancellationToken = default)
     {
-        var rows = await db.Database.SqlQuery<LowStockProcedureRow>(
-                $"EXEC dbo.usp_LowStockReport @Threshold={threshold}, @BranchCode={branchCode}")
+        var thresholdParam = new SqlParameter("@Threshold", threshold);
+        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
+
+        var rows = await db.Set<LowStockProcedureRow>()
+            .FromSqlRaw("EXEC dbo.usp_LowStockReport @Threshold, @BranchCode", thresholdParam, branchParam)
             .ToArrayAsync(cancellationToken);
+
         return rows.Select(row => new LowStockReportItem(
             row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
     }
@@ -639,7 +668,12 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
     {
         var start = fromDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var end = toDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var rows = await db.Database.SqlQuery<TopProductRevenueProcedureRow>($"""
+
+        var startParam = new SqlParameter("@Start", start);
+        var endParam = new SqlParameter("@End", end);
+        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
+
+        const string sql = @"
             WITH ProductRevenue AS
             (
                 SELECT branch.Region,
@@ -658,9 +692,9 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
                     ON tax.TransactionId = line.TransactionId
                    AND tax.Category = line.TaxCategory
                 WHERE transactionRow.Status = 'Paid'
-                  AND transactionRow.OccurredAtUtc >= {start}
-                  AND transactionRow.OccurredAtUtc < {end}
-                  AND ({branchCode} IS NULL OR transactionRow.BranchCode = {branchCode})
+                  AND transactionRow.OccurredAtUtc >= @Start
+                  AND transactionRow.OccurredAtUtc < @End
+                  AND (@BranchCode IS NULL OR transactionRow.BranchCode = @BranchCode)
                 GROUP BY branch.Region, product.Sku, product.Name
             ),
             RankedRevenue AS
@@ -680,8 +714,11 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
                    Revenue
             FROM RankedRevenue
             WHERE RegionRank <= 10
-            ORDER BY Region, RegionRank
-            """).ToArrayAsync(cancellationToken);
+            ORDER BY Region, RegionRank";
+
+        var rows = await db.Set<TopProductRevenueProcedureRow>()
+            .FromSqlRaw(sql, startParam, endParam, branchParam)
+            .ToArrayAsync(cancellationToken);
 
         return rows.Select(row => new TopProductRevenueReportItem(
             row.Region, row.RegionRank, row.Sku, row.ProductName, row.Revenue)).ToArray();
