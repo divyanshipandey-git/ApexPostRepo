@@ -87,24 +87,52 @@
         document.addEventListener('DOMContentLoaded', function () {
             const searchInput = document.getElementById('productSearch');
             const table = document.getElementById('productsTable');
-            const rows = table?.querySelectorAll('tbody tr');
 
-            if (searchInput && rows) {
-                searchInput.addEventListener('input', function () {
-                    const query = this.value.toLowerCase().trim();
-                    rows.forEach(row => {
-                        const searchText = row.dataset.search || '';
-                        const matches = searchText.includes(query);
-                        row.style.display = matches ? '' : 'none';
-                    });
-                });
+            if (!searchInput) {
+                console.warn('Product search input not found');
+                return;
             }
 
-            // Keyboard shortcut
+            if (!table) {
+                console.warn('Products table not found');
+                return;
+            }
+
+            const rows = table.querySelectorAll('tbody tr');
+
+            if (rows.length === 0) {
+                console.warn('No product rows found in table');
+                return;
+            }
+
+            // Convert NodeList to Array for forEach support in all browsers
+            const rowArray = Array.from(rows);
+
+            searchInput.addEventListener('input', function () {
+                const query = this.value.toLowerCase().trim();
+
+                rowArray.forEach(row => {
+                    const searchText = row.dataset.search || '';
+                    const matches = searchText.includes(query);
+                    row.style.display = matches ? '' : 'none';
+                });
+            });
+
+            // Keyboard shortcut: Ctrl+F or Meta+F to focus search
             document.addEventListener('keydown', function (e) {
                 if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                     e.preventDefault();
                     searchInput?.focus();
+                    searchInput?.select();
+                }
+            });
+
+            // Clear search on Escape
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    this.value = '';
+                    this.dispatchEvent(new Event('input'));
+                    this.blur();
                 }
             });
         });
