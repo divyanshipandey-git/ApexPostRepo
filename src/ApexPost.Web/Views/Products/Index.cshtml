@@ -2,12 +2,111 @@
 @{
     ViewData["Title"] = "Product catalogue";
 }
-<section class="page-heading"><p class="eyebrow">Retail</p><h1>Product catalogue</h1><p>Current product prices and tax categories used by counter sales.</p></section>
-@if (TempData["PriceRevisionNotice"] is string notice) { <p class="alert alert-success" role="status">@notice</p> }
-@if (User.IsInRole(nameof(ApexPost.Domain.Entities.StaffRole.Administrator)))
+
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Retail</p>
+        <h1>Product catalogue</h1>
+        <p>Current product prices and tax categories used by counter sales.</p>
+    </div>
+    @if (User.IsInRole(nameof(ApexPost.Domain.Entities.StaffRole.Administrator)))
+    {
+        <a asp-action="PriceRevision" class="button button-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Revise category prices
+        </a>
+    }
+</section>
+
+@if (TempData["PriceRevisionNotice"] is string notice)
 {
-    <p><a asp-action="PriceRevision" class="button button-secondary">Revise category prices</a></p>
+    <div class="notice notice-success" role="status">
+        <span class="notice-icon" aria-hidden="true">✓</span>
+        <p>@notice</p>
+    </div>
 }
-<section class="card surface-card"><div class="card-body"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Unit price</th><th>Tax category</th></tr></thead><tbody>
-@foreach (var product in Model) { <tr><th>@product.Sku.Value</th><td>@product.Name</td><td>@product.Category</td><td>@product.UnitPrice.Amount.ToString("C")</td><td>@product.TaxCategory</td></tr> }
-</tbody></table></div></div></section>
+
+<section class="card surface-card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h2 class="section-title mb-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-2" style="vertical-align: -3px;"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            All products (@Model.Count)
+        </h2>
+        <div class="d-flex gap-2">
+            <input type="search" class="form-control text-input" placeholder="Search products..." id="productSearch" style="max-width: 280px;" aria-label="Search products" />
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0" id="productsTable" aria-describedby="products-desc">
+                <caption id="products-desc" class="visually-hidden">Product catalogue showing SKU, name, category, unit price, and tax category</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">SKU</th>
+                        <th scope="col">Product</th>
+                        <th scope="col">Category</th>
+                        <th scope="col" class="text-end">Unit price</th>
+                        <th scope="col">Tax category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var product in Model)
+                    {
+                        <tr data-search="@(product.Sku.Value + " " + product.Name + " " + product.Category).ToLower()">
+                            <th scope="row"><code>@product.Sku.Value</code></th>
+                            <td>@product.Name</td>
+                            <td>
+                                <span class="badge badge-info">@product.Category</span>
+                            </td>
+                            <td class="text-end fw-semibold">@product.UnitPrice.Amount.ToString("C")</td>
+                            <td>
+                                <span class="badge badge-@(product.TaxCategory == ApexPost.Domain.Entities.TaxCategory.Standard ? "primary" : product.TaxCategory == ApexPost.Domain.Entities.TaxCategory.Reduced ? "info" : product.TaxCategory == ApexPost.Domain.Entities.TaxCategory.ZeroRated ? "success" : "secondary")">
+                                    @product.TaxCategory
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (Model.Count == 0)
+    {
+        <div class="empty-state" style="padding: 3rem;">
+            <div class="empty-state-icon" aria-hidden="true">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <p class="empty-state-title">No products found</p>
+            <p class="empty-state-text">The product catalogue is empty.</p>
+        </div>
+    }
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const searchInput = document.getElementById('productSearch');
+            const table = document.getElementById('productsTable');
+            const rows = table?.querySelectorAll('tbody tr');
+
+            if (searchInput && rows) {
+                searchInput.addEventListener('input', function () {
+                    const query = this.value.toLowerCase().trim();
+                    rows.forEach(row => {
+                        const searchText = row.dataset.search || '';
+                        const matches = searchText.includes(query);
+                        row.style.display = matches ? '' : 'none';
+                    });
+                });
+            }
+
+            // Keyboard shortcut
+            document.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    searchInput?.focus();
+                }
+            });
+        });
+    </script>
+}
