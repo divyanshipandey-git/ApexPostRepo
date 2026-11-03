@@ -8,6 +8,11 @@ using System.Collections.ObjectModel;
 
 namespace ApexPost.Infrastructure.Persistence.Repositories;
 
+/// <summary>
+/// JSON file-backed implementation of <see cref="IStockRepository"/> for import/test scenarios only.
+/// Does NOT provide SQL transaction guarantees, concurrency handling, or audit persistence.
+/// Use <see cref="SqlInventoryRepository"/> for all SQL-backed workflows.
+/// </summary>
 public sealed class JsonInventoryRepository : IStockRepository
 {
     private readonly JsonFileStore<InventoryStock> _store;

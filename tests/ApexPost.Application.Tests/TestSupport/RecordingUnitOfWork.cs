@@ -4,7 +4,6 @@ namespace ApexPost.Application.Tests.TestSupport;
 
 internal sealed class RecordingUnitOfWork : IUnitOfWork
 {
-    public bool SupportsAtomicTransactions => true;
     public int SaveChangesCount { get; private set; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

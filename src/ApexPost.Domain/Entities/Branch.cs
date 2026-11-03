@@ -1,5 +1,4 @@
-﻿
-using ApexPost.Domain.ValueObjects;
+﻿using ApexPost.Domain.ValueObjects;
 using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
@@ -11,6 +10,7 @@ public sealed class Branch
     public string Region { get; }
     public TimeOnly OpeningTime { get; }
     public TimeOnly ClosingTime { get; }
+    public Address? Address { get; private set; }
     [JsonInclude]
     public bool IsActive { get; private set; }
 
@@ -19,7 +19,8 @@ public sealed class Branch
         string name,
         string region,
         TimeOnly openingTime,
-        TimeOnly closingTime)
+        TimeOnly closingTime,
+        Address? address = null)
     {
         ArgumentNullException.ThrowIfNull(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -37,7 +38,14 @@ public sealed class Branch
         Region = region.Trim();
         OpeningTime = openingTime;
         ClosingTime = closingTime;
+        Address = address;
         IsActive = true;
+    }
+
+    public void UpdateAddress(Address address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        Address = address;
     }
 
     public void Deactivate() => IsActive = false;

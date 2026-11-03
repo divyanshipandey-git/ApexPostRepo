@@ -252,7 +252,7 @@ public sealed class CounterSaleServiceTests
         var overweightRequest = fixture.CreateRequest(includeShipping: true) with
         {
             Shipping = new CounterShippingRequest(
-                "Parcel", 31m, 20m, 15m, 10m, "ZONE1", ShippingServiceLevel.Standard)
+                "Parcel", 31m, new Dimensions(20m, 15m, 10m), "ZONE1", ShippingServiceLevel.Standard)
         };
         var overweight = await fixture.CreateService().CompleteAsync(overweightRequest, fixture.StaffIdentity);
 
@@ -377,7 +377,7 @@ public sealed class CounterSaleServiceTests
             [new CounterSaleProductRequest("ENV001", quantity)],
             PaymentMethod.Cash,
             includeShipping
-                ? new CounterShippingRequest("Parcel", 1.5m, 20m, 15m, 10m, "ZONE1", ShippingServiceLevel.Standard)
+                ? new CounterShippingRequest("Parcel", 1.5m, new Dimensions(20m, 15m, 10m), "ZONE1", ShippingServiceLevel.Standard)
                 : null);
 
         public void Dispose() => _directory.Dispose();
@@ -385,7 +385,6 @@ public sealed class CounterSaleServiceTests
 
     private sealed class SpyAtomicUnitOfWork : ApexPost.Application.Abstractions.Persistence.IUnitOfWork
     {
-        public bool SupportsAtomicTransactions => true;
         public int TransactionCount { get; private set; }
         public int CommitCount { get; private set; }
 

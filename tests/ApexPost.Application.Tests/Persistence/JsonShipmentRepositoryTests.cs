@@ -52,9 +52,7 @@ public sealed class JsonShipmentRepositoryTests
             "SHP-STATUS-1",
             "Parcel",
             new Weight(1m),
-            10m,
-            10m,
-            10m,
+            new Dimensions(10m, 10m, 10m),
             "ZONE1",
             ShippingServiceLevel.Standard);
         shipment.RecordCourierStatus("In transit", receivedAt);
@@ -77,9 +75,7 @@ public sealed class JsonShipmentRepositoryTests
             "SHP-SALE-1",
             "Parcel",
             new Weight(1m),
-            10m,
-            10m,
-            10m,
+            new Dimensions(10m, 10m, 10m),
             "ZONE1",
             ShippingServiceLevel.Standard,
             new BranchCode("BR001"),

@@ -8,8 +8,6 @@ public sealed class UniqueKeyConflictException(string message, Exception innerEx
 
 public interface IUnitOfWork
 {
-    bool SupportsAtomicTransactions { get; }
-
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     Task<TResult> ExecuteInTransactionAsync<TResult>(

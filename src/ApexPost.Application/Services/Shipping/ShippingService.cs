@@ -91,9 +91,7 @@ public sealed class ShippingService
         string id,
         string itemType,
         decimal weightKg,
-        decimal lengthCm,
-        decimal widthCm,
-        decimal heightCm,
+        Dimensions dimensions,
         string destinationZone,
         ShippingServiceLevel serviceLevel,
         CancellationToken cancellationToken = default,
@@ -102,6 +100,7 @@ public sealed class ShippingService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemType);
+        ArgumentNullException.ThrowIfNull(dimensions);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationZone);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -113,9 +112,7 @@ public sealed class ShippingService
             id.Trim(),
             itemType.Trim(),
             weight,
-            lengthCm,
-            widthCm,
-            heightCm,
+            dimensions,
             destinationZone.Trim(),
             serviceLevel,
             branchCode,

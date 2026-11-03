@@ -5,6 +5,11 @@ using ApexPost.Infrastructure.Persistence;
 
 namespace ApexPost.Infrastructure.Persistence.Repositories;
 
+/// <summary>
+/// JSON file-backed implementation of <see cref="IMoneyOrderRepository"/> for import/test scenarios only.
+/// Does NOT provide SQL transaction guarantees, concurrency handling, or audit persistence.
+/// Use <see cref="SqlMoneyOrderRepository"/> for all SQL-backed workflows.
+/// </summary>
 public sealed class JsonMoneyOrderRepository : IMoneyOrderRepository
 {
     private readonly JsonFileStore<MoneyOrder> _store;
