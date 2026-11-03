@@ -22,7 +22,7 @@ The Web project is the composition root and registers Application and Infrastruc
 
 The running Web application registers the EF Core SQL Server adapters from `AddSqlInfrastructure`. Branch, counter, staff/credential, product, stock, transaction, shipment, money-order, report, unit-of-work, and audit operations resolve through scoped SQL implementations sharing the request's `ApexPostDbContext`. Web startup does not register JSON repositories or use JSON as a fallback. Missing SQL configuration fails startup with a message showing the Development user-secrets command. JSON adapters remain available to legacy tests and the explicit import tool only. No separate business database is used.
 
-Development connection strings belong in user-secrets, and schema changes are applied explicitly with `dotnet ef database update`; Web startup does not migrate the database or use `EnsureCreated`. See [README.md](README.md) for setup and [docs/WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md) for the migration/import procedure.
+Development connection strings belong in user-secrets, and schema changes are applied explicitly with `dotnet ef database update`; Web startup does not migrate the database or use `EnsureCreated`. See [README.md](README.md) for setup and [docs/WEEK3-COMPLETE-DOCUMENTATION.md](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for the migration/import procedure.
 
 The current remediation scope is SQL Server, EF Core, MVC, reporting, tests, and application architecture only. It deliberately adds no Couchbase package, CounterTerminal project, offline workflow, SyncInbox, outbox, or synchronization endpoint.
 
@@ -152,7 +152,7 @@ The SQL report data source uses repository abstractions and no-tracking DTO proj
 
 Shipping weight limits are independently configured under `Shipping:MaximumWeightKgByServiceLevel`. The checked-in values (Standard 30 kg, Express 20 kg, Registered 10 kg) are demonstration assumptions, not assignment-provided business policy. Replace them with approved values. `ShippingPricingRule` uses a `Func<Weight, Money>` to run the configured pricing policy; the default linear rule applies `Shipping:PriceMultiplier` to the base-plus-weight price. A different delegate can implement another pricing policy without changing shipment orchestration.
 
-`JsonFileStore<TEntity>` remains an isolated legacy adapter and a source reader for import; it is not part of the Web runtime composition. SQL sale and reversal writes use the scoped unit of work and database constraints/transactions; see [WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md) for remaining SQL limitations.
+`JsonFileStore<TEntity>` remains an isolated legacy adapter and a source reader for import; it is not part of the Web runtime composition. SQL sale and reversal writes use the scoped unit of work and database constraints/transactions; see [docs/WEEK3-COMPLETE-DOCUMENTATION.md](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for remaining SQL limitations.
 
 ## Cross-cutting concerns
 
@@ -248,7 +248,7 @@ The receipt is available to the originating clerk and same-branch staff; Adminis
 
 The active SQL/application decisions are linked from the [ADR index](docs/adr/). ADR-0003, ADR-0008, ADR-0009, and ADR-0014 describe the superseded Week 2 JSON implementation only; [ADR-0015](docs/adr/0015-sql-runtime-and-reporting-boundary.md) and ADR-0016 through ADR-0026 describe current SQL/application decisions. These records do not authorize any offline/Couchbase architecture.
 
-Integration coverage is split by persistence adapter. Legacy JSON-backed tests use isolated per-test JSON directories; the SQL-backed integration suites use LocalDB catalogs prefixed `ApexPost_SqlIT_`, apply EF migrations, and exercise SQL repositories, procedures, transaction boundaries, and MVC endpoints. The SQL fixtures create and drop isolated catalogs and must never target `ApexPostDb`. See the [database testing guide](docs/DATABASE-TESTING-GUIDE.md) for the opt-in connection-string safety rule. Test-only probe endpoints remain solely for middleware branches that are not reachable through the production routes.
+Integration coverage is split by persistence adapter. Legacy JSON-backed tests use isolated per-test JSON directories; the SQL-backed integration suites use LocalDB catalogs prefixed `ApexPost_SqlIT_`, apply EF migrations, and exercise SQL repositories, procedures, transaction boundaries, and MVC endpoints. The SQL fixtures create and drop isolated catalogs and must never target `ApexPostDb`. See the [database testing guide](database/README.md) for the opt-in connection-string safety rule. Test-only probe endpoints remain solely for middleware branches that are not reachable through the production routes.
 
 ## Verification
 
