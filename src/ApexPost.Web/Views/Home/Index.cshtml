@@ -4,40 +4,115 @@
 }
 
 <section class="page-heading" aria-labelledby="page-title">
-    <p class="eyebrow">Branch dashboard · @Model.BranchCode</p>
-    <h1 id="page-title">Today's operations</h1>
-    <p class="page-description">Daily totals for @Model.Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture).</p>
+    <div class="flex-grow-1">
+        <p class="eyebrow">Branch dashboard · <strong>@Model.BranchCode</strong></p>
+        <h1 id="page-title">Today's operations</h1>
+        <p class="page-description">Daily totals for <time datetime="@Model.Date.ToString("yyyy-MM-dd")">@Model.Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</time> (UTC).</p>
+    </div>
+    <span class="badge badge-primary page-badge" aria-label="Live data">
+        <span class="status-dot" aria-hidden="true"></span> Live
+    </span>
 </section>
 
-<section class="dashboard-grid" aria-label="Daily branch totals">
-    <article class="card surface-card"><div class="card-body"><h2>Transactions</h2><p class="dashboard-value">@Model.TransactionCount</p></div></article>
-    <article class="card surface-card"><div class="card-body"><h2>Retail sales</h2><p class="dashboard-value">@Model.RetailSales.ToString("C")</p></div></article>
-    <article class="card surface-card"><div class="card-body"><h2>Service sales</h2><p class="dashboard-value">@Model.ServiceSales.ToString("C")</p></div></article>
-    <article class="card surface-card"><div class="card-body"><h2>Total sales</h2><p class="dashboard-value">@Model.TotalSales.ToString("C")</p></div></article>
-</section>
-
-<section class="card shadow-sm surface-card mt-4">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div><h2 class="section-title">Low stock</h2><p class="section-copy">Items at or below the reorder level of 5.</p></div>
-            <a class="button button-secondary" asp-controller="Inventory" asp-action="Index">Open inventory</a>
+<section class="dashboard-grid" aria-label="Daily branch totals" role="region">
+    <article class="card surface-card">
+        <div class="card-body">
+            <h2>Transactions</h2>
+            <p class="dashboard-value">@Model.TransactionCount</p>
         </div>
+    </article>
+    <article class="card surface-card">
+        <div class="card-body">
+            <h2>Retail sales</h2>
+            <p class="dashboard-value">@Model.RetailSales.ToString("C")</p>
+        </div>
+    </article>
+    <article class="card surface-card">
+        <div class="card-body">
+            <h2>Service sales</h2>
+            <p class="dashboard-value">@Model.ServiceSales.ToString("C")</p>
+        </div>
+    </article>
+    <article class="card surface-card">
+        <div class="card-body">
+            <h2>Total sales</h2>
+            <p class="dashboard-value">@Model.TotalSales.ToString("C")</p>
+        </div>
+    </article>
+</section>
+
+<section class="card surface-card mt-4" aria-labelledby="low-stock-heading">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 id="low-stock-heading" class="section-title mb-0">Low stock</h2>
+            <p class="section-copy mb-0">Items at or below the reorder level of 5.</p>
+        </div>
+        <a class="button button-secondary" asp-controller="Inventory" asp-action="Index">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            Open inventory
+        </a>
+    </div>
+    <div class="card-body">
         @if (Model.LowStockItems.Count == 0)
         {
-            <p class="alert alert-success mb-0" role="status">No products are currently at the low-stock threshold.</p>
+            <div class="empty-state" role="status">
+                <div class="empty-state-icon" aria-hidden="true">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <p class="empty-state-title">All stock levels healthy</p>
+                <p class="empty-state-text">No products are currently at or below the low-stock threshold.</p>
+            </div>
         }
         else
         {
-            <div class="table-responsive"><table class="table align-middle">
-                <caption class="visually-hidden">Low stock items for @Model.BranchCode</caption>
-                <thead><tr><th scope="col">SKU</th><th scope="col">Product</th><th scope="col">Available</th><th scope="col">Reorder level</th></tr></thead>
-                <tbody>
-                @foreach (var item in Model.LowStockItems)
-                {
-                    <tr><th scope="row">@item.Sku</th><td>@item.ProductName</td><td>@item.QuantityOnHand</td><td>@item.Threshold</td></tr>
-                }
-                </tbody>
-            </table></div>
+            <div class="table-responsive">
+                <table class="table align-middle" aria-describedby="low-stock-desc">
+                    <caption id="low-stock-desc" class="visually-hidden">Low stock items for @Model.BranchCode showing SKU, product name, available quantity, and reorder level</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">SKU</th>
+                            <th scope="col">Product</th>
+                            <th scope="col">Available</th>
+                            <th scope="col">Reorder level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.LowStockItems)
+                        {
+                            var isCritical = item.QuantityOnHand == 0;
+                            <tr class="@(isCritical ? "table-danger" : string.Empty)" @(isCritical ? "aria-label=\"Critical: out of stock\"" : string.Empty)>
+                                <th scope="row"><code>@item.Sku</code></th>
+                                <td>@item.ProductName</td>
+                                <td>
+                                    <span class="@(isCritical ? "text-danger fw-bold" : (item.QuantityOnHand <= 2 ? "text-warning fw-semibold" : ""))">
+                                        @item.QuantityOnHand
+                                    </span>
+                                </td>
+                                <td>@item.Threshold</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.LowStockItems.Any(i => i.QuantityOnHand == 0))
+            {
+                <div class="notice notice-warning mt-3" role="alert">
+                    <span class="notice-icon" aria-hidden="true">!</span>
+                    <p>Some items are <strong>out of stock</strong>. Use <a asp-controller="Stock" asp-action="Index" class="fw-semibold">Stock management</a> to replenish immediately.</p>
+                </div>
+            }
         }
     </div>
 </section>
+
+@section Scripts {
+    <script>
+        // Add row hover effect for better UX
+        document.addEventListener('DOMContentLoaded', function () {
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                row.style.transition = 'background-color 120ms ease';
+            });
+        });
+    </script>
+}
