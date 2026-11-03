@@ -52,6 +52,17 @@ public sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(branch => branch.OpeningTime).HasColumnType("time(0)");
         builder.Property(branch => branch.ClosingTime).HasColumnType("time(0)");
         builder.Property(branch => branch.IsActive).HasDefaultValue(true);
+
+        // Owned type for Address
+        builder.OwnsOne(branch => branch.Address, addressBuilder =>
+        {
+            addressBuilder.Property(a => a.Street).HasColumnName("AddressStreet").HasMaxLength(200).IsUnicode(false);
+            addressBuilder.Property(a => a.City).HasColumnName("AddressCity").HasMaxLength(100).IsUnicode(false);
+            addressBuilder.Property(a => a.State).HasColumnName("AddressState").HasMaxLength(100).IsUnicode(false);
+            addressBuilder.Property(a => a.PostalCode).HasColumnName("AddressPostalCode").HasMaxLength(20).IsUnicode(false);
+            addressBuilder.Property(a => a.Country).HasColumnName("AddressCountry").HasMaxLength(100).IsUnicode(false);
+        });
+
         SqlMapping.AddAuditColumns(builder, modified: true);
     }
 }
@@ -211,7 +222,6 @@ public sealed class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.ToTable("Shipments", table =>
         {
             table.HasCheckConstraint("CK_Shipments_Weight", "[WeightKg] >= 0");
-            table.HasCheckConstraint("CK_Shipments_Dimensions", "[LengthCm] > 0 AND [WidthCm] > 0 AND [HeightCm] > 0");
             table.HasCheckConstraint("CK_Shipments_ItemType", "[ItemType] IN ('Parcel','Letter')");
             table.HasCheckConstraint("CK_Shipments_ServiceLevel", "[ServiceLevel] IN ('Standard','Express','Registered')");
         });
@@ -219,9 +229,15 @@ public sealed class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.Property(shipment => shipment.Id).HasMaxLength(128).IsUnicode(false);
         builder.Property(shipment => shipment.ItemType).HasMaxLength(16).IsUnicode(false);
         builder.Property(shipment => shipment.Weight).HasConversion(SqlMapping.WeightConverter).HasColumnName("WeightKg").HasPrecision(9, 3);
-        builder.Property(shipment => shipment.LengthCm).HasPrecision(9, 2);
-        builder.Property(shipment => shipment.WidthCm).HasPrecision(9, 2);
-        builder.Property(shipment => shipment.HeightCm).HasPrecision(9, 2);
+
+        // Owned type for Dimensions
+        builder.OwnsOne(shipment => shipment.Dimensions, dimBuilder =>
+        {
+            dimBuilder.Property(d => d.LengthCm).HasColumnName("LengthCm").HasPrecision(9, 2);
+            dimBuilder.Property(d => d.WidthCm).HasColumnName("WidthCm").HasPrecision(9, 2);
+            dimBuilder.Property(d => d.HeightCm).HasColumnName("HeightCm").HasPrecision(9, 2);
+        });
+
         builder.Property(shipment => shipment.DestinationZone).HasColumnName("ZoneCode").HasMaxLength(32).IsUnicode(false);
         builder.Property(shipment => shipment.ServiceLevel).HasConversion<string>().HasMaxLength(32).IsUnicode(false);
         builder.Property(shipment => shipment.BranchCode).HasConversion(SqlMapping.NullableBranchCodeConverter).HasMaxLength(10).IsUnicode(false);

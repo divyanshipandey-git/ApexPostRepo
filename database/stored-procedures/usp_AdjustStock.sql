@@ -9,11 +9,14 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    -- Parameter validation
     IF NULLIF(LTRIM(RTRIM(@BranchCode)), '') IS NULL
        OR NULLIF(LTRIM(RTRIM(@Sku)), '') IS NULL
         THROW 51009, 'Branch code and SKU are required.', 1;
-    IF @Delta IS NULL OR @Delta = 0 OR @Delta = -2147483648
+
+    IF @Delta = 0 OR @Delta = -2147483648
         THROW 51000, 'Stock adjustment must be a non-zero supported quantity.', 1;
+
     IF NULLIF(LTRIM(RTRIM(@Reason)), '') IS NULL
        OR NULLIF(LTRIM(RTRIM(@ChangedBy)), '') IS NULL
         THROW 51001, 'A reason and actor are required for stock adjustments.', 1;
@@ -56,6 +59,7 @@ BEGIN
              'Adjustment', @Reason, @ChangedBy, SYSUTCDATETIME());
 
         COMMIT TRANSACTION;
+
         SELECT BranchCode, Sku, Quantity
         FROM dbo.BranchStock
         WHERE BranchCode = @BranchCode AND Sku = @Sku;

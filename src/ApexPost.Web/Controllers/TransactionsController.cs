@@ -2,6 +2,7 @@ using System.Security.Claims;
 using ApexPost.Application.Services.Transactions;
 using ApexPost.Application.Services.Staff;
 using ApexPost.Domain.Entities;
+using ApexPost.Domain.ValueObjects;
 using ApexPost.Web.Models.Transactions;
 using ApexPost.Web.Security;
 using ApexPost.Web.Filters;
@@ -149,12 +150,11 @@ public sealed class TransactionsController(
             }
             else
             {
+                var dimensions = new Dimensions(model.LengthCm.Value, model.WidthCm.Value, model.HeightCm.Value);
                 shipping = new CounterShippingRequest(
                     model.ItemType,
                     model.WeightKg.Value,
-                    model.LengthCm.Value,
-                    model.WidthCm.Value,
-                    model.HeightCm.Value,
+                    dimensions,
                     model.DestinationZone,
                     level);
             }

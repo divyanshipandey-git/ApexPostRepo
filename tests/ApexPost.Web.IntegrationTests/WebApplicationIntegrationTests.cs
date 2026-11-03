@@ -1631,9 +1631,7 @@ public sealed class WebApplicationIntegrationTests
                 shipmentId,
                 "Parcel",
                 new Weight(1.25m),
-                20m,
-                15m,
-                10m,
+                new Dimensions(20m, 15m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard));
         }

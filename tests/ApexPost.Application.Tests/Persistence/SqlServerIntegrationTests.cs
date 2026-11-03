@@ -279,7 +279,7 @@ public sealed class SqlServerIntegrationTests
             var result = await scope.ServiceProvider.GetRequiredService<CounterSaleService>().CompleteAsync(
                 new CounterSaleRequest(seed.CounterId,
                     [new CounterSaleProductRequest(seed.Sku, 1)], PaymentMethod.Card,
-                    new CounterShippingRequest("Parcel", 1m, 10m, 10m, 10m, "ZONE1", ShippingServiceLevel.Standard),
+                    new CounterShippingRequest("Parcel", 1m, new Dimensions(10m, 10m, 10m), "ZONE1", ShippingServiceLevel.Standard),
                     new CounterMoneyOrderRequest(15_000m, "Sender", "Recipient",
                         new CounterIdentityVerificationRequest("Government ID", "XXXX1234", true))),
                 new AuthenticatedStaff(seed.StaffId, StaffRole.BranchManager, seed.BranchCode));
@@ -434,7 +434,7 @@ public sealed class SqlServerIntegrationTests
                     [new CounterSaleProductRequest(seed.Sku, 2)],
                     PaymentMethod.Cash,
                     new CounterShippingRequest(
-                        "Parcel", 1m, 10m, 10m, 10m, "ZONE1", ShippingServiceLevel.Standard),
+                        "Parcel", 1m, new Dimensions(10m, 10m, 10m), "ZONE1", ShippingServiceLevel.Standard),
                     new CounterMoneyOrderRequest(500m, "Sender", "Recipient")),
                 new AuthenticatedStaff(seed.StaffId, StaffRole.BranchManager, seed.BranchCode));
             Assert.Equal(CounterSaleStatus.PersistenceFailure, result.Status);
@@ -504,7 +504,7 @@ public sealed class SqlServerIntegrationTests
             var sale = await scope.ServiceProvider.GetRequiredService<CounterSaleService>().CompleteAsync(
                 new CounterSaleRequest(seed.CounterId,
                     [new CounterSaleProductRequest(seed.Sku, 1)], PaymentMethod.Cash,
-                    new CounterShippingRequest("Parcel", 1m, 10m, 10m, 10m, "ZONE1", ShippingServiceLevel.Standard)),
+                    new CounterShippingRequest("Parcel", 1m, new Dimensions(10m, 10m, 10m), "ZONE1", ShippingServiceLevel.Standard)),
                 new AuthenticatedStaff(seed.StaffId, StaffRole.BranchManager, seed.BranchCode));
             Assert.Equal(CounterSaleStatus.Completed, sale.Status);
         }
@@ -826,7 +826,7 @@ public sealed class SqlServerIntegrationTests
     {
         await using var context = await CreateContextAsync();
         context.Shipments.Add(new Shipment(
-            shipmentId, "Parcel", new Weight(1m), 10m, 10m, 10m, "ZONE1",
+            shipmentId, "Parcel", new Weight(1m), new Dimensions(10m, 10m, 10m), "ZONE1",
             ShippingServiceLevel.Standard, new BranchCode(branchCode), createdAtUtc: createdAtUtc));
         await context.SaveChangesAsync();
     }

@@ -1,5 +1,4 @@
-﻿
-using ApexPost.Domain.ValueObjects;
+﻿using ApexPost.Domain.ValueObjects;
 using System.Text.Json.Serialization;
 
 namespace ApexPost.Domain.Entities;
@@ -9,9 +8,7 @@ public sealed class Shipment
     public string Id { get; }
     public string ItemType { get; }
     public Weight Weight { get; }
-    public decimal LengthCm { get; }
-    public decimal WidthCm { get; }
-    public decimal HeightCm { get; }
+    public Dimensions Dimensions { get; }
     public string DestinationZone { get; }
     public ShippingServiceLevel ServiceLevel { get; }
     public BranchCode? BranchCode { get; }
@@ -30,9 +27,7 @@ public sealed class Shipment
         string id,
         string itemType,
         Weight weight,
-        decimal lengthCm,
-        decimal widthCm,
-        decimal heightCm,
+        Dimensions dimensions,
         string destinationZone,
         ShippingServiceLevel serviceLevel,
         BranchCode? branchCode = null,
@@ -42,6 +37,7 @@ public sealed class Shipment
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemType);
         ArgumentNullException.ThrowIfNull(weight);
+        ArgumentNullException.ThrowIfNull(dimensions);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationZone);
 
         if (itemType is not ("Parcel" or "Letter"))
@@ -49,13 +45,6 @@ public sealed class Shipment
             throw new ArgumentException(
                 "Item type must be Parcel or Letter.",
                 nameof(itemType));
-        }
-
-        if (lengthCm <= 0 || widthCm <= 0 || heightCm <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(lengthCm),
-                "All dimensions must be positive.");
         }
 
         if (!Enum.IsDefined(serviceLevel))
@@ -71,9 +60,7 @@ public sealed class Shipment
         Id = id.Trim();
         ItemType = itemType;
         Weight = weight;
-        LengthCm = lengthCm;
-        WidthCm = widthCm;
-        HeightCm = heightCm;
+        Dimensions = dimensions;
         DestinationZone = destinationZone.Trim();
         ServiceLevel = serviceLevel;
         BranchCode = branchCode;
