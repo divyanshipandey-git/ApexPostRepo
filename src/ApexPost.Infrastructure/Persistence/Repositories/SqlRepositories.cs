@@ -260,13 +260,10 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
      string? branchCode = null,             
      CancellationToken cancellationToken = default)
     {
-        // DEBUG: Divyanshi - verifying fix is compiled
-        System.Diagnostics.Debug.WriteLine($"Divyanshi: GetDailyBranchSalesAsync called with date={date}, branchCode={branchCode ?? "NULL"}");
 
         var branchValue = branchCode ?? (object)DBNull.Value;
         var dateValue = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
-        System.Diagnostics.Debug.WriteLine($"Divyanshi: branchValue={branchValue}, dateValue={dateValue}");
 
         // Use FromSqlInterpolated with FormattableString for proper parameterization
         // NOTE: The stored procedure in the database uses @ReportDate parameter name (not @Date)
@@ -296,22 +293,22 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
         string? branchCode,
-        int threshold,
+        int reorderLevel,
         CancellationToken cancellationToken = default)
     {
         var branchValue = branchCode ?? (object)DBNull.Value;
-        var thresholdValue = threshold;
+        var reorderLevelValue = reorderLevel;
 
         var rows = await db.Set<LowStockProcedureRow>()
             .FromSqlInterpolated($"""
                 EXEC dbo.usp_LowStockReport 
                     @BranchCode={branchValue}, 
-                    @Threshold={thresholdValue}
+                    @ReorderLevel={reorderLevelValue}
                 """)
             .ToArrayAsync(cancellationToken);
 
         return rows.Select(row => new LowStockReportItem(
-            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
+            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.ReorderLevel)).ToArray();
     }
 
     public async Task<IReadOnlyList<ShippingVolumeReportItem>> GetShippingVolumeAsync(
@@ -811,5 +808,5 @@ public sealed class LowStockProcedureRow
     public string Sku { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
-    public int Threshold { get; set; }
+    public int ReorderLevel { get; set; }
 }
