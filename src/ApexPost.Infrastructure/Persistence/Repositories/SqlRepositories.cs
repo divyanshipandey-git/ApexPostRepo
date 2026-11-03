@@ -255,15 +255,19 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
     //        row.RetailSales, row.ServiceSales)).ToArray();
     //}
 
-    public async Task<IReadOnlyList<ReportDailyBranchSales>> GetDailyBranchSalesAsync(
+        public async Task<IReadOnlyList<ReportDailyBranchSales>> GetDailyBranchSalesAsync(
      DateOnly date,
      string? branchCode = null,             
      CancellationToken cancellationToken = default)
     {
-        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
-        var dateParam = new SqlParameter("@Date", date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+        var branchParam = new SqlParameter("@BranchCode", System.Data.SqlDbType.VarChar, 10)
         {
-            SqlDbType = System.Data.SqlDbType.Date
+            Value = branchCode ?? (object)DBNull.Value
+        };
+
+        var dateParam = new SqlParameter("@Date", System.Data.SqlDbType.Date)
+        {
+            Value = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
         };
 
         var rows = await db.Set<DailyBranchSalesProcedureRow>()
@@ -277,7 +281,6 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
             row.RetailSales,
             row.ServiceSales)).ToArray();
     }
-
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
         string? branchCode = null,
         CancellationToken cancellationToken = default)
