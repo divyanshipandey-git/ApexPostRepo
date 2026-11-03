@@ -260,19 +260,25 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
      string? branchCode = null,             
      CancellationToken cancellationToken = default)
     {
-        var branchParam = new SqlParameter("@BranchCode", System.Data.SqlDbType.VarChar, 10)
-        {
-            Value = branchCode ?? (object)DBNull.Value
-        };
+        // DEBUG: Divyanshi - verifying fix is compiled
+        System.Diagnostics.Debug.WriteLine($"Divyanshi: GetDailyBranchSalesAsync called with date={date}, branchCode={branchCode ?? "NULL"}");
 
-        var dateParam = new SqlParameter("@Date", System.Data.SqlDbType.Date)
-        {
-            Value = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
-        };
+        var branchValue = branchCode ?? (object)DBNull.Value;
+        var dateValue = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
+        System.Diagnostics.Debug.WriteLine($"Divyanshi: branchValue={branchValue}, dateValue={dateValue}");
+
+        // Use FromSqlInterpolated with FormattableString for proper parameterization
+        // NOTE: The stored procedure in the database uses @ReportDate parameter name (not @Date)
         var rows = await db.Set<DailyBranchSalesProcedureRow>()
-            .FromSqlRaw("EXEC dbo.usp_DailyBranchSales @BranchCode, @Date", branchParam, dateParam)
+            .FromSqlInterpolated($"""
+                EXEC dbo.usp_DailyBranchSales 
+                    @BranchCode={branchValue}, 
+                    @ReportDate={dateValue}
+                """)
             .ToArrayAsync(cancellationToken);
+
+        System.Diagnostics.Debug.WriteLine($"Divyanshi: Query returned {rows.Length} rows");
 
         return rows.Select(row => new ReportDailyBranchSales(
             row.BranchCode,
@@ -285,15 +291,7 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         string? branchCode = null,
         CancellationToken cancellationToken = default)
     {
-        var thresholdParam = new SqlParameter("@Threshold", 5);
-        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
-
-        var rows = await db.Set<LowStockProcedureRow>()
-            .FromSqlRaw("EXEC dbo.usp_LowStockReport @Threshold, @BranchCode", thresholdParam, branchParam)
-            .ToArrayAsync(cancellationToken);
-
-        return rows.Select(row => new LowStockReportItem(
-            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
+        return await GetLowStockAsync(branchCode, 5, cancellationToken);
     }
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
@@ -301,11 +299,15 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         int threshold,
         CancellationToken cancellationToken = default)
     {
-        var thresholdParam = new SqlParameter("@Threshold", threshold);
-        var branchParam = new SqlParameter("@BranchCode", branchCode ?? (object)DBNull.Value);
+        var branchValue = branchCode ?? (object)DBNull.Value;
+        var thresholdValue = threshold;
 
         var rows = await db.Set<LowStockProcedureRow>()
-            .FromSqlRaw("EXEC dbo.usp_LowStockReport @Threshold, @BranchCode", thresholdParam, branchParam)
+            .FromSqlInterpolated($"""
+                EXEC dbo.usp_LowStockReport 
+                    @BranchCode={branchValue}, 
+                    @Threshold={thresholdValue}
+                """)
             .ToArrayAsync(cancellationToken);
 
         return rows.Select(row => new LowStockReportItem(
