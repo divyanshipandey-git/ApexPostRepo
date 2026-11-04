@@ -1,5 +1,4 @@
-﻿
-using ApexPost.Application.Abstractions.Repositories;
+﻿using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
@@ -97,7 +96,11 @@ public sealed class MoneyOrderService
         return moneyOrder;
     }
 
-    public Task SavePreparedAsync(
+    /// <summary>
+    /// Stages a prepared money order for persistence within the current unit of work.
+    /// The money order will be saved when the unit of work is committed.
+    /// </summary>
+    public Task StagePreparedAsync(
         MoneyOrder moneyOrder,
         CancellationToken cancellationToken = default)
     {
@@ -105,7 +108,7 @@ public sealed class MoneyOrderService
         if (string.IsNullOrWhiteSpace(moneyOrder.TransactionId) ||
             string.IsNullOrWhiteSpace(moneyOrder.BranchCode))
         {
-            throw new InvalidOperationException("Only a transaction-linked money order can be saved through this workflow.");
+            throw new InvalidOperationException("Only a transaction-linked money order can be staged through this workflow.");
         }
 
         return _moneyOrderRepository.AddAsync(moneyOrder, cancellationToken);

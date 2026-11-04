@@ -1,5 +1,6 @@
 using ApexPost.Domain.Entities;
 using ApexPost.Infrastructure.Persistence.SqlEntities;
+using ApexPost.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexPost.Infrastructure.Persistence;
@@ -27,6 +28,13 @@ public sealed class ApexPostDbContext(DbContextOptions<ApexPostDbContext> option
     public DbSet<AuditEntryRecord> AuditEntries => Set<AuditEntryRecord>();
     public DbSet<ImportRunRecord> ImportRuns => Set<ImportRunRecord>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApexPostDbContext).Assembly);
+
+        // Keyless entities for stored procedure results
+        modelBuilder.Entity<DailyBranchSalesProcedureRow>().HasNoKey();
+        modelBuilder.Entity<LowStockProcedureRow>().HasNoKey();
+        modelBuilder.Entity<TopProductRevenueProcedureRow>().HasNoKey();
+    }
 }

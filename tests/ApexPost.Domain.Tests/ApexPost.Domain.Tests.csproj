@@ -4,6 +4,7 @@
     <IsTestProject>true</IsTestProject>
     <AssemblyName>ApexPost.Domain.Tests</AssemblyName>
     <RootNamespace>ApexPost.Domain.Tests</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

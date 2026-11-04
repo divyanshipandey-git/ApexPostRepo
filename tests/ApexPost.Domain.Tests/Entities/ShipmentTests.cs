@@ -1,5 +1,4 @@
-﻿
-using ApexPost.Domain.Entities;
+﻿using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using Xunit;
 
@@ -29,7 +28,7 @@ public class ShipmentTests
                 "SH001",
                 "Document",
                 new Weight(1m),
-                10m, 10m, 10m,
+                new Dimensions(10m, 10m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard));
     }
@@ -42,7 +41,7 @@ public class ShipmentTests
                 "SH001",
                 "Parcel",
                 new Weight(1m),
-                0m, 10m, 10m,
+                new Dimensions(0m, 10m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard));
     }
@@ -55,7 +54,7 @@ public class ShipmentTests
                 "SH001",
                 "Parcel",
                 new Weight(1m),
-                10m, 10m, 10m,
+                new Dimensions(10m, 10m, 10m),
                 "ZONE1",
                 (ShippingServiceLevel)999));
     }
@@ -67,7 +66,7 @@ public class ShipmentTests
             " SH001 ",
             "Parcel",
             new Weight(1m),
-            10m, 10m, 10m,
+            new Dimensions(10m, 10m, 10m),
             " ZONE1 ",
             ShippingServiceLevel.Express);
 
@@ -80,7 +79,7 @@ public class ShipmentTests
             "SH001",
             "Parcel",
             new Weight(2.5m),
-            30m, 20m, 15m,
+            new Dimensions(30m, 20m, 15m),
             "ZONE1",
             ShippingServiceLevel.Standard);
 }
