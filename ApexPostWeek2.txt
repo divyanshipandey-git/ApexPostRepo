@@ -1,0 +1,313 @@
+ApexPost Logistics – Week 3: SQL Server Persistence, Data Access Patterns and Offline-First Counter Terminals (EF Core 10, Repository/Unit of Work, Couchbase Lite)
+
+Lab Problem Statement:
+
+Project background
+
+ApexPost Logistics now runs the Counter Platform you built in Week 2: an ASP.NET Core MVC application with a secure middleware pipeline, action-filter auditing and JSON-file persistence behind repository interfaces.
+
+Two problems have appeared in the pilot branches:
+
+Data at scale: JSON files cannot support thousands of branches, concurrent clerks, reliable transactions or fast reports. Head office needs a proper system of record.
+Network outages: many rural branches lose connectivity several times a day. When the link drops, counters stop selling, and customers leave.
+This week you will make SQL Server the central system of record, accessed through EF Core 10 and clean data-access patterns. You will also build an offline-first Counter Terminal that keeps selling during outages using Couchbase Lite, then synchronizes safely when the network returns.
+
+Week 3 goal
+
+Replace the JSON repositories with SQL Server and EF Core 10 behind the same application interfaces. Prove the business logic did not change.
+Design the relational schema properly, index it based on evidence, and use stored procedures where they add value.
+Apply the Repository, Unit of Work, DTO and domain/persistence separation patterns from Labs 13–16 deliberately, not mechanically.
+Add an offline-capable Counter Terminal using Couchbase Lite, with local JSON documents, key-value lookups, SQL++ queries, change listeners and a safe sync process to SQL Server.
+Keep everything from Week 2 working: middleware, filters, authentication, auditing and tests.
+Part A: Relational schema design (SQL Server)
+
+Create your own database, ApexPostDb. Never use a shared training database.
+
+Design normalized tables (3NF) for at least the following:
+Branches, Counters, Staff, Roles
+Products, ProductCategories, BranchStock
+ShippingZones, ShippingRates, Shipments
+MoneyOrders, IdentityVerifications
+CounterTransactions, TransactionLines, Payments
+AuditEntries
+SyncInbox (for offline sync, Part G)
+For every table, define:
+Primary keys and foreign keys, with the delete behaviour you chose and why.
+UNIQUE constraints (BranchCode, Sku, staff email).
+CHECK constraints (quantities ≥ 0, AllocationPercent-style ranges, Amount > 0, Status values).
+DEFAULT constraints, and audit columns (CreatedAtUtc, CreatedBy, ModifiedAtUtc).
+Add a rowversion concurrency column on BranchStock and CounterTransactions.
+Use correct data types: decimal(18,2) for money, date or datetime2 in UTC, varchar for codes and nvarchar for names.
+Store identity documents masked only (for example, last 4 characters). Never store the full document number. Enforce the masking in the domain and reflect it in the schema (column length).
+Deliver:
+An ER diagram in DESIGN.md.
+A normalization note listing three anomalies your design prevents.
+The generated schema script (dotnet ef migrations script --idempotent).
+Part B: EF Core 10 mapping, migrations and querying
+
+Create an Infrastructure project with:
+ApexPostDbContext
+IEntityTypeConfiguration classes (Fluent API) for every entity
+Value converters for value objects (Money, Sku, BranchCode, Weight)
+Owned types where they fit (for example, Address and Dimensions)
+Use code-first migrations:
+An InitialCreate migration plus at least one follow-up migration (for example, adding an index or a column).
+Review every migration before applying it.
+Generate an idempotent SQL script for deployment.
+Never call EnsureCreated() in production code.
+Seed reference data through migrations or a seeding service. Volumes:
+At least 5 branches, 20 staff, 30 products and 10 zones/rates.
+At least 200 historical transactions, so that the indexes and reports are meaningful.
+Querying rules:
+AsNoTracking projections into DTOs for every read screen and report.
+Include only where you need tracked aggregates.
+AsSplitQuery where a single query would multiply rows (cartesian explosion).
+No N+1 queries. Prove this with EF Core command logging in Development.
+Writes:
+A counter sale must decrement BranchStock and save the transaction, lines and payment in one SaveChangesAsync call.
+Use ExecuteUpdateAsync for a set-based price revision.
+Concurrency: two clerks selling the last unit of a product at the same time must not drive stock negative. Handle DbUpdateConcurrencyException with a clear user message (HTTP 409 or a view error).
+Transactions: use an explicit transaction with an execution strategy wherever you mix SaveChangesAsync with a stored procedure or ExecuteUpdate.
+Use ToQueryString() to capture the generated SQL for at least three important queries, and include it in PERFORMANCE.md.
+Part C: Index optimization and execution plans
+
+Choose at least four real workloads, for example:
+Low-stock report by branch
+Daily sales by branch and date
+Shipment search by zone and service level
+Money-order search for auditors
+For each workload:
+1.                  Capture a baseline: the actual execution plan, plus logical reads and CPU time from SET STATISTICS IO/TIME.
+
+2.                  Design a candidate index (composite, covering or filtered) and justify the order of its key columns and any INCLUDE columns.
+
+3.                  Measure again on realistic data volumes.
+
+4.                  Record the write overhead and storage cost.
+
+Fix at least one non-SARGable predicate, for example YEAR(TransactionDate) = 2026 rewritten as a date range, and show the before and after plans.
+Deliver PERFORMANCE.md with:
+Saved .sqlplan files or screenshots
+Before and after tables (reads, CPU, plan shape)
+Your conclusions
+Never invent numbers. A small dataset that still produces scans must be explained, not hidden.
+Part D: Stored procedures
+
+Write at least three stored procedures. Use CREATE OR ALTER and SET NOCOUNT ON, validate parameters and use named constraints:
+usp_DailyBranchSales (@BranchCode, @Date): retail vs services totals.
+usp_LowStockReport (@BranchCode, @Threshold): optional parameters. Explain your choice between OPTION (RECOMPILE) and alternatives.
+usp_AdjustStock (@BranchCode, @Sku, @Delta, @Reason, @ChangedBy): transactional, with TRY…CATCH, SET XACT_ABORT ON and THROW. It also writes a stock-adjustment history row.
+Call the procedures from EF Core with parameterized APIs only (ExecuteSqlAsync / FromSql / SqlQuery). No string concatenation.
+Add a least-privilege note: which database role or permissions the application login needs.
+Explain in an ADR why each procedure is a procedure and not a LINQ query. "Stored procedures are faster" is not an accepted reason on its own.
+Part E: Data access patterns (Repository, Unit of Work, domain vs persistence)
+
+Keep the dependency direction:
+Domain references nothing.
+Application defines the interfaces.
+Infrastructure implements them with EF Core.
+Web is the composition root.
+Specific repositories for aggregates, for example IBranchRepository, IProductRepository, IStockRepository, ICounterTransactionRepository, IStaffRepository and IAuditStore:
+Repositories stage changes only. They never call SaveChanges.
+No repository returns IQueryable.
+IUnitOfWork with SaveChangesAsync, plus an optional ExecuteInTransactionAsync. One commit per use case. Repositories, the unit of work and the DbContext are all scoped and share one DbContext per request.
+Domain vs persistence:
+Keep rich domain entities with private setters and methods. Examples: Sale.AddLine, BranchStock.Remove(quantity), MoneyOrder.RequireVerification.
+Map them with Fluent API, and use shadow properties for rowversion and audit columns.
+Create a separate persistence entity plus mapper for at least one aggregate, and justify it in an ADR. Example: IdentityVerification with masked storage, or a legacy-shaped Payments table.
+DTOs and mapping:
+Request DTOs for every POST/PUT, with validation.
+Response/view-model DTOs for every screen.
+Explicit mapping from the input model to an application command to the entity (as in the Input Model to Data Model Mapper lab).
+Prove that over-posting of Status, Id or audit fields has no effect.
+Query/command separation:
+Report and dashboard reads go through query services: AsNoTracking projections or stored procedures.
+Writes go through command services or handlers: repositories plus the unit of work.
+No separate databases are required. State this explicitly.
+Prove the refactor: the Week 2 unit tests for business rules must pass unchanged against the new persistence layer.
+Part F: Couchbase Lite offline Counter Terminal (NoSQL)
+
+Add a new .NET 10 project, ApexPost.CounterTerminal (console app), representing a counter terminal that must work offline.
+Use Couchbase Lite (Couchbase.Lite 4.1.x, matching the labs).
+Store the database in a persistent, configurable local directory.
+Collections (JSON documents):
+catalog: products and prices for this branch, as a local snapshot.
+stock: a local stock snapshot.
+pendingTransactions: sales captured locally that are not yet synced.
+syncState: last sync time, version tokens, the device ID and similar.
+Document design:
+Stable IDs that are unique offline, for example tx::{deviceId}::{Guid} and product::{Sku}.
+A type field and a schemaVersion field.
+No full identity document numbers or card data in local documents.
+Use key-value lookups (GetDocument by ID) for product-by-SKU and transaction-by-ID.
+Use parameterized SQL++ queries (SQL++ for Mobile syntax), with at least:
+Products by category, sorted by name
+Pending transactions older than N minutes
+Today's local sales total
+Create local indexes for the filtered fields.
+Architecture inside the terminal: Console UI → TerminalService → repository interfaces → Couchbase Lite repositories. No Couchbase types appear in the UI or the services.
+Show that local CRUD and sales work with the network disconnected.
+Business rules must still apply offline:
+Stock cannot go negative against the local snapshot.
+High-value money orders are blocked offline (they require online identity verification). This is a business decision you must justify.
+Part G: Offline synchronization (change listeners, outbox, conflicts)
+
+Change listener: a TerminalChangeMonitor registers a collection change listener on pendingTransactions.
+Register once.
+Keep the callback short (enqueue the IDs only).
+Remove the ListenerToken and dispose before closing the database.
+Use the listener to trigger a sync attempt and a UI refresh.
+Sync design (application-level outbox):
+Push: a SyncWorker sends pending transactions to a new authenticated endpoint in ApexPost.Web: POST /api/sync/transactions. Use the Week 2 API key or a device token, rate limiting and HTTPS.
+Server side: the endpoint processes each transaction through the normal command service and IUnitOfWork into SQL Server.
+Idempotency: a unique (DeviceId, LocalTransactionId) index in a SyncInbox table, so retries never double-post a sale.
+Pull: the worker downloads the latest catalogue, prices and stock snapshot for the branch (GET /api/sync/branch-snapshot?since=…) and updates the local collections.
+Retries: exponential backoff with cancellation. Network failure is not data loss.
+Conflict resolution (document every policy in CONFLICTS.md):
+Price changed while offline: decide whether the sale is honoured at the offline price or flagged for review. Explain your choice.
+Stock oversold: the server detects that combined offline sales exceed stock. Decide on accept-and-flag, partial reject or backorder, and how the clerk is informed.
+Same document edited on two devices: define a field-level policy. Last-write-wins is not accepted without a justification.
+Each policy must be tested.
+Local state management:
+The terminal shows its sync status: online/offline, pending count, last successful sync and last error.
+The SQL Server copy is the system of record. The terminal never overwrites server-only fields.
+Important: Couchbase Lite does not synchronize with SQL Server by itself. Native Couchbase replication needs Sync Gateway or Capella App Services backed by Couchbase Server or Capella; that is not used here.
+Bonus (optional, +5): add native Couchbase replication to a local Sync Gateway in Docker for the catalogue collection only, and compare it with your outbox approach in an ADR.
+Part H: Integration with the existing platform
+
+MVC screens now read and write SQL Server through services: dashboard, catalogue and stock, counter transactions, reports and auditor views.
+Reports use query services or stored procedures:
+Daily branch sales
+Low stock
+Shipping volume by zone and service level
+Money orders and identity verifications per branch
+AuditActionFilter now writes to the AuditEntries table through IAuditStore. Audit writes must not break the business transaction. Decide whether they share the unit of work or are stored separately, and justify the choice.
+The connection string comes from user-secrets in Development. Never commit credentials.
+Part I: Testing and evidence
+
+Unit tests (no database):
+Domain rules: stock, identity verification, weight limits, voids and refunds
+Application services with fake repositories and a spy unit of work (commit once, or never on failure)
+SQL Server integration tests (use a disposable test database or container, never the development database):
+Repository mapping and translation
+A failed sale rolls back stock and transaction rows together
+A concurrency conflict on stock returns 409
+Stored procedures return the expected results
+Couchbase Lite tests (temporary directory per test):
+CRUD
+SQL++ queries
+Persistence across reopening the database
+Listener fires exactly once per change (duplicate registration guarded)
+Sync tests:
+The same pending transaction pushed twice creates one SQL Server row (idempotency).
+The offline price-change and oversold-stock conflict policies.
+API tests with WebApplicationFactory: the /api/sync endpoints require authentication, enforce rate limits and return Problem Details on errors.
+Decisions YOU must make and justify (ADRs)
+
+Write at least 8 new ADRs, including:
+
+Schema design and delete behaviours.
+Index choices backed by your execution-plan evidence.
+Which operations are stored procedures, and why.
+Repository and Unit of Work boundaries, and where direct DbContext projections are acceptable.
+Where domain and persistence models are separated, and where they are not.
+Why Couchbase Lite for the terminal, and what the alternatives were (SQLite, plain files).
+Your sync approach (application outbox versus native Couchbase replication).
+Your conflict-resolution policies and their business impact.
+Deliverables
+
+GitHub repository: updated .NET 10 solution with Domain, Application, Infrastructure (EF Core), Web (MVC + sync API), CounterTerminal (Couchbase Lite) and test projects. Use feature branches, pull requests and meaningful commits.
+Database artifacts:
+Migrations
+The idempotent schema script
+Stored procedure scripts (CREATE OR ALTER)
+The seed script or seeding service
+README.md:
+How to create ApexPostDb and apply migrations
+How to set user-secrets (connection string and API key)
+How to run the web app and the terminal
+How to demonstrate offline mode and sync
+Demo accounts
+DESIGN.md:
+An updated architecture diagram, the ER diagram and the offline sync sequence diagram
+The layer and dependency diagram
+The ADRs
+The updated SOLID mapping
+PERFORMANCE.md: execution plans, before/after measurements, index trade-offs and the generated SQL samples.
+CONFLICTS.md: every conflict scenario, the chosen policy and the test that proves it.
+Demo: a short screen recording or transcript:
+1.                  Go offline and sell at the terminal.
+
+2.                  Go back online and sync.
+
+3.                  Show the sale in the SQL Server reports.
+
+4.                  Show one conflict being handled.
+
+Constraints
+
+.NET 10 and C# 14. Nullable reference types enabled. Zero build warnings.
+SQL Server is the system of record. Couchbase Lite is used only on the Counter Terminal for offline data.
+Allowed packages:
+Microsoft.AspNetCore.* and Microsoft.Extensions.*
+Microsoft.EntityFrameworkCore.* (SqlServer, Design, Tools)
+Couchbase.Lite (4.1.x)
+xUnit and Microsoft.AspNetCore.Mvc.Testing
+Anything else needs trainer approval and an ADR.
+All database access is asynchronous where the API supports it, with a CancellationToken passed through. No .Result, .Wait() or Thread.Sleep.
+No string-concatenated SQL anywhere: EF Core LINQ, parameterized raw SQL and parameterized SQL++ only.
+DbContext, repositories and the unit of work are scoped. No static or singleton DbContext.
+No secrets in source control. Use fictional data only. Identity documents stay masked everywhere: SQL Server, Couchbase Lite, logs and audit entries.
+Program.cs remains a composition root. No business logic in endpoints, middleware, filters, repositories or the Couchbase listener callback.
+Assessment guide (100 marks)
+
+Area
+
+Marks
+
+Relational schema design, constraints and migrations
+
+15
+
+EF Core mapping, querying, change tracking, concurrency and transactions
+
+15
+
+Index optimization and execution-plan evidence (PERFORMANCE.md)
+
+10
+
+Stored procedures and their safe use from EF Core
+
+10
+
+Repository, Unit of Work, DTOs, domain vs persistence separation
+
+15
+
+Couchbase Lite terminal: documents, key-value, SQL++, offline operation
+
+10
+
+Offline sync: change listeners, outbox, idempotency, conflict policies
+
+15
+
+Tests, documentation, ADRs and Git hygiene
+
+10
+
+Bonus: native Couchbase replication via Sync Gateway (optional)
+
++5
+
+Max Score: 100
+
+Lab Modules: 6. Data Access Architecture: Repository, Unit of Work and Domain vs Persistence Models 7. DTOs and Input-to-Data Model Mapping 8. Couchbase Lite Offline Counter Terminal (JSON Documents, Key-Value, SQL++) 9. Offline Synchronization: Change Listeners, Outbox, Conflict Resolution 10. Testing, Performance Evidence and Architecture Decisions, 1. From JSON Files to SQL Server: Relational Schema Design 2. EF Core 10 Mapping, Relationships and Migrations 3. LINQ Querying, Change Tracking and Transactions 4. Index Optimization and Execution Plan Analysis 5. Stored Procedures for Reports and Batch Operations
+
+Lab Topics: 24. Integration testing against SQL Server and Couchbase Lite, 23. Synchronization, idempotency and conflict resolution policies, 22. Offline-first persistence, local state and the outbox pattern, 21. Collection change listeners and listener lifecycle, 20. Key-value lookups and parameterized SQL++ queries in Couchbase Lite, 15. Unit of Work: one commit per use case 16. Domain models vs persistence entities, shadow properties 17. Request DTOs, response DTOs, over-posting prevention and explicit mapping 18. Query/command separation with projection-based read models 19. Couchbase Lite embedded database, collections and JSON documents, 10. Change tracking, SaveChangesAsync, ExecuteUpdate/ExecuteDelete 11. Explicit transactions, execution strategies and optimistic concurrency 12. Calling stored procedures safely from EF Core (parameterized) 13. Layered architecture and dependency direction 14. Repository pattern (specific repositories, no IQueryable leaks), 8. EF Core 10 DbContext, Fluent API configuration and migrations 9. LINQ projections, AsNoTracking, Include, split queries and N+1, 1. Clustered, nonclustered, composite, covering and filtered indexes 2. SARGable predicates, statistics and implicit conversions 3. Actual execution plans, SET STATISTICS IO/TIME and Query Store 4. Stored procedures: parameters, TRY…CATCH, XACT_ABORT, transactions, 1. Relational schema design: keys, constraints, normalization to 3NF 2. One-to-many and many-to-many relationships (junction tables) 3. CHECK, UNIQUE and DEFAULT constraints, audit columns and rowversion
+
+Lab Programming Languages: 5. HTML / Razor, 4. JSON, 3. SQL++ (N1QL) for Couchbase Lite, 2. T-SQL, 1. C# 14
+
+Lab Tools/Frameworks: 13. dotnet user-secrets, 12. Git and GitHub, 11. Postman, 10. Microsoft.AspNetCore.Mvc.Testing (WebApplicationFactory), 9. xUnit, 8. Visual Studio 2026 / Visual Studio Code, 7. Couchbase Lite for .NET (Couchbase.Lite 4.1.x), 6. SQL Server Management Studio (SSMS), 5. Microsoft SQL Server (Developer / Express / LocalDB), 4. dotnet-ef CLI, 3. Entity Framework Core 10 (Microsoft.EntityFrameworkCore.SqlServer), 2. ASP.NET Core MVC and Minimal APIs (.NET 10), 1. .NET 10 SDK
+

@@ -24,6 +24,16 @@ public sealed class MoneyOrder
     [JsonInclude]
     public DateTimeOffset? CreatedAtUtc { get; private set; }
 
+    // Private constructor for EF Core materialization
+    private MoneyOrder()
+    {
+        Id = default!;
+        Amount = default!;
+        SenderName = default!;
+        RecipientName = default!;
+        Fee = default!;
+    }
+
     public MoneyOrder(
         string id,
         Money amount,

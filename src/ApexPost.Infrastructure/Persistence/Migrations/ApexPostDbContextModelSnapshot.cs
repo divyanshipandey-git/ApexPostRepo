@@ -258,19 +258,11 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(32)")
                         .HasColumnName("ZoneCode");
 
-                    b.Property<decimal>("HeightCm")
-                        .HasPrecision(9, 2)
-                        .HasColumnType("decimal(9,2)");
-
                     b.Property<string>("ItemType")
                         .IsRequired()
                         .HasMaxLength(16)
                         .IsUnicode(false)
                         .HasColumnType("varchar(16)");
-
-                    b.Property<decimal>("LengthCm")
-                        .HasPrecision(9, 2)
-                        .HasColumnType("decimal(9,2)");
 
                     b.Property<DateTime?>("ModifiedAtUtc")
                         .HasColumnType("datetime2(7)");
@@ -286,10 +278,6 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(9,3)")
                         .HasColumnName("WeightKg");
 
-                    b.Property<decimal>("WidthCm")
-                        .HasPrecision(9, 2)
-                        .HasColumnType("decimal(9,2)");
-
                     b.HasKey("Id")
                         .HasName("PK_Shipments");
 
@@ -302,8 +290,6 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Shipments", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Shipments_Dimensions", "[LengthCm] > 0 AND [WidthCm] > 0 AND [HeightCm] > 0");
-
                             t.HasCheckConstraint("CK_Shipments_ItemType", "[ItemType] IN ('Parcel','Letter')");
 
                             t.HasCheckConstraint("CK_Shipments_ServiceLevel", "[ServiceLevel] IN ('Standard','Express','Registered')");
@@ -371,6 +357,76 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                     b.HasIndex("Role");
 
                     b.ToTable("Staff", (string)null);
+                });
+
+            modelBuilder.Entity("ApexPost.Infrastructure.Persistence.Repositories.DailyBranchSalesProcedureRow", b =>
+                {
+                    b.Property<string>("BranchCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("RetailSales")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("SaleDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ServiceSales")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalSales")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("TransactionCount")
+                        .HasColumnType("bigint");
+
+                    b.ToTable("DailyBranchSalesProcedureRow");
+                });
+
+            modelBuilder.Entity("ApexPost.Infrastructure.Persistence.Repositories.LowStockProcedureRow", b =>
+                {
+                    b.Property<string>("BranchCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Threshold")
+                        .HasColumnType("int");
+
+                    b.ToTable("LowStockProcedureRow");
+                });
+
+            modelBuilder.Entity("ApexPost.Infrastructure.Persistence.Repositories.TopProductRevenueProcedureRow", b =>
+                {
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RegionRank")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Revenue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.ToTable("TopProductRevenueProcedureRow");
                 });
 
             modelBuilder.Entity("ApexPost.Infrastructure.Persistence.SqlEntities.AuditEntryRecord", b =>
@@ -1212,6 +1268,37 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_Shipments_ShippingZones");
+
+                    b.OwnsOne("ApexPost.Domain.ValueObjects.Dimensions", "Dimensions", b1 =>
+                        {
+                            b1.Property<string>("ShipmentId")
+                                .HasColumnType("varchar(128)");
+
+                            b1.Property<decimal>("HeightCm")
+                                .HasPrecision(9, 2)
+                                .HasColumnType("decimal(9,2)")
+                                .HasColumnName("HeightCm");
+
+                            b1.Property<decimal>("LengthCm")
+                                .HasPrecision(9, 2)
+                                .HasColumnType("decimal(9,2)")
+                                .HasColumnName("LengthCm");
+
+                            b1.Property<decimal>("WidthCm")
+                                .HasPrecision(9, 2)
+                                .HasColumnType("decimal(9,2)")
+                                .HasColumnName("WidthCm");
+
+                            b1.HasKey("ShipmentId");
+
+                            b1.ToTable("Shipments");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ShipmentId");
+                        });
+
+                    b.Navigation("Dimensions")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ApexPost.Domain.Entities.Staff", b =>

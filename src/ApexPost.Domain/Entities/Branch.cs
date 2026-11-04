@@ -1,18 +1,30 @@
-﻿
-using ApexPost.Domain.ValueObjects;
+﻿using ApexPost.Domain.ValueObjects;
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ApexPost.Domain.Entities;
 
 public sealed class Branch
 {
-    public BranchCode Code { get; }
-    public string Name { get; }
-    public string Region { get; }
-    public TimeOnly OpeningTime { get; }
-    public TimeOnly ClosingTime { get; }
+    public BranchCode Code { get; private set; }
+    public string Name { get; private set; }
+    public string Region { get; private set; }
+    public TimeOnly OpeningTime { get; private set; }
+    public TimeOnly ClosingTime { get; private set; }
+    [NotMapped]
+    public Address? Address { get; private set; }
     [JsonInclude]
     public bool IsActive { get; private set; }
+
+    // Private constructor for EF Core materialization
+    private Branch()
+    {
+        Code = default!;
+        Name = default!;
+        Region = default!;
+        OpeningTime = default;
+        ClosingTime = default;
+    }
 
     public Branch(
         BranchCode code,
@@ -38,6 +50,12 @@ public sealed class Branch
         OpeningTime = openingTime;
         ClosingTime = closingTime;
         IsActive = true;
+    }
+
+    public void UpdateAddress(Address address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        Address = address;
     }
 
     public void Deactivate() => IsActive = false;

@@ -109,9 +109,7 @@ public sealed class ShippingServiceTests
                 "SHIP001",
                 "Parcel",
                 1m,
-                10m,
-                10m,
-                10m,
+                new Dimensions(10m, 10m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard,
                 cancellation.Token));
@@ -131,9 +129,7 @@ public sealed class ShippingServiceTests
                 "SHIP001",
                 "Parcel",
                 1m,
-                10m,
-                10m,
-                10m,
+                new Dimensions(10m, 10m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard));
 
@@ -161,9 +157,7 @@ public sealed class ShippingServiceTests
             "SHIP001",
             "Parcel",
             1m,
-            10m,
-            10m,
-            10m,
+            new Dimensions(10m, 10m, 10m),
             "ZONE1",
             ShippingServiceLevel.Standard);
 
@@ -248,8 +242,6 @@ public sealed class ShippingServiceTests
 
     private sealed class SpyUnitOfWork : IUnitOfWork
     {
-        public bool SupportsAtomicTransactions => false;
-
         public int SaveChangesCount { get; private set; }
 
         public Task<int> SaveChangesAsync(

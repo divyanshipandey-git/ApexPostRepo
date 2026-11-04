@@ -24,7 +24,7 @@ $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=Apex
 dotnet test ApexPost.sln --no-restore
 ```
 
-Latest verification on the targeted remediation branch: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 409 tests: 112 Domain, 216 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 trainer verification](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md) for scope, evidence, and limitations.
+Latest verification on the targeted remediation branch: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 409 tests: 112 Domain, 216 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for scope, evidence, and limitations.
 
 Run the web application:
 
@@ -58,16 +58,13 @@ The root [SQL guide](sql/README.md) indexes the canonical reporting queries and 
 
 ### Week 3 verification index
 
-- [Trainer criteria and evidence](docs/WEEK3-FINAL-TRAINER-VERIFICATION.md)
-- [SQL reporting, procedures, and test setup](docs/WEEK3-DATABASE-GUIDE.md)
-- [Testing and execution guide](docs/WEEK3-TESTING-AND-EXECUTION-GUIDE.md)
-- [Performance methodology and measured results](PERFORMANCE.md)
+- [Complete Week 3 documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md)
 - [Current SQL/application ADRs](docs/adr/README.md)
 - [SQLCMD scripts and least-privilege guidance](sql/README.md)
 
 Historical Week 3 gap analyses and process records are retained under `docs/`; the links above identify the current implementation and verification entry points.
 
-Provision the four fictional, SQL-backed local role accounts with the guarded tool documented in the [database testing guide](docs/DATABASE-TESTING-GUIDE.md). Passwords are generated into user-secrets and are never printed by the tool or stored in source control.
+Provision the four fictional, SQL-backed local role accounts with the guarded tool documented in the [database testing guide](database/README.md). Passwords are generated into user-secrets and are never printed by the tool or stored in source control.
 
 Check database rows using SQL Server Object Explorer or `sqlcmd`, for example:
 
@@ -93,7 +90,7 @@ The full import only accepts a source snapshot when the target database is empty
 dotnet run --project tools/ApexPost.DemoSeed -- --import-audit-jsonl --data-directory App_Data
 ```
 
-This command imports only validated entries from `audit.jsonl`, writes an import-ledger record, and does not run during Web startup. The four initially empty operational tables—`IdentityVerifications`, `MoneyOrders`, `Shipments`, and `StockMovements`—are populated by their supported workflows, not artificial seed records. See the [Week 3 database guide](docs/WEEK3-DATABASE-GUIDE.md) for the latest observed counts and read-only SSMS verification queries.
+This command imports only validated entries from `audit.jsonl`, writes an import-ledger record, and does not run during Web startup. The four initially empty operational tables—`IdentityVerifications`, `MoneyOrders`, `Shipments`, and `StockMovements`—are populated by their supported workflows, not artificial seed records. See the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for the latest observed counts and read-only SSMS verification queries.
 
 For isolated synthetic testing only, the tool can create a separate JSON source with 5 branches, 20 staff, 30 products and 200 explicitly synthetic transactions using `--demo-json-200 --data-directory <new-empty-directory>`. Configure `DemoData:Password` through user-secrets (or `APEXPOST_DEMO_DATA_PASSWORD` for the current shell); the generator has no built-in password. These records are test/demo data, never historical production evidence. The importer does not edit source files or import automatically at Web startup.
 
@@ -129,7 +126,7 @@ The staff MVC inventory inquiry is at `/Inventory/Index`; catalogue details are 
 
 Use an authorized Branch Manager, Auditor, or Administrator account and open `/Reports`. Select a UTC report date, select a branch (Auditors and Administrators can choose any branch or all branches; Branch Managers remain restricted to their home branch), and enter a non-negative low-stock threshold from 0 to 100000. The screen shows retail, services, and overall daily sales totals, low-stock SKUs and quantities, shipping counts grouped by zone/service, and (for Auditors/Administrators) branch-level money-order and verification counts. Empty results show an explicit no-records message; reports do not generate synthetic activity. Procedure/query invocation examples are under [database/queries](database/queries/).
 
-The remediation intentionally excludes Couchbase, `ApexPost.CounterTerminal`, offline-first behavior, synchronization, SyncInbox/outbox, and conflict-resolution workflows. See the [Week 3 requirement gap analysis](docs/WEEK3-REQUIREMENT-GAP-ANALYSIS.md) for implemented status and remaining evidence gaps, and the [exception handling review](docs/EXCEPTION-HANDLING-REVIEW.md) for transaction/error behavior.
+The remediation intentionally excludes Couchbase, `ApexPost.CounterTerminal`, offline-first behavior, synchronization, SyncInbox/outbox, and conflict-resolution workflows. See the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for implemented status and remaining evidence gaps.
 
 ## Architecture
 
@@ -141,7 +138,7 @@ The remediation intentionally excludes Couchbase, `ApexPost.CounterTerminal`, of
 
 See [DESIGN.md](DESIGN.md) and [docs/adr](docs/adr/).
 
-The SQL schema, migrations, import boundary, persistence status, and remaining performance limitations are recorded in [DESIGN.md](DESIGN.md), [PERFORMANCE.md](PERFORMANCE.md), and [docs/WEEK3-EF-IMPLEMENTATION.md](docs/WEEK3-EF-IMPLEMENTATION.md). See the [database testing and access guide](docs/DATABASE-TESTING-GUIDE.md) for LocalDB connection, migration, query, and safe test instructions. The earlier JSON-era audit remains historical context: [security, persistence, and architecture audit](docs/SECURITY-PERSISTENCE-ARCHITECTURE-AUDIT.md).
+The SQL schema, migrations, import boundary, persistence status, and remaining performance limitations are recorded in [DESIGN.md](DESIGN.md) and [docs/WEEK3-COMPLETE-DOCUMENTATION.md](docs/WEEK3-COMPLETE-DOCUMENTATION.md). See the [database testing and access guide](database/README.md) for LocalDB connection, migration, query, and safe test instructions.
 
 ## Git workflow
 

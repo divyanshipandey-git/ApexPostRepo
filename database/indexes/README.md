@@ -7,4 +7,4 @@ Index definitions are owned by EF migrations and entity configurations, not dupl
 - `IX_Shipments_Zone_Service_Created` supports zone/service/date workloads. Existing measurements did not show a read reduction on the retained synthetic slice.
 - `IX_MoneyOrders_Branch_Created` covers branch/date auditor projections and reduced logical reads in the documented LocalDB fixture.
 
-See [PERFORMANCE.md](../../PERFORMANCE.md) and the reproducible scripts under `database/performance/`. `VerifyReportIndexes.sql` only reads SQL Server catalog metadata. Do not add a competing `CREATE INDEX` definition here without a reviewed EF migration.
+See [docs/WEEK3-COMPLETE-DOCUMENTATION.md#5-performance-evidence](../../docs/WEEK3-COMPLETE-DOCUMENTATION.md#5-performance-evidence) and the reproducible scripts under `database/performance/`. `VerifyReportIndexes.sql` only reads SQL Server catalog metadata. Do not add a competing `CREATE INDEX` definition here without a reviewed EF migration.
