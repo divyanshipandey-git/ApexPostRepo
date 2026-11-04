@@ -64,7 +64,9 @@ public sealed class SqlServerIntegrationTestFixture : IAsyncLifetime
             }
 
             await using (var context = new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>()
-                .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure()).Options))
+                .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure())
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options))
             {
                 await context.Database.MigrateAsync();
             }
@@ -141,8 +143,10 @@ public sealed class SqlServerIntegrationTests
     {
         await using var context = await CreateContextAsync();
         var applied = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal(7, applied.Count());
+        Assert.Equal(9, applied.Count());
         Assert.Contains("20261103000000_HardenReportingProcedures", applied);
+        Assert.Contains("20261103125806_PendingModelChanges", applied);
+        Assert.Contains("20261104092655_FixLowStockThreshold", applied);
         Assert.True(await context.Database.CanConnectAsync());
     }
 

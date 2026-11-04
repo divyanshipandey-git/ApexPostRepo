@@ -33,7 +33,7 @@ public sealed class SqlUnitOfWork(ApexPostDbContext context) : IUnitOfWork
             try
             {
                 var result = await operation(cancellationToken);
-                await context.SaveChangesAsync(cancellationToken);
+                await SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return result;
             }

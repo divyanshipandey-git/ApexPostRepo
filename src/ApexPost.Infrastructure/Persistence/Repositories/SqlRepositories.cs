@@ -264,14 +264,17 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
         var branchValue = branchCode ?? (object)DBNull.Value;
         var dateValue = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
+        System.Diagnostics.Debug.WriteLine($"Divyanshi: GetDailyBranchSalesAsync called with date={date}, branchCode={branchCode ?? "NULL"}");
+
+        System.Diagnostics.Debug.WriteLine($"Divyanshi: branchValue={branchValue}, dateValue={dateValue}");
 
         // Use FromSqlInterpolated with FormattableString for proper parameterization
-        // NOTE: The stored procedure in the database uses @ReportDate parameter name (not @Date)
+        // The stored procedure uses @Date parameter name
         var rows = await db.Set<DailyBranchSalesProcedureRow>()
             .FromSqlInterpolated($"""
                 EXEC dbo.usp_DailyBranchSales 
                     @BranchCode={branchValue}, 
-                    @ReportDate={dateValue}
+                    @Date={dateValue}
                 """)
             .ToArrayAsync(cancellationToken);
 
@@ -293,22 +296,22 @@ public sealed class SqlReportDataSource(ApexPostDbContext db) : IReportDataSourc
 
     public async Task<IReadOnlyList<LowStockReportItem>> GetLowStockAsync(
         string? branchCode,
-        int reorderLevel,
+        int threshold,
         CancellationToken cancellationToken = default)
     {
         var branchValue = branchCode ?? (object)DBNull.Value;
-        var reorderLevelValue = reorderLevel;
+        var thresholdValue = threshold;
 
         var rows = await db.Set<LowStockProcedureRow>()
             .FromSqlInterpolated($"""
                 EXEC dbo.usp_LowStockReport 
                     @BranchCode={branchValue}, 
-                    @ReorderLevel={reorderLevelValue}
+                    @Threshold={thresholdValue}
                 """)
             .ToArrayAsync(cancellationToken);
 
         return rows.Select(row => new LowStockReportItem(
-            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.ReorderLevel)).ToArray();
+            row.BranchCode, row.Sku, row.ProductName, row.Quantity, row.Threshold)).ToArray();
     }
 
     public async Task<IReadOnlyList<ShippingVolumeReportItem>> GetShippingVolumeAsync(
@@ -808,5 +811,5 @@ public sealed class LowStockProcedureRow
     public string Sku { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
-    public int ReorderLevel { get; set; }
+    public int Threshold { get; set; }
 }
