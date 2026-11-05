@@ -1,0 +1,21 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Mvc.Versioning;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.OpenApi.Models;
+using FluentValidation.AspNetCore;
+using ApexPost.Api.Endpoints;
+using ApexPost.Api.Validation;
+using ApexPost.Api.Services;
+using ApexPost.Api.Extensions;
+using ApexPost.Application.Abstractions.Repositories;
+using ApexPost.Application.Abstractions.Persistence;
+using ApexPost.Infrastructure.Persistence;
+using ApexPost.Infrastructure.Persistence.Repositories;
+using ApexPost.Infrastructure;
+using ApexPost.Application;
+
+var builder = WebApplication.CreateBuilder(args);
