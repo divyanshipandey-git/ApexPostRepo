@@ -199,6 +199,8 @@ flowchart TD
 | `IReportDataSource` | Scoped | Report reads use SQL projections within the request's context. |
 | MVC action filters | Scoped | Use request/action context and may depend on audit/options services. |
 | Custom middleware | Singleton middleware construction | Constructors use singleton-safe configuration/loggers; request-specific services must be passed to `InvokeAsync`, not captured by the middleware constructor. |
+| ApexPost.Courier.Offline | Transient (console) / Scoped (web) | Couchbase Lite database wrapper; console harness for Part A. |
+| ApexPost.Api | Transient | Minimal hosting Web API; registers tracked shipment repo + services. |
 
 ### Security and audit threats
 
@@ -246,7 +248,15 @@ The receipt is available to the originating clerk and same-branch staff; Adminis
 
 ## Architecture decisions
 
-The active SQL/application decisions are linked from the [ADR index](docs/adr/). ADR-0003, ADR-0008, ADR-0009, and ADR-0014 describe the superseded Week 2 JSON implementation only; [ADR-0015](docs/adr/0015-sql-runtime-and-reporting-boundary.md) and ADR-0016 through ADR-0026 describe current SQL/application decisions. These records do not authorize any offline/Couchbase architecture.
+The active SQL/application decisions are linked from the [ADR index](docs/adr/). ADR-0003, ADR-0008, ADR-0009, and ADR-0014 describe the superseded Week 2 JSON implementation only; [ADR-0015](docs/adr/0015-sql-runtime-and-reporting-boundary.md) and ADR-0016 through ADR-0026 describe current SQL/application decisions. 
+
+### Week 4 — Courier Offline & Shipment Tracking API
+
+[ADR-0027](docs/adr/0027-courier-offline-couchbase-lite.md) — Courier Offline Storage with Couchbase Lite (Part A): Embedded NoSQL database for offline scan storage, parameterized SQL++ queries, outbox pattern, change listeners.
+
+[ADR-0028](docs/adr/0028-shipment-tracking-api.md) — Shipment Tracking REST API (Part B): Minimal hosting ASP.NET Core 10 API, thin endpoints/services, idempotent scan upload, status transitions, ProblemDetails errors, rate limiting, security headers, OpenAPI, health checks.
+
+These records describe the Week 4 offline-to-API flow and do not conflict with existing SQL/application decisions.
 
 Integration coverage is split by persistence adapter. Legacy JSON-backed tests use isolated per-test JSON directories; the SQL-backed integration suites use LocalDB catalogs prefixed `ApexPost_SqlIT_`, apply EF migrations, and exercise SQL repositories, procedures, transaction boundaries, and MVC endpoints. The SQL fixtures create and drop isolated catalogs and must never target `ApexPostDb`. See the [database testing guide](database/README.md) for the opt-in connection-string safety rule. Test-only probe endpoints remain solely for middleware branches that are not reachable through the production routes.
 

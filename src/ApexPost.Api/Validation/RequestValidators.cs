@@ -166,3 +166,19 @@ public sealed class ScanDocumentRequestValidator : AbstractValidator<ScanDocumen
             .WithMessage("Reason is required for Failed scans (provide in notes)");
     }
 }
+
+/// <summary>
+/// Validator for ScanUploadRequest.
+/// </summary>
+public sealed class ScanUploadRequestValidator : AbstractValidator<ScanUploadRequest>
+{
+    public ScanUploadRequestValidator()
+    {
+        RuleFor(x => x.Scans)
+            .NotEmpty().WithMessage("At least one scan is required")
+            .Must(scans => scans.Count <= 100).WithMessage("Maximum 100 scans per upload");
+
+        RuleForEach(x => x.Scans)
+            .SetValidator(new ScanDocumentRequestValidator());
+    }
+}
