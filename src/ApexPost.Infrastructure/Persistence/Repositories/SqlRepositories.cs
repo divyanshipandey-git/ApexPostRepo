@@ -219,16 +219,77 @@ public sealed class SqlCounterTransactionRepository(ApexPostDbContext db) : ICou
 
 public sealed class SqlShipmentRepository(ApexPostDbContext db) : IShipmentRepository
 {
-    public Task<Shipment?> GetByIdAsync(string id, CancellationToken cancellationToken = default) => db.Shipments.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-    public async Task<IReadOnlyList<Shipment>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) => await db.Shipments.AsNoTracking().Where(item => item.BranchCode == new BranchCode(branchCode)).ToArrayAsync(cancellationToken);
-    public Task AddAsync(Shipment item, CancellationToken cancellationToken = default) => db.Shipments.AddAsync(item, cancellationToken).AsTask();
-    public Task UpdateAsync(Shipment item, CancellationToken cancellationToken = default) { db.Shipments.Attach(item); db.Entry(item).State = EntityState.Modified; return Task.CompletedTask; }
+    public Task<Shipment?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
+        db.Shipments.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+    
+    public async Task<IReadOnlyList<Shipment>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) =>
+        await db.Shipments.AsNoTracking().Where(item => item.BranchCode == new BranchCode(branchCode)).ToArrayAsync(cancellationToken);
+    
+    public Task AddAsync(Shipment item, CancellationToken cancellationToken = default) =>
+        db.Shipments.AddAsync(item, cancellationToken).AsTask();
+    
+    public Task UpdateAsync(Shipment item, CancellationToken cancellationToken = default)
+    {
+        db.Shipments.Attach(item);
+        db.Entry(item).State = EntityState.Modified;
+        return Task.CompletedTask;
+    }
+    
     public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         var local = db.Shipments.Local.SingleOrDefault(item => item.Id == id);
         var item = local ?? await db.Shipments.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (item is not null) db.Shipments.Remove(item);
     }
+}
+
+public sealed class SqlTrackedShipmentRepository(ApexPostDbContext db) : ITrackedShipmentRepository
+{
+    public Task<TrackedShipment?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
+        db.TrackedShipments
+            .Include(s => s.Scans)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+    
+    public Task<TrackedShipment?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default) =>
+        db.TrackedShipments
+            .Include(s => s.Scans)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.TrackingNumber == trackingNumber, cancellationToken);
+    
+    public async Task<IReadOnlyList<TrackedShipment>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) =>
+        await db.TrackedShipments.AsNoTracking()
+            .Where(item => item.RecipientCity.Contains(branchCode)) // Using city as branch proxy
+            .ToArrayAsync(cancellationToken);
+    
+    public Task AddAsync(TrackedShipment item, CancellationToken cancellationToken = default) =>
+        db.TrackedShipments.AddAsync(item, cancellationToken).AsTask();
+    
+    public Task UpdateAsync(TrackedShipment item, CancellationToken cancellationToken = default)
+    {
+        db.TrackedShipments.Attach(item);
+        db.Entry(item).State = EntityState.Modified;
+        return Task.CompletedTask;
+    }
+    
+    public async Task DeleteAsync(TrackedShipment item, CancellationToken cancellationToken = default)
+    {
+        db.TrackedShipments.Remove(item);
+        await Task.CompletedTask;
+    }
+
+    public async Task<IReadOnlyList<TrackedShipmentScan>> GetScansByIdsAsync(IEnumerable<string> scanIds, CancellationToken cancellationToken = default)
+    {
+        var ids = scanIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return await db.TrackedShipmentScans
+            .Where(s => ids.Contains(s.Id))
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public IQueryable<TrackedShipment> Query() =>
+        db.TrackedShipments
+            .Include(s => s.Scans)
+            .AsNoTracking();
 }
 
 public sealed class SqlMoneyOrderRepository(ApexPostDbContext db) : IMoneyOrderRepository
