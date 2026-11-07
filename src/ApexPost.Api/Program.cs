@@ -117,10 +117,7 @@ builder.Services.AddSingleton<IConfigureOptions<SwaggerGenOptions>, ConfigureSwa
 // ============================================================================
 // Services - Infrastructure & Application
 // ============================================================================
-builder.Services.AddInfrastructure(builder.Configuration);
-
-// Register tracked shipment repository
-builder.Services.AddScoped<ITrackedShipmentRepository, SqlTrackedShipmentRepository>();
+builder.Services.AddSqlInfrastructure(builder.Configuration);
 
 // ============================================================================
 // Services - Custom API Services
