@@ -302,10 +302,10 @@ var v2Group = app.MapGroup("/api/v2")
     .RequireRateLimiting("ApiPolicy");
 
 // Map endpoints for both versions
-ShipmentEndpoints.Map(v1Group);
-ScanEndpoints.Map(v1Group);
-ShipmentEndpoints.Map(v2Group);
-ScanEndpoints.Map(v2Group);
+ShipmentEndpoints.Map(v1Group, "1");
+ScanEndpoints.Map(v1Group, "1");
+ShipmentEndpoints.Map(v2Group, "2");
+ScanEndpoints.Map(v2Group, "2");
 
 // ============================================================================
 // Run

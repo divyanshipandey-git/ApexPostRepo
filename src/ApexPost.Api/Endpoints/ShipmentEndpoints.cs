@@ -16,11 +16,14 @@ public static class ShipmentEndpoints
     /// Maps the shipment endpoints for the specified version.
     /// </summary>
     /// <param name="apiGroup">The route builder for the API version group.</param>
-    public static void Map(IEndpointRouteBuilder apiGroup)
+    /// <param name="version">The API version (v1 or v2).</param>
+    public static void Map(IEndpointRouteBuilder apiGroup, string version)
     {
         var group = apiGroup.MapGroup("/shipments")
             .WithTags("Shipments")
             .RequireRateLimiting("ApiPolicy");
+
+        var versionSuffix = version == "1" ? "V1" : "V2";
 
         // GET /api/v{version}/shipments - Paged, filtered list
         group.MapGet("/", async (
@@ -31,7 +34,7 @@ public static class ShipmentEndpoints
             var result = await service.GetShipmentsAsync(filter, cancellationToken);
             return Results.Ok(result);
         })
-        .WithName("GetShipments")
+        .WithName($"GetShipments{versionSuffix}")
         .WithSummary("Get paged list of shipments")
         .WithDescription("Returns a paginated, filtered list of shipments. Default page size is 20, maximum 50.")
         .Produces<PagedResponse<ShipmentSummary>>(StatusCodes.Status200OK)
@@ -46,7 +49,7 @@ public static class ShipmentEndpoints
             var shipment = await service.GetShipmentAsync(trackingNumber, cancellationToken);
             return shipment is not null ? Results.Ok(shipment) : Results.NotFound();
         })
-        .WithName("GetShipment")
+        .WithName($"GetShipment{versionSuffix}")
         .WithSummary("Get a single shipment by tracking number")
         .WithDescription("Returns detailed information about a shipment including all scans.")
         .Produces<ShipmentDetail>(StatusCodes.Status200OK)
@@ -62,7 +65,7 @@ public static class ShipmentEndpoints
             try
             {
                 var shipment = await service.CreateShipmentAsync(request, cancellationToken);
-                return Results.CreatedAtRoute("GetShipment", new { trackingNumber = shipment.TrackingNumber }, shipment);
+                return Results.CreatedAtRoute($"GetShipment{versionSuffix}", new { trackingNumber = shipment.TrackingNumber }, shipment);
             }
             catch (ConflictException ex)
             {
@@ -76,7 +79,7 @@ public static class ShipmentEndpoints
                 });
             }
         })
-        .WithName("CreateShipment")
+        .WithName($"CreateShipment{versionSuffix}")
         .WithSummary("Create a new shipment")
         .WithDescription("Creates a new shipment with the provided details. Tracking number must be unique and match format APX-YYYYMMDD.")
         .Produces<ShipmentDetail>(StatusCodes.Status201Created)
@@ -112,7 +115,7 @@ public static class ShipmentEndpoints
                 });
             }
         })
-        .WithName("UpdateShipment")
+        .WithName($"UpdateShipment{versionSuffix}")
         .WithSummary("Update an existing shipment")
         .WithDescription("Updates editable details of a shipment. Only allowed while status is Created.")
         .Produces<ShipmentDetail>(StatusCodes.Status200OK)
@@ -149,7 +152,7 @@ public static class ShipmentEndpoints
                 });
             }
         })
-        .WithName("UpdateShipmentStatus")
+        .WithName($"UpdateShipmentStatus{versionSuffix}")
         .WithSummary("Update shipment status")
         .WithDescription("Changes the status of a shipment. Allowed transitions: Created → PickedUp → InTransit → OutForDelivery → Delivered/Failed.")
         .Produces(StatusCodes.Status204NoContent)
@@ -185,7 +188,7 @@ public static class ShipmentEndpoints
                 });
             }
         })
-        .WithName("DeleteShipment")
+        .WithName($"DeleteShipment{versionSuffix}")
         .WithSummary("Delete a shipment")
         .WithDescription("Deletes a shipment. Only allowed while status is Created.")
         .Produces(StatusCodes.Status204NoContent)
