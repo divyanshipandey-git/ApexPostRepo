@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ApexPost.Api.DTOs;
+using V2DTOs = ApexPost.Api.DTOs.v2;
 using ApexPost.Api.Exceptions;
 using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Persistence;
@@ -19,6 +20,10 @@ public interface IShipmentApiService
     Task<ShipmentDetail> UpdateShipmentAsync(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default);
     Task UpdateShipmentStatusAsync(string trackingNumber, UpdateStatusRequest request, CancellationToken cancellationToken = default);
     Task DeleteShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default);
+
+    // v2 methods
+    Task<V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>> GetShipmentsV2Async(ShipmentFilter filter, CancellationToken cancellationToken = default);
+    Task<V2DTOs.V2ShipmentDetail?> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -39,6 +44,10 @@ public sealed class ShipmentApiService : IShipmentApiService
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    // =========================================================================
+    // v1 Methods
+    // =========================================================================
 
     public async Task<PagedResponse<ShipmentSummary>> GetShipmentsAsync(ShipmentFilter filter, CancellationToken cancellationToken = default)
     {
@@ -230,6 +239,68 @@ public sealed class ShipmentApiService : IShipmentApiService
     }
 
     // =========================================================================
+    // v2 Methods
+    // =========================================================================
+
+    public async Task<V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>> GetShipmentsV2Async(ShipmentFilter filter, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, ShipmentFilter.MaxPageSize);
+
+        var query = _shipmentRepository.Query();
+
+        if (filter.Status.HasValue)
+        {
+            query = query.Where(s => s.Status == (ApexPost.Domain.Entities.ShipmentStatus)filter.Status.Value);
+        }
+
+        if (!string.IsNullOrEmpty(filter.City))
+        {
+            query = query.Where(s => s.RecipientCity.Contains(filter.City));
+        }
+
+        if (!string.IsNullOrEmpty(filter.CourierId))
+        {
+            query = query.Where(s => s.Scans.Any(scan => scan.CourierId == filter.CourierId));
+        }
+
+        if (filter.FromDate.HasValue)
+        {
+            query = query.Where(s => s.CreatedAtUtc >= filter.FromDate.Value);
+        }
+
+        if (filter.ToDate.HasValue)
+        {
+            query = query.Where(s => s.CreatedAtUtc <= filter.ToDate.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => MapToV2Summary(s))
+            .ToListAsync(cancellationToken);
+
+        return new V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    public async Task<V2DTOs.V2ShipmentDetail?> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default)
+    {
+        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
+        if (shipment == null) return null;
+
+        return MapToV2Detail(shipment);
+    }
+
+    // =========================================================================
     // Mapping helpers
     // =========================================================================
 
@@ -281,7 +352,88 @@ public sealed class ShipmentApiService : IShipmentApiService
                     ScannedAtUtc = s.ScannedAtUtc,
                     Notes = s.Notes,
                     GpsCoordinates = s.Latitude.HasValue && s.Longitude.HasValue
-                        ? new GpsCoordinates { Latitude = s.Latitude.Value, Longitude = s.Longitude.Value }
+                        ? new ApexPost.Api.DTOs.GpsCoordinates { Latitude = s.Latitude.Value, Longitude = s.Longitude.Value }
+                        : null,
+                    RecipientSignature = s.RecipientSignature
+                })
+                .ToList()
+        };
+    }
+
+    // =========================================================================
+    // v2 Mapping helpers
+    // =========================================================================
+
+    private V2DTOs.V2ShipmentSummary MapToV2Summary(TrackedShipment s)
+    {
+        var latestScan = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).FirstOrDefault();
+        
+        return new V2DTOs.V2ShipmentSummary
+        {
+            TrackingNumber = s.TrackingNumber,
+            Status = (ApexPost.Api.DTOs.v2.ShipmentStatus)s.Status,
+            Recipient = new V2DTOs.V2RecipientInfo
+            {
+                Name = s.RecipientName,
+                Phone = s.RecipientPhone,
+                Address = s.RecipientAddress,
+                City = s.RecipientCity,
+                PostalCode = s.RecipientPostalCode,
+                Country = s.RecipientCountry ?? "US"
+            },
+            WeightKg = s.WeightKg,
+            CreatedAtUtc = s.CreatedAtUtc,
+            LastScanAtUtc = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).Select(scan => scan.ScannedAtUtc).FirstOrDefault(),
+            ScanCount = s.Scans.Count,
+            LatestScan = latestScan != null ? new V2DTOs.V2LatestScanSummary
+            {
+                ScanType = (ApexPost.Api.DTOs.v2.ScanType)latestScan.ScanType,
+                Location = latestScan.Location,
+                ScannedAtUtc = latestScan.ScannedAtUtc
+            } : null
+        };
+    }
+
+    private V2DTOs.V2ShipmentDetail MapToV2Detail(TrackedShipment shipment)
+    {
+        return new V2DTOs.V2ShipmentDetail
+        {
+            TrackingNumber = shipment.TrackingNumber,
+            Status = (ApexPost.Api.DTOs.v2.ShipmentStatus)shipment.Status,
+            WeightKg = shipment.WeightKg,
+            Recipient = new V2DTOs.V2RecipientInfo
+            {
+                Name = shipment.RecipientName,
+                Phone = shipment.RecipientPhone,
+                Address = shipment.RecipientAddress,
+                City = shipment.RecipientCity,
+                PostalCode = shipment.RecipientPostalCode,
+                Country = shipment.RecipientCountry ?? "US"
+            },
+            SpecialInstructions = shipment.SpecialInstructions,
+            DeclaredValue = shipment.DeclaredValue,
+            CreatedAtUtc = shipment.CreatedAtUtc,
+            UpdatedAtUtc = shipment.UpdatedAtUtc,
+            LatestScan = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).FirstOrDefault() != null
+                ? new V2DTOs.V2LatestScanSummary
+                {
+                    ScanType = (ApexPost.Api.DTOs.v2.ScanType)shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().ScanType,
+                    Location = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().Location,
+                    ScannedAtUtc = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().ScannedAtUtc
+                }
+                : null,
+            Scans = shipment.Scans
+                .OrderBy(s => s.ScannedAtUtc)
+                .Select(s => new V2DTOs.V2ScanSummary
+                {
+                    ScanId = s.Id,
+                    ScanType = (ApexPost.Api.DTOs.v2.ScanType)s.ScanType,
+                    CourierId = s.CourierId,
+                    Location = s.Location,
+                    ScannedAtUtc = s.ScannedAtUtc,
+                    Notes = s.Notes,
+                    GpsCoordinates = s.Latitude.HasValue && s.Longitude.HasValue
+                        ? new V2DTOs.GpsCoordinates { Latitude = s.Latitude.Value, Longitude = s.Longitude.Value }
                         : null,
                     RecipientSignature = s.RecipientSignature
                 })

@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using System.Threading.RateLimiting;
 using FluentValidation.AspNetCore;
@@ -20,6 +20,11 @@ using ApexPost.Infrastructure.Persistence;
 using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Infrastructure;
 using ApexPost.Application;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using AspVersioning = Asp.Versioning;
+using AspVersioningApiExplorer = Asp.Versioning.ApiExplorer;
+using AspVersioningBuilder = Asp.Versioning.Builder;
+using AspVersioningApiVersionReader = Asp.Versioning.ApiVersionReader;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,50 +38,54 @@ builder.Configuration
     .AddUserSecrets<Program>();
 
 // ============================================================================
-// Services - API Versioning
+// Services - API Versioning (Asp.Versioning)
 // ============================================================================
 builder.Services.AddApiVersioning(options =>
 {
-    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.DefaultApiVersion = new AspVersioning.ApiVersion(1, 0);
     options.AssumeDefaultVersionWhenUnspecified = true;
     options.ReportApiVersions = true;
-    options.ApiVersionReader = ApiVersionReader.Combine(
-        new UrlSegmentApiVersionReader(),
-        new HeaderApiVersionReader("x-api-version"),
-        new QueryStringApiVersionReader("api-version"));
-});
-
-builder.Services.AddVersionedApiExplorer(options =>
+    options.ApiVersionReader = AspVersioningApiVersionReader.Combine(
+        new AspVersioning.UrlSegmentApiVersionReader(),
+        new AspVersioning.HeaderApiVersionReader("x-api-version"),
+        new AspVersioning.QueryStringApiVersionReader("api-version"));
+})
+.AddMvc()
+.AddApiExplorer(options =>
 {
     options.GroupNameFormat = "'v'VVV";
     options.SubstituteApiVersionInUrl = true;
+    options.AssumeDefaultVersionWhenUnspecified = true;
 });
 
 // ============================================================================
 // Services - OpenAPI / Swagger
 // ============================================================================
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, ct) =>
+    {
+        document.Info.Title = "ApexPost Logistics API";
+        document.Info.Description = "RESTful API for managing shipments and offline scan uploads for ApexPost Logistics courier operations.";
+        document.Info.Version = "v1";
+        document.Info.Contact = new OpenApiContact
+        {
+            Name = "ApexPost Logistics API Team",
+            Email = "api-support@apexpost.example.com",
+            Url = new Uri("https://apexpost.example.com")
+        };
+        document.Info.License = new OpenApiLicense
+        {
+            Name = "Proprietary",
+            Url = new Uri("https://apexpost.example.com/license")
+        };
+        return Task.CompletedTask;
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "ApexPost Shipments API",
-        Version = "v1",
-        Description = "RESTful API for managing shipments and offline scan uploads",
-        Contact = new OpenApiContact
-        {
-            Name = "ApexPost Logistics",
-            Email = "api-support@apexpost.example.com"
-        }
-    });
-
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath);
-    }
-
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Type = SecuritySchemeType.Http,
@@ -94,7 +103,16 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 });
+
+builder.Services.AddSingleton<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerGenOptions>();
 
 // ============================================================================
 // Services - Infrastructure & Application
@@ -242,16 +260,25 @@ app.Use(async (context, next) =>
 // HTTPS redirection
 app.UseHttpsRedirection();
 
-// Swagger / OpenAPI (only in Development/Staging)
-if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
+// OpenAPI / Swagger (only in Development)
+if (app.Environment.IsDevelopment())
 {
+    app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "ApexPost Shipments API v1");
+        var provider = app.Services.GetRequiredService<AspVersioningApiExplorer.IApiVersionDescriptionProvider>();
+        foreach (var description in provider.ApiVersionDescriptions)
+        {
+            var label = description.ApiVersion.MajorVersion == 1 
+                ? $"v{description.ApiVersion} (deprecated)" 
+                : $"v{description.ApiVersion}";
+            options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", label);
+        }
         options.RoutePrefix = "swagger";
         options.DisplayRequestDuration();
         options.EnableDeepLinking();
+        options.EnableTryItOutByDefault();
     });
 }
 
@@ -259,13 +286,29 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 app.MapHealthChecks("/health");
 
 // ============================================================================
-// API Endpoints
+// API Endpoints with Versioning
 // ============================================================================
-var apiGroup = app.MapGroup("/api/v1")
+var apiVersionSet = app.NewApiVersionSet()
+    .HasApiVersion(new AspVersioning.ApiVersion(1, 0))
+    .HasApiVersion(new AspVersioning.ApiVersion(2, 0))
+    .ReportApiVersions()
+    .Build();
+
+var v1Group = app.MapGroup("/api/v1")
+    .WithApiVersionSet(apiVersionSet)
+    .MapToApiVersion(new AspVersioning.ApiVersion(1, 0))
     .RequireRateLimiting("ApiPolicy");
 
-ShipmentEndpoints.Map(apiGroup);
-ScanEndpoints.Map(apiGroup);
+var v2Group = app.MapGroup("/api/v2")
+    .WithApiVersionSet(apiVersionSet)
+    .MapToApiVersion(new AspVersioning.ApiVersion(2, 0))
+    .RequireRateLimiting("ApiPolicy");
+
+// Map endpoints for both versions
+ShipmentEndpoints.Map(v1Group);
+ScanEndpoints.Map(v1Group);
+ShipmentEndpoints.Map(v2Group);
+ScanEndpoints.Map(v2Group);
 
 // ============================================================================
 // Run

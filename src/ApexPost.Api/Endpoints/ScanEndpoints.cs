@@ -7,17 +7,22 @@ using ApexPost.Api.Exceptions;
 namespace ApexPost.Api.Endpoints;
 
 /// <summary>
-/// Scan API endpoints.
+/// Scan API endpoints for managing shipment scan history and bulk uploads.
 /// </summary>
+[Tags("Scans")]
 public static class ScanEndpoints
 {
+    /// <summary>
+    /// Maps the scan endpoints for the specified version.
+    /// </summary>
+    /// <param name="apiGroup">The route builder for the API version group.</param>
     public static void Map(IEndpointRouteBuilder apiGroup)
     {
         var group = apiGroup.MapGroup("/shipments/{trackingNumber}/scans")
             .WithTags("Scans")
             .RequireRateLimiting("strict"); // Stricter rate limiting for uploads
 
-        // POST /api/v1/shipments/{trackingNumber}/scans - Bulk upload scans
+        // POST /api/v{version}/shipments/{trackingNumber}/scans - Bulk upload scans
         group.MapPost("/", async (
             string trackingNumber,
             [FromBody] ScanUploadRequest request,
@@ -46,17 +51,14 @@ public static class ScanEndpoints
             }
         })
         .WithName("UploadScans")
-        .WithOpenApi(operation => new(operation)
-        {
-            Summary = "Bulk upload offline scans",
-            Description = "Uploads scans from courier offline devices. Idempotent: duplicate scan IDs are skipped. Returns counts of accepted, duplicates skipped, and rejected scans with reasons."
-        })
+        .WithSummary("Bulk upload offline scans")
+        .WithDescription("Uploads scans from courier offline devices. Idempotent: duplicate scan IDs are skipped. Returns counts of accepted, duplicates skipped, and rejected scans with reasons.")
         .Produces<ScanUploadResponse>(StatusCodes.Status200OK)
         .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
         .Produces<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType)
         .Produces(StatusCodes.Status404NotFound);
 
-        // GET /api/v1/shipments/{trackingNumber}/scans - Scan history
+        // GET /api/v{version}/shipments/{trackingNumber}/scans - Scan history
         group.MapGet("/", async (
             string trackingNumber,
             IShipmentApiService service,
@@ -68,11 +70,8 @@ public static class ScanEndpoints
                 : Results.NotFound();
         })
         .WithName("GetScanHistory")
-        .WithOpenApi(operation => new(operation)
-        {
-            Summary = "Get scan history for a shipment",
-            Description = "Returns all scans for the specified shipment, ordered by scan time."
-        })
+        .WithSummary("Get scan history for a shipment")
+        .WithDescription("Returns all scans for the specified shipment, ordered by scan time.")
         .Produces<IReadOnlyList<ScanSummary>>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
     }
@@ -83,6 +82,11 @@ public static class ScanEndpoints
 /// </summary>
 public static class HttpRequestExtensions
 {
+    /// <summary>
+    /// Checks if the request has a JSON content type.
+    /// </summary>
+    /// <param name="request">The HTTP request.</param>
+    /// <returns>True if the content type is application/json, false otherwise.</returns>
     public static bool HasJsonContentType(this HttpRequest request)
     {
         if (request.ContentType is null) return false;
