@@ -50,6 +50,7 @@ public static class SqlInfrastructureExtensions
         services.TryAddScoped<IStockRepository>(provider => provider.GetRequiredService<SqlInventoryRepository>());
         services.TryAddScoped<ICounterTransactionRepository, SqlCounterTransactionRepository>();
         services.TryAddScoped<IShipmentRepository, SqlShipmentRepository>();
+        services.TryAddScoped<ITrackedShipmentRepository, SqlTrackedShipmentRepository>();
         services.TryAddScoped<IMoneyOrderRepository, SqlMoneyOrderRepository>();
         services.TryAddScoped<IReportDataSource, SqlReportDataSource>();
         return services;
