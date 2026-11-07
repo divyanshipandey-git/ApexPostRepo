@@ -143,10 +143,11 @@ public sealed class SqlServerIntegrationTests
     {
         await using var context = await CreateContextAsync();
         var applied = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal(9, applied.Count());
+        Assert.Equal(10, applied.Count());
         Assert.Contains("20261103000000_HardenReportingProcedures", applied);
         Assert.Contains("20261103125806_PendingModelChanges", applied);
         Assert.Contains("20261104092655_FixLowStockThreshold", applied);
+        Assert.Contains("20261107153525_PendingModelChanges2", applied);
         Assert.True(await context.Database.CanConnectAsync());
     }
 
@@ -869,14 +870,18 @@ public sealed class SqlServerIntegrationTests
     {
         await PrimarySchema.Value;
         var context = new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>()
-            .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure()).Options);
+            .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure())
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options);
         return context;
     }
 
     private static async Task ApplyPrimaryMigrationsAsync()
     {
         await using var context = new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>()
-            .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure()).Options);
+            .UseSqlServer(GetConnectionString(), sql => sql.EnableRetryOnFailure())
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options);
         await context.Database.MigrateAsync();
     }
 
