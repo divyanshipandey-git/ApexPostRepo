@@ -1771,6 +1771,7 @@ Assert.Contains("12", content);
                 services.RemoveAll<IShipmentRepository>();
                 services.RemoveAll<IMoneyOrderRepository>();
                 services.RemoveAll<IReportDataSource>();
+                services.RemoveAll<ITrackedShipmentRepository>();
 
                 services.AddInfrastructure(options => options.DataDirectory = DataDirectory);
                 services.AddDataProtection()
