@@ -1,0 +1,52 @@
+{
+  "documentGenerator": {
+    "fromUrl": "http://localhost:5000/openapi/v2.json",
+    "output": "src/ApexPost.Client/ApexPost.Client.cs",
+    "clientBaseClass": "ApexPostClientBase",
+    "namespace": "ApexPost.Client",
+    "generateClientInterfaces": true,
+    "injectHttpClient": true,
+    "useHttpClientCreationMethod": true,
+    "generateExceptionClasses": true,
+    "exceptionClass": "ApiException",
+    "generateDtoTypes": true,
+    "generateOptionalParameters": true,
+    "generateNullChecks": true,
+    "generateInterfaces": true,
+    "generateBuilderMethods": false,
+    "generateConstructor": true,
+    "generatePrepareRequestAndProcessResponseAsyncMethods": true,
+    "additionalNamespaceUsages": ["System", "System.Collections.Generic", "System.Threading.Tasks", "System.Net.Http"],
+    "useBaseUrl": true,
+    "generateOptionalPropertyNames": true,
+    "useDateTimeOffset": true,
+    "useArray": false,
+    "jsonSerializerSettings": {
+      "dateFormat": "iso",
+      "nullValueHandling": "Ignore",
+      "contractResolver": "Default"
+    }
+  },
+  "codeGeneratorSettings": {
+    "generateClientClasses": true,
+    "generateInterface": true,
+    "generateDtoTypes": true,
+    "generateOptionalParameters": true,
+    "generateNullChecks": true,
+    "generateInterfaces": true,
+    "generateClientInterfaces": true,
+    "generateClientClasses": true,
+    "generatePrepareRequestAndProcessResponseAsyncMethods": true,
+    "generateOptionalParameters": true,
+    "generateNullChecks": true,
+    "generateInterfaces": true,
+    "generateBuilderMethods": false,
+    "generateConstructor": true,
+    "generatePrepareRequestAndProcessResponseAsyncMethods": true,
+    "additionalNamespaceUsages": ["System", "System.Collections.Generic", "System.Threading.Tasks", "System.Net.Http"],
+    "useBaseUrl": true,
+    "generateOptionalPropertyNames": true,
+    "useDateTimeOffset": true,
+    "useArray": false
+  }
+}
