@@ -393,3 +393,54 @@ The version is selected by the URL segment only.
 - `api-deprecated-versions: 1.0`
 - `Deprecation: true` and `Sunset: Thu, 01 Jul 2027 00:00:00 GMT` (v1)
 - `Sunset: Sat, 01 Jan 2027 00:00:00 GMT` (v1)
+## Try-it-out verification (every endpoint, both versions)
+
+Executed on 2026-11-10 against the Development API on `https://localhost:54402` with development tokens (`/dev/token`) and the partner key from User Secrets. The same requests are in `ApexPost.Api.http`. Swagger UI "Try it out" uses the same routes. 44/44 returned the expected status code.
+
+| Request | Expected | Actual | Result |
+|---|---|---|---|
+| POST create (v1) | 201 expected | 201 | ✅ |
+| POST create duplicate (v1) | 409 expected | 409 | ✅ |
+| POST create invalid (v1) | 400 expected | 400 | ✅ |
+| POST wrong content type (v1) | 415 expected | 415 | ✅ |
+| GET list (v1) | 200 expected | 200 | ✅ |
+| GET list pageSize 500 (v1) | 400 expected | 400 | ✅ |
+| GET one (v1) | 200 expected | 200 | ✅ |
+| GET unknown (v1) | 404 expected | 404 | ✅ |
+| GET no token (v1) | 401 expected | 401 | ✅ |
+| PUT (v1) | 200 expected | 200 | ✅ |
+| PUT unknown (v1) | 404 expected | 404 | ✅ |
+| PATCH status Created→InTransit, invalid transition (v1) | 409 expected | 409 | ✅ |
+| PATCH status PickedUp (v1) | 204 expected | 204 | ✅ |
+| POST scans (v1) | 200 expected | 200 | ✅ |
+| POST same scans again, idempotent (v1) | 200 expected (duplicatesSkipped=1) | 200 | ✅ |
+| POST scans other courierId (v1) | 403 expected | 403 | ✅ |
+| GET scan history (v1) | 200 expected | 200 | ✅ |
+| GET scan history unknown (v1) | 404 expected | 404 | ✅ |
+| DELETE courier token (v1) | 403 expected | 403 | ✅ |
+| DELETE not Created (v1) | 409 expected | 409 | ✅ |
+| DELETE Created, admin (v1) | 204 expected | 204 | ✅ |
+| POST create (v2) | 201 expected | 201 | ✅ |
+| POST create duplicate (v2) | 409 expected | 409 | ✅ |
+| POST create invalid (v2) | 400 expected | 400 | ✅ |
+| POST wrong content type (v2) | 415 expected | 415 | ✅ |
+| GET list (v2) | 200 expected | 200 | ✅ |
+| GET list pageSize 500 (v2) | 400 expected | 400 | ✅ |
+| GET one (v2) | 200 expected | 200 | ✅ |
+| GET unknown (v2) | 404 expected | 404 | ✅ |
+| GET no token (v2) | 401 expected | 401 | ✅ |
+| PUT (v2) | 200 expected | 200 | ✅ |
+| PUT unknown (v2) | 404 expected | 404 | ✅ |
+| PATCH status Created→InTransit, invalid transition (v2) | 409 expected | 409 | ✅ |
+| PATCH status PickedUp (v2) | 204 expected | 204 | ✅ |
+| POST scans (v2) | 200 expected | 200 | ✅ |
+| POST same scans again, idempotent (v2) | 200 expected (duplicatesSkipped=1) | 200 | ✅ |
+| POST scans other courierId (v2) | 403 expected | 403 | ✅ |
+| GET scan history (v2) | 200 expected | 200 | ✅ |
+| GET scan history unknown (v2) | 404 expected | 404 | ✅ |
+| DELETE courier token (v2) | 403 expected | 403 | ✅ |
+| DELETE not Created (v2) | 409 expected | 409 | ✅ |
+| DELETE Created, admin (v2) | 204 expected | 204 | ✅ |
+| GET partner no key (v2) | 401 expected | 401 | ✅ |
+| GET partner bad key (v2) | 401 expected | 401 | ✅ |
+| GET partner valid key (v2) | 200 expected | 200 | ✅ |

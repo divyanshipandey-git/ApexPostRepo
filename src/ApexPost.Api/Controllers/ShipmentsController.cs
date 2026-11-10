@@ -105,7 +105,7 @@ public sealed class ShipmentsController : ControllerBase
         [FromBody] CreateShipmentRequest request, CancellationToken cancellationToken)
     {
         var created = await _shipments.CreateShipmentAsync(request, cancellationToken);
-        return CreatedAtRoute(nameof(GetShipmentV1), new { version = "1", trackingNumber = created.TrackingNumber }, created);
+        return CreatedAtAction(nameof(GetShipmentV1), new { version = "1", trackingNumber = created.TrackingNumber }, created);
     }
 
     /// <summary>Create a shipment (v2).</summary>
@@ -121,7 +121,7 @@ public sealed class ShipmentsController : ControllerBase
         [FromBody] CreateShipmentRequest request, CancellationToken cancellationToken)
     {
         var created = await _shipments.CreateShipmentV2Async(request, cancellationToken);
-        return CreatedAtRoute(nameof(GetShipmentV2), new { version = "2", trackingNumber = created.TrackingNumber }, created);
+        return CreatedAtAction(nameof(GetShipmentV2), new { version = "2", trackingNumber = created.TrackingNumber }, created);
     }
 
     // ---------------------------------------------------------------- update
