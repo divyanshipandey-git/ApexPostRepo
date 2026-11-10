@@ -37,7 +37,7 @@ public sealed class ScanUploadService : IScanUploadService
 
     public async Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, ScanUploadRequest request, CancellationToken cancellationToken = default)
     {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
+        var shipment = await _shipmentRepository.GetByTrackingNumberWithTrackingAsync(trackingNumber, cancellationToken);
         if (shipment == null)
         {
             throw new NotFoundException($"Shipment {trackingNumber} not found");

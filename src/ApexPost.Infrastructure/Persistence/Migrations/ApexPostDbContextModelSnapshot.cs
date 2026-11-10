@@ -359,6 +359,159 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                     b.ToTable("Staff", (string)null);
                 });
 
+            modelBuilder.Entity("ApexPost.Domain.Entities.TrackedShipment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(128)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal?>("DeclaredValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("RecipientAddress")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("RecipientCity")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("RecipientCountry")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasDefaultValue("US");
+
+                    b.Property<string>("RecipientName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RecipientPhone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("RecipientPostalCode")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("SpecialInstructions")
+                        .HasMaxLength(500)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TrackingNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("WeightKg")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_TrackedShipments_CreatedAt");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_TrackedShipments_Status");
+
+                    b.HasIndex("TrackingNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TrackedShipments_TrackingNumber");
+
+                    b.ToTable("TrackedShipments", (string)null);
+                });
+
+            modelBuilder.Entity("ApexPost.Domain.Entities.TrackedShipmentScan", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(128)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("CourierId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<double?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("float(9)");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<double?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("float(9)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("RecipientSignature")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("ScanType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("ScannedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TrackedShipmentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourierId")
+                        .HasDatabaseName("IX_TrackedShipmentScans_CourierId");
+
+                    b.HasIndex("ScanType")
+                        .HasDatabaseName("IX_TrackedShipmentScans_ScanType");
+
+                    b.HasIndex("ScannedAtUtc")
+                        .HasDatabaseName("IX_TrackedShipmentScans_ScannedAt");
+
+                    b.HasIndex("TrackedShipmentId")
+                        .HasDatabaseName("IX_TrackedShipmentScans_ShipmentId");
+
+                    b.ToTable("TrackedShipmentScans", (string)null);
+                });
+
             modelBuilder.Entity("ApexPost.Infrastructure.Persistence.Repositories.DailyBranchSalesProcedureRow", b =>
                 {
                     b.Property<string>("BranchCode")
@@ -1318,6 +1471,15 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_Staff_Roles");
                 });
 
+            modelBuilder.Entity("ApexPost.Domain.Entities.TrackedShipmentScan", b =>
+                {
+                    b.HasOne("ApexPost.Domain.Entities.TrackedShipment", null)
+                        .WithMany("Scans")
+                        .HasForeignKey("TrackedShipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ApexPost.Infrastructure.Persistence.SqlEntities.CounterTransactionRecord", b =>
                 {
                     b.HasOne("ApexPost.Domain.Entities.Branch", null)
@@ -1438,6 +1600,11 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_StaffCredentials_Staff");
+                });
+
+            modelBuilder.Entity("ApexPost.Domain.Entities.TrackedShipment", b =>
+                {
+                    b.Navigation("Scans");
                 });
 
             modelBuilder.Entity("ApexPost.Infrastructure.Persistence.SqlEntities.CounterTransactionRecord", b =>

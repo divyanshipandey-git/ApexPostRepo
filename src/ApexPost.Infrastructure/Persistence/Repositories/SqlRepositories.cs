@@ -256,6 +256,11 @@ public sealed class SqlTrackedShipmentRepository(ApexPostDbContext db) : ITracke
             .Include(s => s.Scans)
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.TrackingNumber == trackingNumber, cancellationToken);
+
+    public Task<TrackedShipment?> GetByTrackingNumberWithTrackingAsync(string trackingNumber, CancellationToken cancellationToken = default) =>
+        db.TrackedShipments
+            .Include(s => s.Scans)
+            .SingleOrDefaultAsync(item => item.TrackingNumber == trackingNumber, cancellationToken);
     
     public async Task<IReadOnlyList<TrackedShipment>> GetByBranchAsync(string branchCode, CancellationToken cancellationToken = default) =>
         await db.TrackedShipments.AsNoTracking()

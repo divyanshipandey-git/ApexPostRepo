@@ -1,0 +1,401 @@
+# ApexPost API Test Requests
+# Usage: Open in VS Code with REST Client extension, or use with `dotnet-http-client`
+
+@baseUrl = https://localhost:54402
+@apiVersion = v2
+@devTokenUrl = {{baseUrl}}/dev/token
+
+### ============================================================================
+### DEVELOPMENT TOKEN ENDPOINT (Development only)
+### ============================================================================
+
+# Get a development token for COURIER-001
+POST {{devTokenUrl}}
+Content-Type: application/json
+
+{
+  "courierId": "COURIER-001",
+  "role": "Courier"
+}
+
+### Get an admin token
+# POST {{devTokenUrl}}
+# Content-Type: application/json
+#
+# {
+#   "courierId": "ADMIN-001",
+#   "role": "Admin"
+# }
+
+### ============================================================================
+### VARIABLES - Set after getting token
+### ============================================================================
+
+@courierToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...  # Replace with actual token from response above
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...    # Replace with admin token
+@partnerApiKey = your-partner-api-key-here               # Replace with actual API key from config
+
+### ============================================================================
+### SHIPMENT ENDPOINTS (v2 - requires Bearer token)
+### ============================================================================
+
+### Create shipment (AuthenticatedUser)
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "APX-20241109",
+  "weightKg": 2.5,
+  "recipientName": "John Doe",
+  "recipientPhone": "+15551234567",
+  "recipientAddress": "123 Main St",
+  "recipientCity": "Springfield",
+  "recipientPostalCode": "62701",
+  "recipientCountry": "US",
+  "specialInstructions": "Leave at door",
+  "declaredValue": 100.00
+}
+
+### Get shipment list (AuthenticatedUser)
+GET {{baseUrl}}/api/{{apiVersion}}/shipments?page=1&pageSize=10
+Authorization: Bearer {{courierToken}}
+
+### Get single shipment (AuthenticatedUser)
+GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+
+### Update shipment (AuthenticatedUser)
+PUT {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "weightKg": 3.0,
+  "recipientName": "Jane Doe",
+  "recipientPhone": "+15551234567",
+  "recipientAddress": "123 Main St",
+  "recipientCity": "Springfield",
+  "specialInstructions": "Call on arrival"
+}
+
+### Update shipment status - PickedUp (CourierOnly)
+PATCH {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "status": "PickedUp",
+  "reason": "Package picked up from sender",
+  "location": {
+    "latitude": 40.7128,
+    "longitude": -74.0060
+  }
+}
+
+### Update shipment status - InTransit (CourierOnly)
+PATCH {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "status": "InTransit",
+  "reason": "Departed sorting facility",
+  "location": {
+    "latitude": 40.7128,
+    "longitude": -74.0060
+  }
+}
+
+### Update shipment status - Delivered (CourierOnly, requires signature)
+PATCH {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "status": "Delivered",
+  "reason": "Delivered to recipient",
+  "recipientSignature": "John Doe",
+  "location": {
+    "latitude": 40.7128,
+    "longitude": -74.0060
+  }
+}
+
+### Delete shipment (AdminOnly) - will fail with courier token (403)
+DELETE {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+
+### Delete shipment (AdminOnly) - use admin token
+# DELETE {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+# Authorization: Bearer {{adminToken}}
+
+### ============================================================================
+### SCAN ENDPOINTS (v2 - requires Courier role + matching courierId)
+### ============================================================================
+
+### Upload scans (CourierOnly + courierId match)
+POST {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/scans
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "scans": [
+    {
+      "scanId": "scan::11111111-1111-1111-1111-111111111111",
+      "courierId": "COURIER-001",
+      "scanType": "Pickup",
+      "location": "Warehouse A",
+      "scannedAtUtc": "2024-11-09T10:00:00Z",
+      "notes": "Package picked up from sender",
+      "gpsCoordinates": {
+        "latitude": 40.7128,
+        "longitude": -74.0060
+      },
+      "recipientSignature": null
+    },
+    {
+      "scanId": "scan::22222222-2222-2222-2222-222222222222",
+      "courierId": "COURIER-001",
+      "scanType": "InTransit",
+      "location": "Sorting Facility",
+      "scannedAtUtc": "2024-11-09T14:30:00Z",
+      "notes": "Arrived at sorting facility",
+      "gpsCoordinates": {
+        "latitude": 40.7580,
+        "longitude": -73.9855
+      },
+      "recipientSignature": null
+    }
+  ]
+}
+
+### Upload scans with WRONG courierId (should return 403)
+# POST {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/scans
+# Authorization: Bearer {{courierToken}}
+# Content-Type: application/json
+#
+# {
+#   "scans": [
+#     {
+#       "scanId": "scan::33333333-3333-3333-3333-333333333333",
+#       "courierId": "COURIER-999",  # Different from token's courierId
+#       "scanType": "Pickup",
+#       "location": "Warehouse B",
+#       "scannedAtUtc": "2024-11-09T10:00:00Z",
+#       "notes": "This should fail with 403"
+#     }
+#   ]
+# }
+
+### Get scan history (AuthenticatedUser)
+GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/scans
+Authorization: Bearer {{courierToken}}
+
+### ============================================================================
+### PARTNER ENDPOINT (v2 only - requires X-Api-Key header)
+### ============================================================================
+
+### Valid API key (should succeed)
+GET {{baseUrl}}/api/{{apiVersion}}/partner/shipments/APX-20241109
+X-Api-Key: {{partnerApiKey}}
+
+### Missing API key (should return 401)
+# GET {{baseUrl}}/api/{{apiVersion}}/partner/shipments/APX-20241109
+
+### Invalid API key (should return 401)
+# GET {{baseUrl}}/api/{{apiVersion}}/partner/shipments/APX-20241109
+# X-Api-Key: invalid-key-12345
+
+### ============================================================================
+### AUTHENTICATION/ AUTHORIZATION TEST CASES
+### ============================================================================
+
+### 401 - No token (should return 401 Unauthorized)
+GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+
+### 401 - Expired/Invalid token (should return 401 Unauthorized)
+GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.token
+
+### 403 - Courier token trying to DELETE (AdminOnly)
+DELETE {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+
+### 403 - Courier token trying to upload scans for different courierId
+POST {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/scans
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "scans": [
+    {
+      "scanId": "scan::44444444-4444-4444-4444-444444444444",
+      "courierId": "COURIER-999",
+      "scanType": "Pickup",
+      "location": "Test",
+      "scannedAtUtc": "2024-11-09T10:00:00Z"
+    }
+  ]
+}
+
+### 403 - Non-courier trying to update status (requires Courier role)
+# If you have a token with different role or no role claim
+# PATCH {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/status
+# Authorization: Bearer {{someOtherToken}}
+# Content-Type: application/json
+#
+# {
+#   "status": "PickedUp"
+# }
+
+### ============================================================================
+### VALIDATION ERROR TESTS (400 Bad Request)
+### ============================================================================
+
+### Invalid tracking number format
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "INVALID-FORMAT",
+  "weightKg": 2.5,
+  "recipientName": "John Doe",
+  "recipientPhone": "+15551234567",
+  "recipientAddress": "123 Main St",
+  "recipientCity": "Springfield"
+}
+
+### Weight out of range
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "APX-20241110",
+  "weightKg": 100,
+  "recipientName": "John Doe",
+  "recipientPhone": "+15551234567",
+  "recipientAddress": "123 Main St",
+  "recipientCity": "Springfield"
+}
+
+### Missing required fields
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "APX-20241111",
+  "weightKg": 2.5
+  // Missing recipientName, recipientPhone, recipientAddress, recipientCity
+}
+
+### Invalid scan type
+POST {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/scans
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "scans": [
+    {
+      "scanId": "scan::55555555-5555-5555-5555-555555555555",
+      "courierId": "COURIER-001",
+      "scanType": "InvalidType",
+      "location": "Test",
+      "scannedAtUtc": "2024-11-09T10:00:00Z"
+    }
+  ]
+}
+
+### ============================================================================
+### CONFLICT TESTS (409 Conflict)
+### ============================================================================
+
+### Duplicate tracking number
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "APX-20241109",  # Already created above
+  "weightKg": 2.5,
+  "recipientName": "John Doe",
+  "recipientPhone": "+15551234567",
+  "recipientAddress": "123 Main St",
+  "recipientCity": "Springfield"
+}
+
+### Invalid status transition
+PATCH {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "status": "Delivered",  # Can't go directly from Created to Delivered
+  "recipientSignature": "John Doe"
+}
+
+### Delete non-Created shipment
+DELETE {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
+Authorization: Bearer {{adminToken}}
+
+### ============================================================================
+### NOT FOUND TESTS (404 Not Found)
+### ============================================================================
+
+### Non-existent shipment
+GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-99999999
+Authorization: Bearer {{courierToken}}
+
+### Non-existent partner shipment
+GET {{baseUrl}}/api/{{apiVersion}}/partner/shipments/APX-99999999
+X-Api-Key: {{partnerApiKey}}
+
+### ============================================================================
+### UNSUPPORTED MEDIA TYPE (415)
+### ============================================================================
+
+### Wrong content type
+POST {{baseUrl}}/api/{{apiVersion}}/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: text/plain
+
+This is not JSON
+
+### ============================================================================
+### VERSIONING TESTS
+### ============================================================================
+
+### v1 endpoint (deprecated)
+GET {{baseUrl}}/api/v1/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+
+### v2 endpoint (current)
+GET {{baseUrl}}/api/v2/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+
+### Version via header
+GET {{baseUrl}}/api/shipments/APX-20241109
+Authorization: Bearer {{courierToken}}
+x-api-version: 2.0
+
+### ============================================================================
+### HEALTH CHECK (no auth required)
+### ============================================================================
+
+GET {{baseUrl}}/health
+
+### ============================================================================
+### OPENAPI DOCS (Development only)
+### ============================================================================
+
+### OpenAPI v1
+GET {{baseUrl}}/openapi/v1.json
+
+### OpenAPI v2
+GET {{baseUrl}}/openapi/v2.json
+
+### Swagger UI
+# Open in browser: {{baseUrl}}/swagger

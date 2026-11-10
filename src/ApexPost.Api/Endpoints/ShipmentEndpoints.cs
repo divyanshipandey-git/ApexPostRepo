@@ -38,7 +38,8 @@ public static class ShipmentEndpoints
         .WithSummary("Get paged list of shipments")
         .WithDescription("Returns a paginated, filtered list of shipments. Default page size is 20, maximum 50.")
         .Produces<PagedResponse<ShipmentSummary>>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status400BadRequest);
+        .Produces(StatusCodes.Status400BadRequest)
+        .RequireAuthorization("AuthenticatedUser");
 
         // GET /api/v{version}/shipments/{trackingNumber} - Single shipment
         group.MapGet("/{trackingNumber}", async (
@@ -53,7 +54,8 @@ public static class ShipmentEndpoints
         .WithSummary("Get a single shipment by tracking number")
         .WithDescription("Returns detailed information about a shipment including all scans.")
         .Produces<ShipmentDetail>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status404NotFound);
+        .Produces(StatusCodes.Status404NotFound)
+        .RequireAuthorization("AuthenticatedUser");
 
         // POST /api/v{version}/shipments - Create shipment
         group.MapPost("/", async (
@@ -84,7 +86,8 @@ public static class ShipmentEndpoints
         .WithDescription("Creates a new shipment with the provided details. Tracking number must be unique and match format APX-YYYYMMDD.")
         .Produces<ShipmentDetail>(StatusCodes.Status201Created)
         .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
-        .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
+        .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
+        .RequireAuthorization("AuthenticatedUser");
 
         // PUT /api/v{version}/shipments/{trackingNumber} - Update shipment
         group.MapPut("/{trackingNumber}", async (
@@ -121,7 +124,8 @@ public static class ShipmentEndpoints
         .Produces<ShipmentDetail>(StatusCodes.Status200OK)
         .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
-        .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
+        .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
+        .RequireAuthorization("AuthenticatedUser");
 
         // PATCH /api/v{version}/shipments/{trackingNumber}/status - Change status only
         group.MapPatch("/{trackingNumber}/status", async (
@@ -154,11 +158,12 @@ public static class ShipmentEndpoints
         })
         .WithName($"UpdateShipmentStatus{versionSuffix}")
         .WithSummary("Update shipment status")
-        .WithDescription("Changes the status of a shipment. Allowed transitions: Created → PickedUp → InTransit → OutForDelivery → Delivered/Failed.")
+        .WithDescription("Changes the status of a shipment. Allowed transitions: Created → PickedUp → InTransit → OutForDelivery → Delivered/Failed. Requires Courier role.")
         .Produces(StatusCodes.Status204NoContent)
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
-        .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
+        .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
+        .RequireAuthorization("CourierOnly");
 
         // DELETE /api/v{version}/shipments/{trackingNumber} - Delete shipment
         group.MapDelete("/{trackingNumber}", async (
@@ -190,9 +195,10 @@ public static class ShipmentEndpoints
         })
         .WithName($"DeleteShipment{versionSuffix}")
         .WithSummary("Delete a shipment")
-        .WithDescription("Deletes a shipment. Only allowed while status is Created.")
+        .WithDescription("Deletes a shipment. Only allowed while status is Created. Requires Admin role.")
         .Produces(StatusCodes.Status204NoContent)
         .Produces(StatusCodes.Status404NotFound)
-        .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
+        .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
+        .RequireAuthorization("AdminOnly");
     }
 }

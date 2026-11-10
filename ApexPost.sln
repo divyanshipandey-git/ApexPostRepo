@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Client", "src\Apex
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Client.Consumer", "tools\ApexPost.Client.Consumer\ApexPost.Client.Consumer.csproj", "{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Courier.Console", "src\ApexPost.Courier.Console\ApexPost.Courier.Console.csproj", "{380033DA-E612-4080-A637-811901575FB7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -215,6 +217,18 @@ Global
 		{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A}.Release|x64.Build.0 = Release|Any CPU
 		{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A}.Release|x86.ActiveCfg = Release|Any CPU
 		{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A}.Release|x86.Build.0 = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|x64.Build.0 = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Debug|x86.Build.0 = Debug|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|x64.ActiveCfg = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|x64.Build.0 = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|x86.ActiveCfg = Release|Any CPU
+		{380033DA-E612-4080-A637-811901575FB7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -226,5 +240,6 @@ Global
 		{C981E9CE-B788-48E0-BA84-84A9BB6AD640} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{45161C91-9B8B-4065-9219-04FC10D8A97A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{380033DA-E612-4080-A637-811901575FB7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

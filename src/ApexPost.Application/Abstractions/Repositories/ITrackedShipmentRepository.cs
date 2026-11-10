@@ -12,6 +12,10 @@ public interface ITrackedShipmentRepository
         string trackingNumber,
         CancellationToken cancellationToken = default);
 
+    Task<TrackedShipment?> GetByTrackingNumberWithTrackingAsync(
+        string trackingNumber,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TrackedShipment>> GetByBranchAsync(
         string branchCode,
         CancellationToken cancellationToken = default);

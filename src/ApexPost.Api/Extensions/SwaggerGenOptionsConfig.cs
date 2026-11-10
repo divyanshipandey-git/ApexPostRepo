@@ -47,13 +47,25 @@ public sealed class ConfigureSwaggerGenOptions : IConfigureOptions<SwaggerGenOpt
             options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
         }
 
+        // Add Bearer token security scheme (for v2 only - add to both but v1 doesn't enforce it)
         options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
             Type = SecuritySchemeType.Http,
             Scheme = "bearer",
             BearerFormat = "JWT",
-            Description = "Enter JWT token"
+            Description = "Enter JWT Bearer token. Get a token from /dev/token in Development."
         });
+
+        // Add API Key security scheme for partner endpoints
+        options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Header,
+            Name = "X-Api-Key",
+            Description = "Partner API Key for read-only access to shipment data"
+        });
+
+        // Apply Bearer auth globally (endpoints will use RequireAuthorization to enforce)
         options.AddSecurityRequirement(new OpenApiSecurityRequirement
         {
             {
