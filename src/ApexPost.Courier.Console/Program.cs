@@ -87,8 +87,15 @@ internal class Program
         builder.Services.AddSingleton<ISyncService, SyncService>();
 
         // Courier database (wraps Part A Couchbase Lite)
-        builder.Services.AddSingleton<CourierDatabase>();
-        builder.Services.AddSingleton<IScanRepository, CouchbaseScanRepository>();
+        builder.Services.AddSingleton<CourierDatabase>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var logger = sp.GetService<ILogger<CourierDatabase>>();
+            var dbPath = config["Courier:DatabasePath"];
+            return new CourierDatabase(dbPath, logger);
+        });
+        builder.Services.AddSingleton<CouchbaseScanRepository>();
+        builder.Services.AddSingleton<IScanRepository>(sp => sp.GetRequiredService<CouchbaseScanRepository>());
         builder.Services.AddSingleton<ICourierDatabase, CourierDatabaseWrapper>();
 
         // Console UI
