@@ -213,10 +213,11 @@ if (!app.Environment.IsDevelopment())
 ```csharp
 context.Response.Headers["X-Content-Type-Options"] = "nosniff";
 context.Response.Headers["X-Frame-Options"] = "DENY";
-context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
 context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'";
 ```
+
+`X-XSS-Protection` is deprecated (it can introduce vulnerabilities in old browsers and is ignored by modern ones), so it is not sent; the Content-Security-Policy is the real protection. The security-headers middleware runs before routing, CORS, rate limiting and authentication, so the headers are also present on 401, 403, 404 and 429 responses. Middleware order: exception handler → HSTS (non-Development only) → HTTPS redirection → security headers → status-code pages → routing → CORS → rate limiter → authentication → authorization → endpoints.
 
 ---
 
@@ -243,7 +244,10 @@ Content-Type: application/json
 ```
 
 ### Security Notes
-- **Only available in Development environment**
+- **Only mapped in the Development environment**
+- **Local requests only**: callers whose remote address is not loopback get `403`
+- **No arbitrary identities**: the courier id must be listed in `DevTokens:CourierIds` (Courier role) or `DevTokens:AdminIds` (Admin role) in `appsettings.Development.json`, otherwise `403`
+- Tokens are also accepted **only** in the `Authorization: Bearer` header (the former `access_token` query-string option was removed)
 - Returns symmetric-key signed JWT (HS256)
 - Not suitable for production
 - In production, replace with real Identity Provider (Azure AD, Auth0, Keycloak, etc.)
@@ -279,3 +283,20 @@ To use a real Identity Provider instead of development tokens:
 
 *Document Version: 1.0*  
 *Last Updated: 2026-11-08*
+
+---
+
+## 7. Secrets and configuration
+
+No secret is committed. `appsettings.json` has no connection string, signing key or API key; the API fails fast at startup if `Jwt:SigningKey` is missing.
+
+| Setting | How to provide it |
+|---|---|
+| `ConnectionStrings:ApexPost` | `dotnet user-secrets set "ConnectionStrings:ApexPost" "..." --project src/ApexPost.Api` or env var `ConnectionStrings__ApexPost` |
+| `Jwt:SigningKey` (32+ chars) | `dotnet user-secrets set "Jwt:SigningKey" "..."` or env var `Jwt__SigningKey` |
+| `PartnerApiKey` | `dotnet user-secrets set "PartnerApiKey" "..."` or env var `PartnerApiKey` |
+| `DevTokens:CourierIds` / `AdminIds` | Development only, in `appsettings.Development.json` |
+
+## 8. Courier app token storage
+
+The courier app (`src/ApexPost.Courier.Console`) keeps its JWT in a file encrypted with Windows DPAPI (`DataProtectionScope.CurrentUser`), behind the `ITokenStorage` interface. This is the console-app equivalent of MAUI `SecureStorage`: the token is never stored in clear text and only the same Windows user can decrypt it. A MAUI head would register a `SecureStorage`-backed `ITokenStorage` instead (Keychain / Keystore) without any other change.

@@ -1,6 +1,5 @@
-﻿using System;
-using System.Net.Http.Json;
-using System.Threading.RateLimiting;
+using System;
+using Polly.CircuitBreaker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -10,7 +9,6 @@ using ApexPost.Courier.Console.Handlers;
 using ApexPost.Courier.Console.UI;
 using ApexPost.Courier.Offline.Persistence;
 using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Api.DTOs;
 
 namespace ApexPost.Courier.Console;
 
@@ -35,27 +33,36 @@ internal class Program
         builder.Services.Configure<CourierOptions>(builder.Configuration.GetSection("Courier"));
         builder.Services.Configure<TokenStorageOptions>(builder.Configuration.GetSection("TokenStorage"));
         builder.Services.Configure<SyncOptions>(builder.Configuration.GetSection("Courier"));
-        builder.Services.Configure<ApexApiClientOptions>(options =>
-        {
-            options.BaseUrl = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:54402";
-        });
+        builder.Services.Configure<ApiOptions>(builder.Configuration.GetSection("Api"));
+        builder.Services.Configure<SyncOptions>(builder.Configuration.GetSection("Sync"));
+        builder.Services.AddSingleton<IApiEndpointResolver, ApiEndpointResolver>();
+        builder.Services.AddSingleton<IResilienceStateTracker, ResilienceStateTracker>();
 
-        // Services
+        // Token storage: DPAPI-encrypted file (console equivalent of MAUI SecureStorage).
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "Token storage uses Windows DPAPI. Register a SecureStorage-backed ITokenStorage for other platforms.");
+        }
         builder.Services.AddSingleton<ITokenStorage, FileTokenStorage>();
         builder.Services.AddSingleton<AuthHeaderHandler>();
 
-        // Typed HTTP client with Polly resilience
-        builder.Services.AddHttpClient<IApexApiClient, ApexApiClient>(client =>
+        // Typed HTTP client with Polly resilience. The base address depends on the platform
+        // (Windows host vs Android emulator) and comes from IApiEndpointResolver.
+        builder.Services.AddHttpClient<IApexApiClient, ApexApiClient>((sp, client) =>
         {
-            var baseUrl = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:54402";
-            client.BaseAddress = new Uri(baseUrl);
+            client.BaseAddress = sp.GetRequiredService<IApiEndpointResolver>().BaseAddress;
             client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
             client.Timeout = TimeSpan.FromSeconds(30);
         })
         .AddHttpMessageHandler<AuthHeaderHandler>()
-        .AddStandardResilienceHandler(options =>
+        .AddStandardResilienceHandler()
+        .Configure((options, sp) =>
         {
-            // Retry policy: 3 attempts with exponential backoff and jitter
+            var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ApexPost.Resilience");
+            var tracker = sp.GetRequiredService<IResilienceStateTracker>();
+
+            // Retry policy: 3 retries with exponential backoff and jitter. Every retry is logged.
             options.Retry.MaxRetryAttempts = 3;
             options.Retry.Delay = TimeSpan.FromSeconds(1);
             options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
@@ -64,27 +71,57 @@ internal class Program
             {
                 if (args.Outcome.Exception is HttpRequestException)
                     return ValueTask.FromResult(true);
-                
+
                 if (args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.RequestTimeout ||
                     (int)(args.Outcome.Result?.StatusCode ?? 0) >= 500)
                     return ValueTask.FromResult(true);
-                
+
                 return ValueTask.FromResult(false);
             };
+            options.Retry.OnRetry = args =>
+            {
+                logger.LogWarning(
+                    "Retry {Attempt}/{Max} in {Delay:0.0}s after {Reason}",
+                    args.AttemptNumber + 1,
+                    options.Retry.MaxRetryAttempts,
+                    args.RetryDelay.TotalSeconds,
+                    args.Outcome.Exception?.GetType().Name ?? $"HTTP {(int?)args.Outcome.Result?.StatusCode}");
+                return default;
+            };
 
-            // Circuit breaker
+            // Circuit breaker: every state change is logged and forwarded to the sync service / UI.
             options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
             options.CircuitBreaker.MinimumThroughput = 5;
             options.CircuitBreaker.FailureRatio = 0.5;
             options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+            options.CircuitBreaker.OnOpened = args =>
+            {
+                tracker.CircuitOpened(
+                    args.BreakDuration,
+                    args.Outcome.Exception?.GetType().Name ?? $"HTTP {(int?)args.Outcome.Result?.StatusCode}");
+                return default;
+            };
+            options.CircuitBreaker.OnHalfOpened = _ =>
+            {
+                tracker.CircuitHalfOpened();
+                return default;
+            };
+            options.CircuitBreaker.OnClosed = _ =>
+            {
+                tracker.CircuitClosed();
+                return default;
+            };
 
-            // Timeout
+            // Timeouts
             options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(10);
             options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(30);
         });
 
         // Sync service
         builder.Services.AddSingleton<ISyncService, SyncService>();
+
+        // Real connectivity events (NetworkChange) drive ISyncService.OnConnectivityChangedAsync.
+        builder.Services.AddHostedService<NetworkConnectivityMonitor>();
 
         // Courier database (wraps Part A Couchbase Lite)
         builder.Services.AddSingleton<CourierDatabase>(sp =>
@@ -106,6 +143,7 @@ internal class Program
 
         try
         {
+            await host.StartAsync(); // starts the connectivity monitor
             var menu = host.Services.GetRequiredService<ConsoleMenu>();
             await menu.RunAsync();
         }

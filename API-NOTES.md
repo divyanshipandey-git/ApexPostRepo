@@ -16,7 +16,6 @@ Authorization: Bearer <token>
 ## Common Headers
 | Header | Description |
 |--------|-------------|
-| `x-api-version` | API version (1 or 2) |
 | `Accept` | Must be `application/json` |
 | `Content-Type` | Must be `application/json` for POST/PUT/PATCH |
 
@@ -27,8 +26,9 @@ Authorization: Bearer <token>
 | 201 | Successful POST (Created) |
 | 204 | Successful DELETE/PATCH |
 | 400 | Validation failure |
-| 401 | Unauthorized |
-| 404 | Not found |
+| 401 | Unauthorized (problem details body) |
+| 403 | Forbidden: wrong role or not the owning courier (problem details body) |
+| 404 | Not found (problem details body, also for unknown routes) |
 | 409 | Conflict (duplicate, invalid transition) |
 | 415 | Unsupported Media Type |
 | 429 | Too Many Requests |
@@ -170,11 +170,14 @@ Created → Failed
 {
   "accepted": 2,
   "duplicatesSkipped": 0,
+  "duplicateScanIds": [],
   "rejected": 0,
   "rejectionDetails": [],
   "totalProcessed": 2
 }
 ```
+
+Duplicates are **not** errors: they are counted in `duplicatesSkipped`, their ids are listed in `duplicateScanIds`, and they never appear in `rejectionDetails`. Concurrent uploads of the same scan are safe: `scanId` is the primary key of the scans table, so a unique-key conflict is treated as a duplicate (or answered with `409` if the whole request raced another one) and the client may simply retry.
 
 **Rejection Reasons:**
 - Invalid scan sequence
@@ -258,6 +261,7 @@ Returns all scans ordered by `scannedAtUtc` ascending.
 {
   "accepted": 2,
   "duplicatesSkipped": 0,
+  "duplicateScanIds": [],
   "rejected": 0,
   "rejectionDetails": [
     { "scanId": "scan::uuid", "reason": "Invalid scan sequence" }
@@ -360,10 +364,7 @@ Returns all scans ordered by `scannedAtUtc` ascending.
 | Global | 100 req/min | 1 minute |
 | Scan Upload (strict) | 20 req/min | 1 minute |
 
-Response headers:
-- `X-RateLimit-Limit`: Limit
-- `X-RateLimit-Remaining`: Remaining
-- `X-RateLimit-Reset`: Reset time (Unix timestamp)
+A rejected request gets status `429` with a problem details body.
 
 ---
 
@@ -372,7 +373,8 @@ Response headers:
 - All endpoints require HTTPS
 - JWT Bearer token authentication
 - CORS restricted to configured origins
-- Security headers: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- Security headers (added before routing/authentication so they are on every response, including 401/403/404): CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy (`X-XSS-Protection` is deprecated and intentionally not sent)
+- 401 and 403 from the JWT bearer middleware, 404 for unknown routes and 429 are all RFC 9457 problem details
 - No stack traces in production errors
 
 ---
@@ -384,8 +386,10 @@ Response headers:
 | v1 | Deprecated | `/api/v1` | Yes |
 | v2 | Active | `/api/v2` | No |
 
-**Headers:**
-- `api-supported-versions: 1, 2`
-- `api-deprecated-versions: 1`
-- `Deprecation: true` (v1)
+The version is selected by the URL segment only.
+
+**Response headers:**
+- `api-supported-versions: 1.0, 2.0`
+- `api-deprecated-versions: 1.0`
+- `Deprecation: true` and `Sunset: Thu, 01 Jul 2027 00:00:00 GMT` (v1)
 - `Sunset: Sat, 01 Jan 2027 00:00:00 GMT` (v1)

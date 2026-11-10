@@ -21,7 +21,7 @@ public sealed class ScanUploadRequest
 /// <summary>
 /// Individual scan document from courier offline store.
 /// </summary>
-public sealed class ScanDocumentRequest : IValidatableObject
+public sealed class ScanDocumentRequest
 {
     /// <summary>
     /// Unique scan ID from Part A offline store (format: scan::{Guid}).
@@ -57,14 +57,16 @@ public sealed class ScanDocumentRequest : IValidatableObject
     public string Location { get; init; } = string.Empty;
 
     /// <summary>
-    /// UTC timestamp when scan was performed (cannot be in the future).
+    /// UTC timestamp when scan was performed. Business rules that depend on other data (not in the future,
+    /// not before the shipment was created, valid scan sequence) are applied per scan by the server and
+    /// reported in <c>rejectionDetails</c> instead of failing the whole batch.
     /// </summary>
     [Required]
     [JsonPropertyName("scannedAtUtc")]
     public DateTimeOffset ScannedAtUtc { get; init; }
 
     /// <summary>
-    /// Optional notes about the scan.
+    /// Notes about the scan (a Failed scan without a reason in the notes is rejected with a reason).
     /// </summary>
     [StringLength(500)]
     [JsonPropertyName("notes")]
@@ -77,47 +79,11 @@ public sealed class ScanDocumentRequest : IValidatableObject
     public GpsCoordinates? GpsCoordinates { get; init; }
 
     /// <summary>
-    /// Optional recipient signature name (required for Delivered scan type).
+    /// Recipient signature name (a Delivered scan without one is rejected with a reason).
     /// </summary>
     [StringLength(100)]
     [JsonPropertyName("recipientSignature")]
     public string? RecipientSignature { get; init; }
-
-    /// <inheritdoc />
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        // Scan time cannot be in the future
-        if (ScannedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5)) // Allow 5 min clock skew
-        {
-            yield return new ValidationResult(
-                "Scan time cannot be in the future",
-                [nameof(ScannedAtUtc)]);
-        }
-
-        // Delivered scan requires recipient signature
-        if (ScanType == ScanType.Delivered && string.IsNullOrWhiteSpace(RecipientSignature))
-        {
-            yield return new ValidationResult(
-                "Recipient signature is required for Delivered scans",
-                [nameof(RecipientSignature)]);
-        }
-
-        // Failed scan should have a reason in notes
-        if (ScanType == ScanType.Failed && string.IsNullOrWhiteSpace(Notes))
-        {
-            yield return new ValidationResult(
-                "Reason is required for Failed scans (provide in notes)",
-                [nameof(Notes)]);
-        }
-
-        // Pickup should have location details
-        if (ScanType == ScanType.Pickup && string.IsNullOrWhiteSpace(Location))
-        {
-            yield return new ValidationResult(
-                "Pickup location is required",
-                [nameof(Location)]);
-        }
-    }
 }
 
 /// <summary>

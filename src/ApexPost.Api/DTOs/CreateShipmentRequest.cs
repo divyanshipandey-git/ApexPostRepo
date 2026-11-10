@@ -9,10 +9,10 @@ namespace ApexPost.Api.DTOs;
 public sealed class CreateShipmentRequest
 {
     /// <summary>
-    /// Unique tracking number in format APX-YYYYMMDD.
+    /// Unique tracking number in format APX-YYYYMMDD (a real calendar date).
     /// </summary>
     [Required]
-    [RegularExpression(@"^APX-\d{8}$", ErrorMessage = "Tracking number must match format APX-YYYYMMDD")]
+    [RegularExpression(TrackingNumberFormat.Pattern, ErrorMessage = TrackingNumberFormat.ErrorMessage)]
     [JsonPropertyName("trackingNumber")]
     public string TrackingNumber { get; init; } = string.Empty;
 
@@ -20,7 +20,7 @@ public sealed class CreateShipmentRequest
     /// Package weight in kilograms (0.1 - 70 kg).
     /// </summary>
     [Required]
-    [Range(0.1, 70.0, ErrorMessage = "Weight must be between 0.1 and 70 kg")]
+    [Range(typeof(decimal), ShipmentLimits.MinWeightKg, ShipmentLimits.MaxWeightKg, ErrorMessage = ShipmentLimits.WeightErrorMessage)]
     [JsonPropertyName("weightKg")]
     public decimal WeightKg { get; init; }
 
@@ -36,7 +36,7 @@ public sealed class CreateShipmentRequest
     /// Recipient phone number in E.164 format.
     /// </summary>
     [Required]
-    [Phone(ErrorMessage = "Phone number must be in valid format (E.164 recommended)")]
+    [RegularExpression(PhoneFormat.E164Pattern, ErrorMessage = PhoneFormat.ErrorMessage)]
     [JsonPropertyName("recipientPhone")]
     public string RecipientPhone { get; init; } = string.Empty;
 
@@ -66,7 +66,7 @@ public sealed class CreateShipmentRequest
     /// <summary>
     /// Recipient country code (ISO 3166-1 alpha-2).
     /// </summary>
-    [StringLength(2, MinimumLength = 2)]
+    [RegularExpression("^[A-Z]{2}$", ErrorMessage = "Country must be a 2-letter upper-case ISO 3166-1 alpha-2 code")]
     [JsonPropertyName("recipientCountry")]
     public string? RecipientCountry { get; init; } = "US";
 
@@ -83,4 +83,35 @@ public sealed class CreateShipmentRequest
     [Range(0, 10000, ErrorMessage = "Declared value must be between 0 and 10000")]
     [JsonPropertyName("declaredValue")]
     public decimal? DeclaredValue { get; init; }
+}
+
+/// <summary>
+/// Single definition of the tracking-number format used by every request DTO.
+/// </summary>
+public static class TrackingNumberFormat
+{
+    /// <summary>APX- followed by a calendar date: YYYY (1900-2099), MM (01-12), DD (01-31).</summary>
+    public const string Pattern = @"^APX-(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$";
+
+    public const string ErrorMessage = "Tracking number must match format APX-YYYYMMDD (for example APX-20241107)";
+}
+
+/// <summary>
+/// Single definition of the phone-number format used by every request DTO.
+/// </summary>
+public static class PhoneFormat
+{
+    public const string E164Pattern = @"^\+?[1-9]\d{1,14}$";
+
+    public const string ErrorMessage = "Phone number must be in E.164 format (for example +15551234567)";
+}
+
+/// <summary>
+/// Single definition of the shipment weight limits used by every request DTO.
+/// </summary>
+public static class ShipmentLimits
+{
+    public const string MinWeightKg = "0.1";
+    public const string MaxWeightKg = "70";
+    public const string WeightErrorMessage = "Weight must be between 0.1 and 70 kg";
 }

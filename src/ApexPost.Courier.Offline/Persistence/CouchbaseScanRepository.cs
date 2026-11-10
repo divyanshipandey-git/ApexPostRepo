@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Couchbase.Lite;
 using Couchbase.Lite.Query;
+using Microsoft.Extensions.Logging;
 using ApexPost.Courier.Offline.Abstractions;
 using ApexPost.Courier.Offline.Domain;
 
@@ -14,10 +15,27 @@ public sealed class CouchbaseScanRepository : IScanRepository
 {
     private readonly CourierDatabase _database;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<CouchbaseScanRepository>? _logger;
 
-    public CouchbaseScanRepository(CourierDatabase database)
+    // SQL++ statements. Every value is bound through a named parameter ($name), never concatenated.
+    // "_default" is the Couchbase Lite default collection.
+    private const string SelectAllSql =
+        "SELECT * FROM _default AS s";
+
+    private const string SelectByTrackingNumberSql =
+        "SELECT * FROM _default AS s WHERE s.trackingNumber = $trackingNumber ORDER BY s.scannedAtUtc ASC";
+
+    private const string SelectBySyncStatusSql =
+        "SELECT * FROM _default AS s WHERE s.syncStatus = $syncStatus ORDER BY s.scannedAtUtc ASC";
+
+    private const string CountByTypeForCourierSql =
+        "SELECT s.scanType AS scanType, COUNT(*) AS total FROM _default AS s " +
+        "WHERE s.courierId = $courierId GROUP BY s.scanType";
+
+    public CouchbaseScanRepository(CourierDatabase database, ILogger<CouchbaseScanRepository>? logger = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
+        _logger = logger;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -75,9 +93,7 @@ public sealed class CouchbaseScanRepository : IScanRepository
 
     public async Task<IReadOnlyList<ShipmentScan>> ListAllAsync(CancellationToken cancellationToken = default)
     {
-        var query = QueryBuilder.Select(SelectResult.All())
-            .From(DataSource.Collection(_database.DefaultCollection));
-
+        using var query = _database.Database.CreateQuery(SelectAllSql);
         return await ExecuteQueryAsync(query, cancellationToken);
     }
 
@@ -85,19 +101,16 @@ public sealed class CouchbaseScanRepository : IScanRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
 
-        var query = QueryBuilder.Select(SelectResult.All())
-            .From(DataSource.Collection(_database.DefaultCollection))
-            .Where(Expression.Property("trackingNumber").EqualTo(Expression.String(trackingNumber)))
-            .OrderBy(Ordering.Property("scannedAtUtc").Ascending());
+        using var query = _database.Database.CreateQuery(SelectByTrackingNumberSql);
+        query.Parameters = new Parameters().SetString("trackingNumber", trackingNumber);
 
         return await ExecuteQueryAsync(query, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ShipmentScan>> GetBySyncStatusAsync(SyncStatus syncStatus, CancellationToken cancellationToken = default)
     {
-        var query = QueryBuilder.Select(SelectResult.All())
-            .From(DataSource.Collection(_database.DefaultCollection))
-            .Where(Expression.Property("syncStatus").EqualTo(Expression.String(syncStatus.ToString())));
+        using var query = _database.Database.CreateQuery(SelectBySyncStatusSql);
+        query.Parameters = new Parameters().SetString("syncStatus", syncStatus.ToString());
 
         return await ExecuteQueryAsync(query, cancellationToken);
     }
@@ -106,12 +119,8 @@ public sealed class CouchbaseScanRepository : IScanRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(courierId);
 
-        var query = QueryBuilder.Select(
-                SelectResult.Expression(Expression.Property("scanType")),
-                SelectResult.Expression(Function.Count(Expression.All())))
-            .From(DataSource.Collection(_database.DefaultCollection))
-            .Where(Expression.Property("courierId").EqualTo(Expression.String(courierId)))
-            .GroupBy(Expression.Property("scanType"));
+        using var query = _database.Database.CreateQuery(CountByTypeForCourierSql);
+        query.Parameters = new Parameters().SetString("courierId", courierId);
 
         var results = new Dictionary<ScanType, int>();
 
@@ -120,11 +129,15 @@ public sealed class CouchbaseScanRepository : IScanRepository
             using var result = query.Execute();
             foreach (var row in result)
             {
-                var scanTypeStr = row.GetString(0);
-                var count = row.GetInt(1);
+                var scanTypeStr = row.GetString("scanType");
+                var count = row.GetInt("total");
                 if (Enum.TryParse<ScanType>(scanTypeStr, out var scanType))
                 {
                     results[scanType] = count;
+                }
+                else
+                {
+                    _logger?.LogWarning("Ignoring scan count row with unknown scanType {ScanType}", scanTypeStr);
                 }
             }
         }, cancellationToken);
@@ -156,36 +169,40 @@ public sealed class CouchbaseScanRepository : IScanRepository
     private ShipmentScan? DeserializeScan(Document document)
     {
         var dict = document.ToDictionary();
-        return DeserializeFromDictionary(dict);
+        return DeserializeFromDictionary(dict, document.Id);
     }
 
     private ShipmentScan? DeserializeFromDictionaryObject(DictionaryObject dict)
     {
-        try
+        var standardDict = new Dictionary<string, object?>();
+        foreach (var key in dict.Keys)
         {
-            var standardDict = new Dictionary<string, object?>();
-            foreach (var key in dict.Keys)
-            {
-                standardDict[key] = dict.GetValue(key);
-            }
-            var json = JsonSerializer.Serialize(standardDict, _jsonOptions);
-            return JsonSerializer.Deserialize<ShipmentScan>(json, _jsonOptions);
+            standardDict[key] = dict.GetValue(key);
         }
-        catch
-        {
-            return null;
-        }
+
+        return DeserializeFromDictionary(standardDict, standardDict.TryGetValue("id", out var id) ? id?.ToString() : null);
     }
 
-    private ShipmentScan? DeserializeFromDictionary(Dictionary<string, object?> dict)
+    /// <summary>
+    /// Converts a stored document into a <see cref="ShipmentScan"/>. A document that cannot be read is
+    /// logged (with its id) and skipped; it is never swallowed silently.
+    /// </summary>
+    private ShipmentScan? DeserializeFromDictionary(Dictionary<string, object?> dict, string? documentId)
     {
         try
         {
             var json = JsonSerializer.Serialize(dict, _jsonOptions);
-            return JsonSerializer.Deserialize<ShipmentScan>(json, _jsonOptions);
+            var scan = JsonSerializer.Deserialize<ShipmentScan>(json, _jsonOptions);
+            if (scan is null)
+            {
+                _logger?.LogError("Scan document {DocumentId} deserialized to null and was skipped", documentId ?? "(unknown)");
+            }
+
+            return scan;
         }
-        catch
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
         {
+            _logger?.LogError(ex, "Scan document {DocumentId} is corrupt and could not be read; it was skipped", documentId ?? "(unknown)");
             return null;
         }
     }

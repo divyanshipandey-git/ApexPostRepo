@@ -23,8 +23,9 @@ The system uses a **server-decides (last-write-wins with server authority)** con
 - **Local writes**: Always succeed and are marked with `syncStatus = Pending`.
 - **Synchronization**: The `OutboxService` reads pending scans and attempts to upload them via `IShipmentUploader`.
 - **Server authority**: The server is the system of record. If a scan is modified on the server after local creation (e.g., by another courier or back-office staff), the server's version wins during sync.
-- **Conflict detection**: The upload endpoint uses optimistic concurrency (e.g., ETags or version numbers). If the server rejects an upload due to a conflict, the scan is marked `SyncStatus = Failed` and the courier is notified to review.
-- **Manual resolution**: Failed syncs require courier intervention—typically re-scanning or contacting dispatch—rather than automatic merge, because shipment scan data has legal/compliance implications and must be accurate.
+- **Conflict detection**: Scans are append-only facts identified by a client-generated, globally unique id (`scan::{Guid}`), so there is no row-level version/ETag. The server's `POST /api/v{n}/shipments/{trackingNumber}/scans` endpoint is **idempotent on that scan id**: a scan id it has already stored is counted as a duplicate (not stored twice) and is reported separately from rejections, which makes re-sending safe. A scan the server rejects for a business rule (for example an invalid scan sequence) is reported in `rejectionDetails`.
+- **Retry of failed uploads**: `OutboxService.ProcessPendingAsync` processes scans in `Pending` **and** `Failed` state, so a scan whose upload failed (network error, server unavailable) is retried on the next sync run. Because the server is idempotent on scan id, a retry after an upload that actually succeeded is harmless.
+- **Manual resolution**: A scan the server permanently rejects needs courier intervention—typically re-scanning or contacting dispatch—rather than automatic merge, because shipment scan data has legal/compliance implications and must be accurate.
 
 **Why not last-write-wins (LWW) purely on timestamp?**
 LWW based solely on `scannedAtUtc` timestamps is unsafe because:
@@ -56,20 +57,29 @@ If multiple processes need access (e.g., a background sync service + foreground 
 | Component | Purpose |
 |-----------|---------|
 | `CourierDatabase` | Wrapper around Couchbase Lite `Database`, manages lifecycle, indexes, and change listeners |
-| `IScanRepository` / `CouchbaseScanRepository` | CRUD + SQL++ queries with parameters for scan documents |
+| `IScanRepository` / `CouchbaseScanRepository` | CRUD on the Couchbase Lite **default collection** + SQL++ queries (`Database.CreateQuery`) bound with named `Parameters` |
 | `ShipmentScan` | Domain entity with `Id` format `scan::{Guid}` |
-| `OutboxService` / `IShipmentUploader` | Offline-first sync pattern with pending/synced/failed states |
+| `OutboxService` / `IShipmentUploader` | Offline-first sync pattern with pending/synced/failed states; Failed scans are retried |
 | `FakeShipmentUploader` | Test double simulating 90% success rate |
 | Console Harness | Interactive menu: Add, Find by Tracking, List Pending, Simulate Sync, Delete |
 
-### SQL++ Queries with Parameters
-- **By tracking number**: `WHERE trackingNumber = $trackingNumber ORDER BY scannedAtUtc ASC`
-- **By sync status**: `WHERE syncStatus = $syncStatus`
-- **Counts by type per courier**: `SELECT scanType, COUNT(*) WHERE courierId = $courierId GROUP BY scanType`
+### Default Collection
+Scan documents live in the Couchbase Lite **default collection** (`_default._default`), obtained with `Database.GetDefaultCollection()` (exposed as `CourierDatabase.DefaultCollection`). No custom collection is created.
+
+### SQL++ Queries with Named Parameters
+Queries are SQL++ strings run with `Database.CreateQuery(...)`. Values are never concatenated into the string; they are bound with `query.Parameters = new Parameters().SetString("name", value)`.
+- **All scans**: `SELECT * FROM _default AS s`
+- **By tracking number**: `SELECT * FROM _default AS s WHERE s.trackingNumber = $trackingNumber ORDER BY s.scannedAtUtc ASC`
+- **By sync status**: `SELECT * FROM _default AS s WHERE s.syncStatus = $syncStatus ORDER BY s.scannedAtUtc ASC`
+- **Counts by type per courier**: `SELECT s.scanType AS scanType, COUNT(*) AS total FROM _default AS s WHERE s.courierId = $courierId GROUP BY s.scanType`
 
 ### Value Indexes Created
 - `idx_trackingNumber` on property `trackingNumber`
 - `idx_syncStatus` on property `syncStatus`
+- `idx_courierId` on property `courierId`
 
-### Change Listener
-Registered on the `scans` collection, logs changed document IDs and updates live pending count. Properly disposed with `RemoveChangeListener` in `CourierDatabase.Dispose()`.
+### Change Listeners
+`CourierDatabase.AddChangeListener` can be called any number of times; every registration gets its own `ListenerToken` and all tokens are tracked. `RemoveChangeListener(token)` removes one listener, `RemoveChangeListener()` removes all of them, and `Dispose()` removes any that are left.
+
+### Error Handling for Corrupt Documents
+If a stored document cannot be converted back to a `ShipmentScan`, the repository logs an error containing the document id and skips that document. It no longer swallows the failure silently.

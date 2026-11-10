@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Client.Consumer", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Courier.Console", "src\ApexPost.Courier.Console\ApexPost.Courier.Console.csproj", "{380033DA-E612-4080-A637-811901575FB7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Api.Tests", "tests\ApexPost.Api.Tests\ApexPost.Api.Tests.csproj", "{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -229,6 +231,18 @@ Global
 		{380033DA-E612-4080-A637-811901575FB7}.Release|x64.Build.0 = Release|Any CPU
 		{380033DA-E612-4080-A637-811901575FB7}.Release|x86.ActiveCfg = Release|Any CPU
 		{380033DA-E612-4080-A637-811901575FB7}.Release|x86.Build.0 = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|x64.Build.0 = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Debug|x86.Build.0 = Debug|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|x64.ActiveCfg = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|x64.Build.0 = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|x86.ActiveCfg = Release|Any CPU
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -241,5 +255,6 @@ Global
 		{45161C91-9B8B-4065-9219-04FC10D8A97A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{67D0AF40-4BC7-421C-BD1E-FA2638BEE33A} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{380033DA-E612-4080-A637-811901575FB7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

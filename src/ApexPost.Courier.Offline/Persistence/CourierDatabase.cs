@@ -13,7 +13,9 @@ public sealed class CourierDatabase : IDisposable
 {
     private readonly Database _database;
     private readonly ILogger<CourierDatabase>? _logger;
-    private ListenerToken? _changeListenerToken;
+    private readonly Collection _defaultCollection;
+    private readonly List<ListenerToken> _changeListenerTokens = [];
+    private readonly object _listenerLock = new();
     private bool _disposed;
 
     /// <summary>
@@ -31,6 +33,7 @@ public sealed class CourierDatabase : IDisposable
         };
 
         _database = new Database("apexpost_courier", config);
+        _defaultCollection = _database.GetDefaultCollection();
         _logger?.LogInformation("Courier database initialized at {Path}", config.Directory);
 
         // Create value indexes for query performance
@@ -43,20 +46,22 @@ public sealed class CourierDatabase : IDisposable
     public Database Database => _database;
 
     /// <summary>
-    /// Gets the default collection for storing scan documents.
+    /// Gets the Couchbase Lite default collection (<c>_default._default</c>), which stores the scan documents.
     /// </summary>
-    public Collection DefaultCollection => _database.GetCollection("scans") ?? _database.CreateCollection("scans");
+    public Collection DefaultCollection => _defaultCollection;
 
     /// <summary>
-    /// Registers a change listener on the default collection.
+    /// Registers a change listener on the default collection. Any number of listeners may be registered;
+    /// each one gets its own token.
     /// </summary>
     /// <param name="handler">Handler for document changes.</param>
-    /// <returns>A token that can be used to remove the listener.</returns>
+    /// <returns>A token that can be passed to <see cref="RemoveChangeListener(ListenerToken)"/>.</returns>
     public ListenerToken AddChangeListener(Action<IEnumerable<string>> handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        _changeListenerToken = DefaultCollection.AddChangeListener((sender, args) =>
+        var token = _defaultCollection.AddChangeListener((sender, args) =>
         {
             var changedIds = args.DocumentIDs;
             if (changedIds.Count > 0)
@@ -65,19 +70,52 @@ public sealed class CourierDatabase : IDisposable
             }
         });
 
-        return _changeListenerToken.Value;
+        lock (_listenerLock)
+        {
+            _changeListenerTokens.Add(token);
+        }
+
+        return token;
     }
 
     /// <summary>
-    /// Removes the registered change listener.
+    /// Removes one previously registered change listener.
+    /// </summary>
+    /// <param name="token">The token returned by <see cref="AddChangeListener"/>.</param>
+    public void RemoveChangeListener(ListenerToken token)
+    {
+        lock (_listenerLock)
+        {
+            var index = _changeListenerTokens.IndexOf(token);
+            if (index < 0) return;
+
+            _changeListenerTokens.RemoveAt(index);
+        }
+
+        _defaultCollection.RemoveChangeListener(token);
+        _logger?.LogDebug("Change listener removed");
+    }
+
+    /// <summary>
+    /// Removes every registered change listener.
     /// </summary>
     public void RemoveChangeListener()
     {
-        if (_changeListenerToken.HasValue)
+        ListenerToken[] tokens;
+        lock (_listenerLock)
         {
-            DefaultCollection.RemoveChangeListener(_changeListenerToken.Value);
-            _changeListenerToken = null;
-            _logger?.LogDebug("Change listener removed");
+            tokens = [.. _changeListenerTokens];
+            _changeListenerTokens.Clear();
+        }
+
+        foreach (var token in tokens)
+        {
+            _defaultCollection.RemoveChangeListener(token);
+        }
+
+        if (tokens.Length > 0)
+        {
+            _logger?.LogDebug("Removed {Count} change listener(s)", tokens.Length);
         }
     }
 
@@ -94,7 +132,10 @@ public sealed class CourierDatabase : IDisposable
             // Index on syncStatus for GetBySyncStatusAsync queries
             DefaultCollection.CreateIndex("idx_syncStatus", IndexBuilder.ValueIndex(ValueIndexItem.Property("syncStatus")));
 
-            _logger?.LogDebug("Value indexes created for trackingNumber and syncStatus");
+            // Index on courierId for the per-courier scan count query
+            DefaultCollection.CreateIndex("idx_courierId", IndexBuilder.ValueIndex(ValueIndexItem.Property("courierId")));
+
+            _logger?.LogDebug("Value indexes created for trackingNumber, syncStatus and courierId");
         }
         catch (Exception ex)
         {

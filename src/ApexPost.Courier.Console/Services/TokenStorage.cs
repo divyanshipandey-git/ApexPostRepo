@@ -3,18 +3,18 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ApexPost.Courier.Console.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-#pragma warning disable CA1416 // This call site is reachable on all platforms. ProtectedData is only supported on Windows.
-// The console app is Windows-only and uses DPAPI for secure token storage.
 
 namespace ApexPost.Courier.Console.Services;
 
 /// <summary>
-/// Secure token storage for console application using encrypted file storage.
+/// Secure token storage. This is the console-app equivalent of MAUI <c>SecureStorage</c>: the token is never
+/// written in clear text; it is encrypted with Windows DPAPI (<see cref="DataProtectionScope.CurrentUser"/>),
+/// so only the same Windows user on the same machine can read it. <see cref="ITokenStorage"/> is the seam: a MAUI
+/// head would register a SecureStorage-backed implementation of the same interface without touching callers.
 /// </summary>
 public interface ITokenStorage
 {
@@ -24,6 +24,7 @@ public interface ITokenStorage
     Task<bool> HasValidTokenAsync();
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class FileTokenStorage : ITokenStorage
 {
     private readonly string _filePath;
@@ -48,7 +49,7 @@ public sealed class FileTokenStorage : ITokenStorage
             var jsonBytes = ProtectedData.Unprotect(encryptedData, _entropy, DataProtectionScope.CurrentUser);
             var json = Encoding.UTF8.GetString(jsonBytes);
             
-            var token = JsonSerializer.Deserialize<TokenData>(json, JsonOptions.Default);
+            var token = JsonSerializer.Deserialize(json, ApexJsonContext.Default.TokenData);
             
             if (token?.IsExpired == true)
             {
@@ -73,7 +74,7 @@ public sealed class FileTokenStorage : ITokenStorage
             token.IssuedAt = DateTimeOffset.UtcNow;
             token.ExpiresAt = token.IssuedAt.AddSeconds(token.ExpiresIn);
 
-            var json = JsonSerializer.Serialize(token, JsonOptions.Default);
+            var json = JsonSerializer.Serialize(token, ApexJsonContext.Default.TokenData);
             var jsonBytes = Encoding.UTF8.GetBytes(json);
             var encryptedData = ProtectedData.Protect(jsonBytes, _entropy, DataProtectionScope.CurrentUser);
             
@@ -87,7 +88,7 @@ public sealed class FileTokenStorage : ITokenStorage
         }
     }
 
-    public async Task ClearTokenAsync()
+    public Task ClearTokenAsync()
     {
         try
         {
@@ -101,6 +102,8 @@ public sealed class FileTokenStorage : ITokenStorage
         {
             _logger.LogWarning(ex, "Failed to clear token file");
         }
+
+        return Task.CompletedTask;
     }
 
     public async Task<bool> HasValidTokenAsync()
@@ -113,16 +116,4 @@ public sealed class FileTokenStorage : ITokenStorage
 public sealed class TokenStorageOptions
 {
     public string FilePath { get; set; } = "courier_token.json";
-}
-
-internal static class JsonOptions
-{
-    public static readonly JsonSerializerOptions Default = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() },
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        WriteIndented = true
-    };
 }
