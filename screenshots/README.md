@@ -8,5 +8,6 @@ All images here were captured from the running project (API on `https://localhos
 | C – OpenAPI / versioning / SDK | `part-c-swagger-v1.png` (deprecated, struck through), `part-c-swagger-v2.png`, `part-c-201-created.png` (Location header), `part-c-400-validation.png`, `part-c-409-conflict.png`, `part-c-404-notfound.png`, `part-c-console-consumer.png`, contracts, NSwag config |
 | D – security | `part-d-401-*`, `part-d-403-*`, `part-d-200-valid-token.png` (idempotent re-upload: `duplicatesSkipped`), `part-d-partner-*`, `part-d-https-redirection.png`, `part-d-security-headers.png`, `part-d-openapi-security.png` |
 
-## Still to capture by hand (need an interactive terminal / device)
-Circuit breaker open/half-open/closed, airplane-mode sync, console login, Swagger "Authorize" dialog, SecureStorage/token-cleared. Record these in the demo video required by Part D.
+Also: `part-d-swagger-authorize.png` – the Swagger UI **Authorize** dialog with a development Bearer token entered (value masked) and the partner ApiKey scheme.
+
+The courier client is a console app (agreed stand-in for MAUI), so there is no MAUI/device capture and no demo video.

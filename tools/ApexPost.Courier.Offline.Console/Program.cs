@@ -56,6 +56,8 @@ Console.WriteLine();
 var running = true;
 while (running)
 {
+    // Refresh the count before drawing the menu so it is correct even if the listener callback has not run yet.
+    pendingCount = (await scanRepository.GetBySyncStatusAsync(SyncStatus.Pending)).Count;
     PrintMenu();
     var input = Console.ReadLine()?.Trim();
 
