@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ApexPost.Api.DTOs;
@@ -21,13 +22,20 @@ public sealed class ScanUploadResponse
     public int DuplicatesSkipped { get; set; }
 
     /// <summary>
+    /// The scan IDs that were skipped as duplicates. Duplicates are not errors, so they are
+    /// listed here and never in <see cref="RejectionDetails"/>.
+    /// </summary>
+    [JsonPropertyName("duplicateScanIds")]
+    public List<string> DuplicateScanIds { get; set; } = [];
+
+    /// <summary>
     /// Number of scans rejected with reasons.
     /// </summary>
     [JsonPropertyName("rejected")]
     public int Rejected { get; set; }
 
     /// <summary>
-    /// Details for rejected scans.
+    /// Details for rejected scans (genuine rejections only, never duplicates).
     /// </summary>
     [JsonPropertyName("rejectionDetails")]
     public List<ScanRejectionDetail> RejectionDetails { get; set; } = [];
@@ -75,7 +83,7 @@ public sealed class PagedResponse<T>
     public int TotalCount { get; init; }
 
     [JsonPropertyName("totalPages")]
-    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
 }
 
 /// <summary>
@@ -195,9 +203,11 @@ public sealed class ShipmentFilter
     public const int MaxPageSize = 50;
 
     [FromQuery(Name = "page")]
+    [Range(1, int.MaxValue, ErrorMessage = "page must be 1 or greater")]
     public int Page { get; init; } = 1;
 
     [FromQuery(Name = "pageSize")]
+    [Range(1, MaxPageSize, ErrorMessage = "pageSize must be between 1 and 50")]
     public int PageSize { get; init; } = DefaultPageSize;
 
     [FromQuery(Name = "status")]

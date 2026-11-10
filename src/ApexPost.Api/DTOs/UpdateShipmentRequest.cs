@@ -11,7 +11,7 @@ public sealed class UpdateShipmentRequest
     /// <summary>
     /// Package weight in kilograms (0.1 - 70 kg).
     /// </summary>
-    [Range(0.1, 70.0, ErrorMessage = "Weight must be between 0.1 and 70 kg")]
+    [Range(typeof(decimal), ShipmentLimits.MinWeightKg, ShipmentLimits.MaxWeightKg, ErrorMessage = ShipmentLimits.WeightErrorMessage)]
     [JsonPropertyName("weightKg")]
     public decimal? WeightKg { get; init; }
 
@@ -25,7 +25,7 @@ public sealed class UpdateShipmentRequest
     /// <summary>
     /// Recipient phone number in E.164 format.
     /// </summary>
-    [Phone]
+    [RegularExpression(PhoneFormat.E164Pattern, ErrorMessage = PhoneFormat.ErrorMessage)]
     [JsonPropertyName("recipientPhone")]
     public string? RecipientPhone { get; init; }
 
@@ -53,7 +53,7 @@ public sealed class UpdateShipmentRequest
     /// <summary>
     /// Recipient country code (ISO 3166-1 alpha-2).
     /// </summary>
-    [StringLength(2, MinimumLength = 2)]
+    [RegularExpression("^[A-Z]{2}$", ErrorMessage = "Country must be a 2-letter upper-case ISO 3166-1 alpha-2 code")]
     [JsonPropertyName("recipientCountry")]
     public string? RecipientCountry { get; init; }
 
@@ -67,7 +67,7 @@ public sealed class UpdateShipmentRequest
     /// <summary>
     /// Optional declared value for insurance.
     /// </summary>
-    [Range(0, 10000)]
+    [Range(0, 10000, ErrorMessage = "Declared value must be between 0 and 10000")]
     [JsonPropertyName("declaredValue")]
     public decimal? DeclaredValue { get; init; }
 }

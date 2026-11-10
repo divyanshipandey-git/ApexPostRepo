@@ -5,8 +5,7 @@ This document describes the versioning strategy for the ApexPost Logistics API.
 
 ## Versioning Scheme
 - **URL Segment Versioning**: `/api/v{version}/` (e.g., `/api/v1/`, `/api/v2/`)
-- **Header Versioning**: `x-api-version` header
-- **Query String Versioning**: `?api-version=` parameter
+- Only the URL segment is read (`UrlSegmentApiVersionReader`). Header and query-string versioning are **not** enabled.
 
 ## Version Lifecycle
 
@@ -14,7 +13,7 @@ This document describes the versioning strategy for the ApexPost Logistics API.
 - **Status**: Deprecated
 - **Release Date**: Week 4 Part B
 - **Deprecation Date**: Week 4 Part C
-- **Sunset Date**: TBD (minimum 6 months after deprecation)
+- **Sunset Date**: 2027-07-01 (configured with `options.Policies.Sunset(1.0)`; sent in the `Sunset` response header)
 - **Breaking Changes in v2**: 
   1. Recipient fields grouped into nested `recipient` object
   2. Added `latestScan` summary field
@@ -118,15 +117,20 @@ This document describes the versioning strategy for the ApexPost Logistics API.
 
 ## API Headers for Versioning
 
+The version is chosen only by the URL (`/api/v1/...`, `/api/v2/...`); no request header selects it.
+
 ### Request Headers
-- `x-api-version: 1` or `x-api-version: 2`
 - `Accept: application/json`
 
 ### Response Headers
-- `api-supported-versions: 1, 2`
-- `api-deprecated-versions: 1`
-- `Deprecation: true` (for v1)
-- `Sunset: Sat, 01 Jan 2027 00:00:00 GMT` (for v1)
+- `api-supported-versions: 1.0, 2.0` (every response)
+- `api-deprecated-versions: 1.0` (every response)
+- `Deprecation: true` (v1 responses)
+- `Sunset: Thu, 01 Jul 2027 00:00:00 GMT` (v1 responses, from the sunset policy)
+
+## How deprecation is implemented
+- `[ApiVersion("1.0", Deprecated = true)]` on the controllers marks v1 deprecated in Asp.Versioning and in the generated `/openapi/v1.json` (`deprecated: true` on each operation).
+- v2 actions use `[MapToApiVersion("2.0")]` and call the v2 service methods (`GetShipmentV2Async` etc.), so v2 genuinely returns the nested `recipient` and `latestScan`.
 
 ## Client SDK Versioning
 

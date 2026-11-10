@@ -20,6 +20,12 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        // The client went away: nothing to write and nothing to log as an error.
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            return true;
+        }
+
         var (statusCode, title, detail, type) = MapException(exception);
 
         var problemDetails = new ProblemDetails
@@ -52,6 +58,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         {
             NotFoundException => (StatusCodes.Status404NotFound, "Resource Not Found", exception.Message, "https://tools.ietf.org/html/rfc7231#section-6.5.4"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message, "https://tools.ietf.org/html/rfc7231#section-6.5.8"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", exception.Message, "https://tools.ietf.org/html/rfc7231#section-6.5.3"),
             ValidationException => (StatusCodes.Status400BadRequest, "Validation Error", exception.Message, "https://tools.ietf.org/html/rfc7231#section-6.5.1"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid Argument", exception.Message, "https://tools.ietf.org/html/rfc7231#section-6.5.1"),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", exception.Message, "https://tools.ietf.org/html/rfc7235#section-3.1"),

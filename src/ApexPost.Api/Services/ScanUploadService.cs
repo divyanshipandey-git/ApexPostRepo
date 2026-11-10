@@ -4,7 +4,6 @@ using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 using DomainEntities = ApexPost.Domain.Entities;
 using ApexPost.Api.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace ApexPost.Api.Services;
 
@@ -13,7 +12,17 @@ namespace ApexPost.Api.Services;
 /// </summary>
 public interface IScanUploadService
 {
-    Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, ScanUploadRequest request, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Stores the scans of one courier for a shipment. Idempotent on scan ID.
+    /// </summary>
+    /// <param name="trackingNumber">Shipment the scans belong to.</param>
+    /// <param name="callerCourierId">The courierId claim of the authenticated caller.</param>
+    /// <param name="request">The scans to store.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ForbiddenException">The caller has no courierId claim, or a scan belongs to another courier.</exception>
+    /// <exception cref="NotFoundException">The shipment does not exist.</exception>
+    /// <exception cref="ConflictException">The same scan IDs were uploaded concurrently; the client should retry.</exception>
+    Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, string? callerCourierId, ScanUploadRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -35,50 +44,59 @@ public sealed class ScanUploadService : IScanUploadService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, ScanUploadRequest request, CancellationToken cancellationToken = default)
+    public async Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, string? callerCourierId, ScanUploadRequest request, CancellationToken cancellationToken = default)
     {
-        var shipment = await _shipmentRepository.GetByTrackingNumberWithTrackingAsync(trackingNumber, cancellationToken);
-        if (shipment == null)
+        // Ownership: a courier may only upload their own scans.
+        if (string.IsNullOrWhiteSpace(callerCourierId))
         {
-            throw new NotFoundException($"Shipment {trackingNumber} not found");
+            throw new ForbiddenException("Missing courierId claim in token");
         }
+
+        var foreignScanIds = request.Scans
+            .Where(s => !string.Equals(s.CourierId, callerCourierId, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.ScanId)
+            .ToList();
+
+        if (foreignScanIds.Count > 0)
+        {
+            throw new ForbiddenException(
+                $"Scans {string.Join(", ", foreignScanIds)} have a courierId that does not match your token");
+        }
+
+        var shipment = await _shipmentRepository.GetByTrackingNumberWithTrackingAsync(trackingNumber, cancellationToken)
+            ?? throw new NotFoundException($"Shipment {trackingNumber} not found");
 
         var response = new ScanUploadResponse();
         var scanIdsInRequest = request.Scans.Select(s => s.ScanId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Check existing scans for duplicates (idempotent)
+        // Idempotency: scan IDs that are already stored (any shipment) are duplicates.
         var existingScans = await _shipmentRepository.GetScansByIdsAsync(scanIdsInRequest, cancellationToken);
-        var existingScanIds = existingScans.Select(s => s.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownScanIds = existingScans.Select(s => s.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var scanRequest in request.Scans)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (existingScanIds.Contains(scanRequest.ScanId))
+            if (knownScanIds.Contains(scanRequest.ScanId))
             {
+                // A duplicate is not an error: it is counted and listed, but never reported as a rejection.
                 response.DuplicatesSkipped++;
-                response.RejectionDetails.Add(new ScanRejectionDetail
-                {
-                    ScanId = scanRequest.ScanId,
-                    Reason = "Duplicate scan ID - already exists"
-                });
+                response.DuplicateScanIds.Add(scanRequest.ScanId);
                 continue;
             }
 
-            // Validate business rules
-            var validationResult = ValidateScanBusinessRules(scanRequest, shipment);
-            if (!validationResult.IsValid)
+            var (isValid, errorMessage) = ValidateScanBusinessRules(scanRequest, shipment);
+            if (!isValid)
             {
                 response.Rejected++;
                 response.RejectionDetails.Add(new ScanRejectionDetail
                 {
                     ScanId = scanRequest.ScanId,
-                    Reason = validationResult.ErrorMessage!
+                    Reason = errorMessage!
                 });
                 continue;
             }
 
-            // Create scan entity
             var scan = new TrackedShipmentScan
             {
                 Id = scanRequest.ScanId,
@@ -94,14 +112,27 @@ public sealed class ScanUploadService : IScanUploadService
             };
 
             shipment.AddScan(scan);
-            existingScanIds.Add(scanRequest.ScanId); // Prevent duplicates within same batch
+            knownScanIds.Add(scanRequest.ScanId); // also de-duplicates inside one batch
             response.Accepted++;
         }
 
         if (response.Accepted > 0)
         {
             await _shipmentRepository.UpdateAsync(shipment, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (UniqueKeyConflictException ex)
+            {
+                // The primary key on TrackedShipmentScans.Id is the hard guarantee that a scan ID is stored once.
+                // If another request stored one of these IDs between our check and our save, nothing is
+                // half-saved (single SaveChanges); ask the client to retry, and the retry reports duplicates.
+                _logger.LogWarning(ex, "Concurrent upload of the same scan IDs for {TrackingNumber}", trackingNumber);
+                throw new ConflictException(
+                    "One or more of these scans were uploaded concurrently by another request. Retry the upload; already stored scans are reported as duplicates.");
+            }
         }
 
         _logger.LogInformation(
@@ -113,6 +144,12 @@ public sealed class ScanUploadService : IScanUploadService
 
     private static (bool IsValid, string? ErrorMessage) ValidateScanBusinessRules(ScanDocumentRequest scanRequest, TrackedShipment shipment)
     {
+        // Scan time cannot be in the future (5 minutes of clock skew allowed)
+        if (scanRequest.ScannedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
+        {
+            return (false, "Scan time cannot be in the future");
+        }
+
         // Scan time cannot be before shipment creation
         if (scanRequest.ScannedAtUtc < shipment.CreatedAtUtc.AddMinutes(-5))
         {

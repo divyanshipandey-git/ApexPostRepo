@@ -18,7 +18,7 @@ public sealed class ConsoleMenu
     private readonly IServiceProvider _services;
     private readonly ILogger<ConsoleMenu> _logger;
     private readonly ITokenStorage _tokenStorage;
-    private readonly IApexApiClient _apiClient;
+    private readonly IApiEndpointResolver _endpoint;
     private readonly ISyncService _syncService;
     private readonly ICourierDatabase _database;
     private readonly CourierOptions _options;
@@ -32,7 +32,7 @@ public sealed class ConsoleMenu
         IServiceProvider services,
         ILogger<ConsoleMenu> logger,
         ITokenStorage tokenStorage,
-        IApexApiClient apiClient,
+        IApiEndpointResolver endpoint,
         ISyncService syncService,
         ICourierDatabase database,
         IOptions<CourierOptions> options)
@@ -40,7 +40,7 @@ public sealed class ConsoleMenu
         _services = services;
         _logger = logger;
         _tokenStorage = tokenStorage;
-        _apiClient = apiClient;
+        _endpoint = endpoint;
         _syncService = syncService;
         _database = database;
         _options = options.Value;
@@ -92,6 +92,7 @@ public sealed class ConsoleMenu
         System.Console.Clear();
         WriteHeader("ApexPost Courier Console");
         WriteInfo($"Courier: {(_currentCourierId != string.Empty ? _currentCourierId : "Not logged in")} | Role: {_currentRole}");
+        WriteOfflineBanner();
         WriteInfo($"Sync Status: {_syncService.CurrentStatus} | Pending: {_syncService.PendingScansCount} | Last Sync: {(_syncService.LastSyncTime?.ToLocalTime().ToString("g") ?? "Never")}");
         System.Console.WriteLine();
 
@@ -202,27 +203,26 @@ public sealed class ConsoleMenu
         {
             WriteInfo("Requesting token from /dev/token endpoint...");
             
-            var request = new { courierId = courierId, role = role };
-            var json = JsonSerializer.Serialize(request);
+            var request = new DevTokenRequestDto { CourierId = courierId, Role = role };
+            var json = JsonSerializer.Serialize(request, ApexJsonContext.Default.DevTokenRequestDto);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             
             using var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(_options.ApiBaseUrl);
+            httpClient.BaseAddress = _endpoint.BaseAddress;
             
             var response = await httpClient.PostAsync("/dev/token", content);
             
             if (response.IsSuccessStatusCode)
             {
                 var responseJson = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(responseJson);
-                var accessToken = doc.RootElement.GetProperty("access_token").GetString();
-                var expiresIn = doc.RootElement.GetProperty("expires_in").GetInt32();
-                
+                var tokenResponse = JsonSerializer.Deserialize(responseJson, ApexJsonContext.Default.DevTokenResponseDto)
+                    ?? throw new InvalidOperationException("Empty token response");
+
                 var tokenData = new TokenData
                 {
-                    AccessToken = accessToken!,
+                    AccessToken = tokenResponse.AccessToken,
                     TokenType = "Bearer",
-                    ExpiresIn = expiresIn,
+                    ExpiresIn = tokenResponse.ExpiresIn,
                     CourierId = courierId,
                     Role = role
                 };
@@ -435,6 +435,7 @@ public sealed class ConsoleMenu
     {
         System.Console.Clear();
         WriteHeader("Sync Status");
+        WriteOfflineBanner();
 
         var statusColor = _syncService.CurrentStatus switch
         {
@@ -541,11 +542,37 @@ public sealed class ConsoleMenu
         }
     }
 
+    /// <summary>
+    /// Shown whenever the device has no network or the circuit breaker says the server is down.
+    /// Scans keep being saved locally and are uploaded automatically when the server is back.
+    /// </summary>
+    private void WriteOfflineBanner()
+    {
+        if (_syncService.CurrentStatus is not (SyncState.Offline or SyncState.CircuitOpen))
+            return;
+
+        var reason = _syncService.CurrentStatus == SyncState.Offline ? "no network connection" : "server not responding";
+        System.Console.BackgroundColor = ConsoleColor.DarkYellow;
+        System.Console.ForegroundColor = ConsoleColor.Black;
+        System.Console.WriteLine($" Server unavailable - working offline ({reason}). Scans are saved on this device and will sync automatically. ");
+        System.Console.ResetColor();
+    }
+
     private bool IsConnected() => _syncService.CurrentStatus != SyncState.Offline && _syncService.CurrentStatus != SyncState.CircuitOpen;
 
     private void OnSyncStatusChanged(object? sender, SyncStatusChangedEventArgs e)
     {
-        // Status change logged in SyncService
+        // Status change logged in SyncService. Tell the courier as soon as we go offline / come back.
+        if (e.CurrentStatus is SyncState.Offline or SyncState.CircuitOpen)
+        {
+            WriteOfflineBanner();
+        }
+        else if (e.PreviousStatus is SyncState.Offline or SyncState.CircuitOpen)
+        {
+            System.Console.ForegroundColor = ConsoleColor.Green;
+            System.Console.WriteLine("[ONLINE] Server reachable again - syncing pending scans.");
+            System.Console.ResetColor();
+        }
     }
 
     private void OnPendingCountChanged(object? sender, int count)
@@ -584,7 +611,6 @@ public sealed class ConsoleMenu
 
 public sealed class CourierOptions
 {
-    public string ApiBaseUrl { get; set; } = "https://localhost:54402";
     public string DefaultCourierId { get; set; } = "COURIER-001";
     public int SyncBatchSize { get; set; } = 20;
     public int AutoSyncIntervalSeconds { get; set; } = 30;

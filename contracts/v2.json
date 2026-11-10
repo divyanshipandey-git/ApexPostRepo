@@ -2,455 +2,1542 @@
   "openapi": "3.0.1",
   "info": {
     "title": "ApexPost Logistics API",
-    "version": "v2",
-    "description": "RESTful API for managing shipments and offline scan uploads with enhanced response format.",
+    "description": "RESTful API for managing shipments and offline scan uploads. Responses use a nested recipient and the latest scan.",
     "contact": {
       "name": "ApexPost Logistics API Team",
-      "email": "api-support@apexpost.example.com",
-      "url": "https://apexpost.example.com"
-    }
+      "url": "https://apexpost.example.com",
+      "email": "api-support@apexpost.example.com"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://apexpost.example.com/license"
+    },
+    "version": "2.0"
   },
   "servers": [
     {
-      "url": "/api/v2"
+      "url": "https://localhost:54402/"
     }
   ],
   "paths": {
-    "/shipments": {
+    "/api/v2/shipments": {
       "get": {
-        "tags": ["Shipments"],
-        "summary": "Get paged list of shipments (v2)",
-        "operationId": "GetShipmentsV2",
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Get a paged list of shipments (v2).",
+        "operationId": "GetShipments",
         "parameters": [
           {
             "name": "page",
             "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
           },
           {
             "name": "pageSize",
             "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 }
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
           },
           {
             "name": "status",
             "in": "query",
-            "schema": { "type": "string", "enum": ["Created", "PickedUp", "InTransit", "OutForDelivery", "Delivered", "Failed"] }
+            "schema": {
+              "$ref": "#/components/schemas/ShipmentStatus"
+            }
           },
           {
             "name": "city",
             "in": "query",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "courierId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/V2PagedResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/V2PagedResponseOfV2ShipmentSummary"
+                }
               }
             }
           },
-          "400": { "description": "Validation failure" }
-        }
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "post": {
-        "tags": ["Shipments"],
-        "summary": "Create a new shipment",
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Create a shipment (v2).",
         "operationId": "CreateShipment",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateShipmentRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/CreateShipmentRequest"
+              }
             }
           }
         },
         "responses": {
           "201": {
             "description": "Created",
-            "headers": {
-              "Location": { "schema": { "type": "string" } }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/V2ShipmentDetail" }
-              }
-            }
-          },
-          "400": { "description": "Validation failure" },
-          "409": { "description": "Duplicate tracking number" }
-        }
-      }
-    },
-    "/shipments/{trackingNumber}": {
-      "get": {
-        "tags": ["Shipments"],
-        "summary": "Get a single shipment by tracking number (v2)",
-        "operationId": "GetShipmentV2",
-        "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/V2ShipmentDetail" }
-              }
-            }
-          },
-          "404": { "description": "Not found" }
-        }
-      },
-      "put": {
-        "tags": ["Shipments"],
-        "summary": "Update an existing shipment",
-        "operationId": "UpdateShipment",
-        "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateShipmentRequest" }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/V2ShipmentDetail" }
-              }
-            }
-          },
-          "404": { "description": "Not found" },
-          "409": { "description": "Cannot update non-Created shipment" }
-        }
-      },
-      "patch": {
-        "tags": ["Shipments"],
-        "summary": "Update shipment status",
-        "operationId": "UpdateShipmentStatus",
-        "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateStatusRequest" }
-            }
-          }
-        },
-        "responses": {
-          "204": { "description": "Success" },
-          "404": { "description": "Not found" },
-          "409": { "description": "Invalid status transition" }
-        }
-      },
-      "delete": {
-        "tags": ["Shipments"],
-        "summary": "Delete a shipment",
-        "operationId": "DeleteShipment",
-        "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "204": { "description": "Success" },
-          "404": { "description": "Not found" },
-          "409": { "description": "Cannot delete non-Created shipment" }
-        }
-      }
-    },
-    "/shipments/{trackingNumber}/scans": {
-      "get": {
-        "tags": ["Scans"],
-        "summary": "Get scan history for a shipment (v2)",
-        "operationId": "GetScanHistoryV2",
-        "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/V2ScanSummary" }
+                  "$ref": "#/components/schemas/V2ShipmentDetail"
                 }
               }
             }
           },
-          "404": { "description": "Not found" }
-        }
-      },
-      "post": {
-        "tags": ["Scans"],
-        "summary": "Bulk upload offline scans",
-        "operationId": "UploadScans",
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v2/shipments/{trackingNumber}": {
+      "get": {
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Get one shipment by tracking number (v2).",
+        "operationId": "GetShipment",
         "parameters": [
-          { "name": "trackingNumber", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ShipmentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Update the editable details of a shipment (v2). Only allowed while the status is Created.",
+        "operationId": "UpdateShipment",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ScanUploadRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShipmentRequest"
+              }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ScanUploadResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/V2ShipmentDetail"
+                }
               }
             }
           },
-          "400": { "description": "Validation failure" },
-          "415": { "description": "Content-Type must be application/json" },
-          "404": { "description": "Not found" }
-        }
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Delete a shipment. Only allowed while the status is Created. Requires the Admin role.",
+        "operationId": "DeleteShipment",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v2/shipments/{trackingNumber}/status": {
+      "patch": {
+        "tags": [
+          "Shipments"
+        ],
+        "summary": "Change the status of a shipment. Requires the Courier role.",
+        "description": "Allowed transitions: Created → PickedUp → InTransit → OutForDelivery → Delivered, and Failed from any non-final state.",
+        "operationId": "UpdateShipmentStatus",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v2/shipments/{trackingNumber}/scans": {
+      "post": {
+        "tags": [
+          "Scans"
+        ],
+        "summary": "Bulk upload offline scans. Requires the Courier role.",
+        "description": "Idempotent: scan IDs that are already stored are reported in duplicateScanIds and skipped; scans that break a business rule are listed in rejectionDetails. Every scan must carry the courierId of the caller's token.",
+        "operationId": "UploadScans",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Scans"
+        ],
+        "summary": "Get the scan history of a shipment, ordered by scan time (v2).",
+        "operationId": "GetScanHistory",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/V2ScanSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v2/partner/shipments/{trackingNumber}": {
+      "get": {
+        "tags": [
+          "PartnerShipments"
+        ],
+        "summary": "Get a shipment by tracking number (partner API). Requires the X-Api-Key header.",
+        "operationId": "GetPartnerShipment",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "description": "Tracking number in format APX-YYYYMMDD.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ShipmentDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ]
       }
     }
   },
   "components": {
     "schemas": {
       "CreateShipmentRequest": {
-        "type": "object",
-        "required": ["trackingNumber", "weightKg", "recipientName", "recipientPhone", "recipientAddress", "recipientCity"],
-        "properties": {
-          "trackingNumber": { "type": "string", "pattern": "^APX-\\d{8}$" },
-          "weightKg": { "type": "number", "format": "decimal", "minimum": 0.1, "maximum": 70 },
-          "recipientName": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "recipientPhone": { "type": "string", "pattern": "^\\+?[1-9]\\d{1,14}$" },
-          "recipientAddress": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "recipientCity": { "type": "string", "minLength": 1, "maxLength": 50 },
-          "recipientPostalCode": { "type": "string", "maxLength": 20 },
-          "recipientCountry": { "type": "string", "minLength": 2, "maxLength": 2, "default": "US" },
-          "specialInstructions": { "type": "string", "maxLength": 500 },
-          "declaredValue": { "type": "number", "format": "decimal", "minimum": 0, "maximum": 10000 }
-        }
-      },
-      "UpdateShipmentRequest": {
+        "required": [
+          "trackingNumber",
+          "weightKg",
+          "recipientName",
+          "recipientPhone",
+          "recipientAddress",
+          "recipientCity"
+        ],
         "type": "object",
         "properties": {
-          "weightKg": { "type": "number", "format": "decimal", "minimum": 0.1, "maximum": 70 },
-          "recipientName": { "type": "string", "maxLength": 100 },
-          "recipientPhone": { "type": "string", "pattern": "^\\+?[1-9]\\d{1,14}$" },
-          "recipientAddress": { "type": "string", "maxLength": 200 },
-          "recipientCity": { "type": "string", "maxLength": 50 },
-          "recipientPostalCode": { "type": "string", "maxLength": 20 },
-          "recipientCountry": { "type": "string", "minLength": 2, "maxLength": 2 },
-          "specialInstructions": { "type": "string", "maxLength": 500 },
-          "declaredValue": { "type": "number", "format": "decimal", "minimum": 0, "maximum": 10000 }
-        }
-      },
-      "UpdateStatusRequest": {
-        "type": "object",
-        "required": ["status"],
-        "properties": {
-          "status": { "type": "string", "enum": ["Created", "PickedUp", "InTransit", "OutForDelivery", "Delivered", "Failed"] },
-          "reason": { "type": "string", "maxLength": 500 },
-          "recipientSignature": { "type": "string", "maxLength": 100 },
-          "location": {
-            "type": "object",
-            "properties": {
-              "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
-              "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 }
-            }
+          "trackingNumber": {
+            "pattern": "^APX-(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])$",
+            "type": "string",
+            "description": "Unique tracking number in format APX-YYYYMMDD (a real calendar date)."
+          },
+          "weightKg": {
+            "maximum": 70,
+            "minimum": 0.1,
+            "type": "number",
+            "description": "Package weight in kilograms (0.1 - 70 kg).",
+            "format": "double"
+          },
+          "recipientName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string",
+            "description": "Recipient full name."
+          },
+          "recipientPhone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": "string",
+            "description": "Recipient phone number in E.164 format."
+          },
+          "recipientAddress": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string",
+            "description": "Recipient street address."
+          },
+          "recipientCity": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "description": "Recipient city."
+          },
+          "recipientPostalCode": {
+            "maxLength": 20,
+            "type": "string",
+            "description": "Recipient postal code.",
+            "nullable": true
+          },
+          "recipientCountry": {
+            "pattern": "^[A-Z]{2}$",
+            "type": "string",
+            "description": "Recipient country code (ISO 3166-1 alpha-2).",
+            "nullable": true
+          },
+          "specialInstructions": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "Optional special handling instructions.",
+            "nullable": true
+          },
+          "declaredValue": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "number",
+            "description": "Optional declared value for insurance.",
+            "format": "double",
+            "nullable": true
           }
         }
       },
-      "ScanUploadRequest": {
+      "GpsCoordinates": {
         "type": "object",
-        "required": ["scans"],
         "properties": {
-          "scans": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 100,
-            "items": { "$ref": "#/components/schemas/ScanDocumentRequest" }
+          "latitude": {
+            "maximum": 90,
+            "minimum": -90,
+            "type": "number",
+            "description": "Latitude in decimal degrees (-90 to 90).",
+            "format": "double"
+          },
+          "longitude": {
+            "maximum": 180,
+            "minimum": -180,
+            "type": "number",
+            "description": "Longitude in decimal degrees (-180 to 180).",
+            "format": "double"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
       "ScanDocumentRequest": {
+        "required": [
+          "scanId",
+          "courierId",
+          "location",
+          "scannedAtUtc"
+        ],
         "type": "object",
-        "required": ["scanId", "scanType", "courierId", "location", "scannedAtUtc"],
         "properties": {
-          "scanId": { "type": "string", "pattern": "^scan::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
-          "scanType": { "type": "string", "enum": ["Pickup", "InTransit", "Delivered", "Failed"] },
-          "courierId": { "type": "string", "minLength": 1, "maxLength": 50 },
-          "location": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "scannedAtUtc": { "type": "string", "format": "date-time" },
-          "notes": { "type": "string", "maxLength": 500 },
+          "scanId": {
+            "pattern": "^scan::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string",
+            "description": "Unique scan ID from the offline store (format: scan::{Guid})."
+          },
+          "scanType": {
+            "$ref": "#/components/schemas/ScanType"
+          },
+          "courierId": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "description": "Courier ID who performed the scan."
+          },
+          "location": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string",
+            "description": "Location where scan was performed."
+          },
+          "scannedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp when scan was performed."
+          },
+          "notes": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "Notes about the scan (a Failed scan without a reason is rejected).",
+            "nullable": true
+          },
           "gpsCoordinates": {
-            "type": "object",
-            "properties": {
-              "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
-              "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 }
+            "$ref": "#/components/schemas/GpsCoordinates",
+            "nullable": true
+          },
+          "recipientSignature": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Recipient signature name (a Delivered scan without one is rejected).",
+            "nullable": true
+          }
+        }
+      },
+      "ScanRejectionDetail": {
+        "type": "object",
+        "properties": {
+          "scanId": {
+            "type": "string",
+            "description": "The scan ID that was rejected."
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason for rejection."
+          }
+        }
+      },
+      "ScanType": {
+        "enum": [
+          "Pickup",
+          "InTransit",
+          "Delivered",
+          "Failed"
+        ],
+        "type": "string"
+      },
+      "ScanUploadRequest": {
+        "required": [
+          "scans"
+        ],
+        "type": "object",
+        "properties": {
+          "scans": {
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanDocumentRequest"
+            },
+            "description": "List of scan documents to upload."
+          }
+        }
+      },
+      "ScanUploadResponse": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "description": "Number of scans successfully accepted and stored.",
+            "format": "int32"
+          },
+          "duplicatesSkipped": {
+            "type": "integer",
+            "description": "Number of scans skipped because they already existed (idempotent).",
+            "format": "int32"
+          },
+          "duplicateScanIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The scan IDs that were skipped as duplicates. Never listed in rejectionDetails."
+          },
+          "rejected": {
+            "type": "integer",
+            "description": "Number of scans rejected with reasons.",
+            "format": "int32"
+          },
+          "rejectionDetails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanRejectionDetail"
+            },
+            "description": "Details for rejected scans (genuine rejections only, never duplicates)."
+          },
+          "totalProcessed": {
+            "type": "integer",
+            "description": "Total scans in the request.",
+            "format": "int32",
+            "readOnly": true
+          }
+        }
+      },
+      "ShipmentStatus": {
+        "enum": [
+          "Created",
+          "PickedUp",
+          "InTransit",
+          "OutForDelivery",
+          "Delivered",
+          "Failed"
+        ],
+        "type": "string"
+      },
+      "UpdateShipmentRequest": {
+        "type": "object",
+        "properties": {
+          "weightKg": {
+            "maximum": 70,
+            "minimum": 0.1,
+            "type": "number",
+            "format": "double",
+            "description": "Package weight in kilograms (0.1 - 70 kg).",
+            "nullable": true
+          },
+          "recipientName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "recipientPhone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": "string",
+            "nullable": true
+          },
+          "recipientAddress": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "recipientCity": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "recipientPostalCode": {
+            "maxLength": 20,
+            "type": "string",
+            "nullable": true
+          },
+          "recipientCountry": {
+            "pattern": "^[A-Z]{2}$",
+            "type": "string",
+            "nullable": true
+          },
+          "specialInstructions": {
+            "maxLength": 500,
+            "type": "string",
+            "nullable": true
+          },
+          "declaredValue": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ShipmentStatus"
+          },
+          "reason": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "Reason for the change (required for Delivered and Failed).",
+            "nullable": true
+          },
+          "recipientSignature": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Recipient signature name (required for Delivered).",
+            "nullable": true
+          },
+          "location": {
+            "$ref": "#/components/schemas/GpsCoordinates",
+            "nullable": true
+          }
+        }
+      },
+      "V2LatestScanSummary": {
+        "type": "object",
+        "properties": {
+          "scanType": {
+            "$ref": "#/components/schemas/ScanType"
+          },
+          "location": {
+            "type": "string"
+          },
+          "scannedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2PagedResponseOfV2ShipmentSummary": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ShipmentSummary"
             }
           },
-          "recipientSignature": { "type": "string", "maxLength": 100 }
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          }
+        }
+      },
+      "V2RecipientInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Recipient full name."
+          },
+          "phone": {
+            "type": "string",
+            "description": "Recipient phone number in E.164 format."
+          },
+          "address": {
+            "type": "string",
+            "description": "Recipient street address."
+          },
+          "city": {
+            "type": "string",
+            "description": "Recipient city."
+          },
+          "postalCode": {
+            "type": "string",
+            "description": "Recipient postal code.",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "description": "Recipient country code (ISO 3166-1 alpha-2)."
+          }
+        }
+      },
+      "V2ScanSummary": {
+        "type": "object",
+        "properties": {
+          "scanId": {
+            "type": "string"
+          },
+          "scanType": {
+            "$ref": "#/components/schemas/ScanType"
+          },
+          "courierId": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "scannedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "gpsCoordinates": {
+            "$ref": "#/components/schemas/GpsCoordinates",
+            "nullable": true
+          },
+          "recipientSignature": {
+            "type": "string",
+            "nullable": true
+          }
         }
       },
       "V2ShipmentDetail": {
         "type": "object",
         "properties": {
-          "trackingNumber": { "type": "string" },
-          "status": { "type": "string", "enum": ["Created", "PickedUp", "InTransit", "OutForDelivery", "Delivered", "Failed"] },
-          "weightKg": { "type": "number", "format": "decimal" },
-          "recipient": { "$ref": "#/components/schemas/V2RecipientInfo" },
-          "specialInstructions": { "type": "string" },
-          "declaredValue": { "type": "number", "format": "decimal" },
-          "createdAtUtc": { "type": "string", "format": "date-time" },
-          "updatedAtUtc": { "type": "string", "format": "date-time", "nullable": true },
-          "latestScan": { "$ref": "#/components/schemas/V2LatestScanSummary", "nullable": true },
+          "trackingNumber": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ShipmentStatus"
+          },
+          "weightKg": {
+            "type": "number",
+            "format": "double"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/V2RecipientInfo"
+          },
+          "specialInstructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "declaredValue": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "latestScan": {
+            "$ref": "#/components/schemas/V2LatestScanSummary",
+            "nullable": true
+          },
           "scans": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/V2ScanSummary" }
+            "items": {
+              "$ref": "#/components/schemas/V2ScanSummary"
+            }
           }
         }
       },
       "V2ShipmentSummary": {
         "type": "object",
         "properties": {
-          "trackingNumber": { "type": "string" },
-          "status": { "type": "string", "enum": ["Created", "PickedUp", "InTransit", "OutForDelivery", "Delivered", "Failed"] },
-          "recipient": { "$ref": "#/components/schemas/V2RecipientInfo" },
-          "weightKg": { "type": "number", "format": "decimal" },
-          "createdAtUtc": { "type": "string", "format": "date-time" },
-          "lastScanAtUtc": { "type": "string", "format": "date-time", "nullable": true },
-          "scanCount": { "type": "integer" },
-          "latestScan": { "$ref": "#/components/schemas/V2LatestScanSummary", "nullable": true }
-        }
-      },
-      "V2RecipientInfo": {
-        "type": "object",
-        "required": ["name", "phone", "address", "city", "country"],
-        "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "phone": { "type": "string", "minLength": 1, "maxLength": 50, "pattern": "^\\+?[1-9]\\d{1,14}$" },
-          "address": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "city": { "type": "string", "minLength": 1, "maxLength": 50 },
-          "postalCode": { "type": "string", "maxLength": 20 },
-          "country": { "type": "string", "minLength": 2, "maxLength": 2, "default": "US" }
-        }
-      },
-      "V2LatestScanSummary": {
-        "type": "object",
-        "required": ["scanType", "location", "scannedAtUtc"],
-        "properties": {
-          "scanType": { "type": "string", "enum": ["Pickup", "InTransit", "Delivered", "Failed"] },
-          "location": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "scannedAtUtc": { "type": "string", "format": "date-time" }
-        }
-      },
-      "V2ScanSummary": {
-        "type": "object",
-        "properties": {
-          "scanId": { "type": "string" },
-          "scanType": { "type": "string", "enum": ["Pickup", "InTransit", "Delivered", "Failed"] },
-          "courierId": { "type": "string" },
-          "location": { "type": "string" },
-          "scannedAtUtc": { "type": "string", "format": "date-time" },
-          "notes": { "type": "string" },
-          "gpsCoordinates": {
-            "type": "object",
-            "properties": {
-              "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
-              "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 }
-            },
+          "trackingNumber": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ShipmentStatus"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/V2RecipientInfo"
+          },
+          "weightKg": {
+            "type": "number",
+            "format": "double"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastScanAtUtc": {
+            "type": "string",
+            "format": "date-time",
             "nullable": true
           },
-          "recipientSignature": { "type": "string" }
-        }
-      },
-      "ScanUploadRequest": {
-        "type": "object",
-        "required": ["scans"],
-        "properties": {
-          "scans": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 100,
-            "items": { "$ref": "#/components/schemas/ScanDocumentRequest" }
+          "scanCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "latestScan": {
+            "$ref": "#/components/schemas/V2LatestScanSummary",
+            "nullable": true
           }
         }
       },
-      "ScanDocumentRequest": {
+      "ValidationProblemDetails": {
         "type": "object",
-        "required": ["scanId", "scanType", "courierId", "location", "scannedAtUtc"],
         "properties": {
-          "scanId": { "type": "string", "pattern": "^scan::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
-          "scanType": { "type": "string", "enum": ["Pickup", "InTransit", "Delivered", "Failed"] },
-          "courierId": { "type": "string", "minLength": 1, "maxLength": 50 },
-          "location": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "scannedAtUtc": { "type": "string", "format": "date-time" },
-          "notes": { "type": "string", "maxLength": 500 },
-          "gpsCoordinates": {
-            "type": "object",
-            "properties": {
-              "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
-              "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 }
-            }
+          "type": {
+            "type": "string",
+            "nullable": true
           },
-          "recipientSignature": { "type": "string", "maxLength": 100 }
-        }
-      },
-      "ScanUploadResponse": {
-        "type": "object",
-        "properties": {
-          "accepted": { "type": "integer" },
-          "duplicatesSkipped": { "type": "integer" },
-          "rejected": { "type": "integer" },
-          "rejectionDetails": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "scanId": { "type": "string" },
-                "reason": { "type": "string" }
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
               }
             }
-          },
-          "totalProcessed": { "type": "integer" }
-        }
-      },
-      "V2PagedResponse": {
-        "type": "object",
-        "properties": {
-          "items": { "type": "array", "items": { "$ref": "#/components/schemas/V2ShipmentSummary" } },
-          "page": { "type": "integer" },
-          "pageSize": { "type": "integer" },
-          "totalCount": { "type": "integer" },
-          "totalPages": { "type": "integer" }
-        }
-      },
-      "GpsCoordinates": {
-        "type": "object",
-        "properties": {
-          "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
-          "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 }
+          }
         }
       }
     },
     "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "Partner API key for the read-only partner endpoints.",
+        "name": "X-Api-Key",
+        "in": "header"
+      },
       "Bearer": {
         "type": "http",
+        "description": "JWT access token. In Development get one from POST /dev/token.",
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
     }
   },
-  "security": [
-    { "Bearer": [] }
+  "tags": [
+    {
+      "name": "Shipments"
+    },
+    {
+      "name": "Scans"
+    },
+    {
+      "name": "PartnerShipments"
+    }
   ]
 }

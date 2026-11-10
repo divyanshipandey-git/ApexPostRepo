@@ -29,5 +29,6 @@ public sealed class TokenData
     [JsonPropertyName("expires_at")]
     public DateTimeOffset ExpiresAt { get; set; }
 
+    [JsonIgnore]
     public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt;
 }

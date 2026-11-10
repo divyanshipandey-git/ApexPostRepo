@@ -1,53 +1,33 @@
-using System.Reflection;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 using System.Threading.RateLimiting;
-using FluentValidation.AspNetCore;
-using ApexPost.Api.DTOs;
-using ApexPost.Api.Validation;
-using ApexPost.Api.Endpoints;
-using ApexPost.Api.Services;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
 using ApexPost.Api.Extensions;
-using ApexPost.Application.Abstractions.Repositories;
-using ApexPost.Application.Abstractions.Persistence;
+using ApexPost.Api.OpenApi;
+using ApexPost.Api.Routing;
+using ApexPost.Api.Services;
 using ApexPost.Infrastructure.Persistence;
-using ApexPost.Infrastructure.Persistence.Repositories;
 using ApexPost.Infrastructure;
-using ApexPost.Application;
-using Swashbuckle.AspNetCore.SwaggerGen;
-using AspVersioning = Asp.Versioning;
-using AspVersioningApiExplorer = Asp.Versioning.ApiExplorer;
-using AspVersioningBuilder = Asp.Versioning.Builder;
-using AspVersioningApiVersionReader = Asp.Versioning.ApiVersionReader;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ============================================================================
-// Configuration
-// ============================================================================
-builder.Configuration
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables()
-    .AddUserSecrets<Program>();
+// WebApplication.CreateBuilder already loads appsettings.json, appsettings.{Environment}.json,
+// User Secrets (Development), environment variables and the command line, in that order.
+// Secrets (Jwt:SigningKey, ConnectionStrings:ApexPost, PartnerApiKey) are NOT in committed files.
 
 // ============================================================================
 // Services - JWT Authentication & Authorization
 // ============================================================================
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://apexpost.example.com";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "apexpost-api";
-var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey must be configured in User Secrets or appsettings.json");
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException(
+        "Jwt:SigningKey must be configured (dotnet user-secrets set \"Jwt:SigningKey\" \"<at least 32 characters>\" or the Jwt__SigningKey environment variable)");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -65,126 +45,75 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             RoleClaimType = ClaimTypes.Role,
             NameClaimType = ClaimTypes.NameIdentifier
         };
-        
-        // Development: allow token from query string for easier testing
-        if (builder.Environment.IsDevelopment())
+
+        // Tokens are accepted from the Authorization header only (no query-string tokens in any environment).
+        // 401 and 403 are returned as RFC 9457 problem details like every other error.
+        options.Events = new JwtBearerEvents
         {
-            options.Events = new JwtBearerEvents
+            OnChallenge = async context =>
             {
-                OnMessageReceived = context =>
+                context.HandleResponse();
+
+                var http = context.HttpContext;
+                http.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                http.Response.Headers.WWWAuthenticate = context.AuthenticateFailure is null
+                    ? "Bearer"
+                    : "Bearer error=\"invalid_token\"";
+
+                await http.RequestServices.GetRequiredService<IProblemDetailsService>().WriteAsync(new ProblemDetailsContext
                 {
-                    var token = context.Request.Query["access_token"];
-                    if (!string.IsNullOrEmpty(token))
+                    HttpContext = http,
+                    ProblemDetails = new ProblemDetails
                     {
-                        context.Token = token;
+                        Status = StatusCodes.Status401Unauthorized,
+                        Title = "Unauthorized",
+                        Detail = context.AuthenticateFailure is null
+                            ? "Authentication is required. Send a valid Bearer token."
+                            : "The Bearer token is invalid or has expired.",
+                        Type = "https://tools.ietf.org/html/rfc9110#section-15.5.2"
                     }
-                    return Task.CompletedTask;
-                }
-            };
-        }
+                });
+            },
+            OnForbidden = async context =>
+            {
+                var http = context.HttpContext;
+                http.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+                await http.RequestServices.GetRequiredService<IProblemDetailsService>().WriteAsync(new ProblemDetailsContext
+                {
+                    HttpContext = http,
+                    ProblemDetails = new ProblemDetails
+                    {
+                        Status = StatusCodes.Status403Forbidden,
+                        Title = "Forbidden",
+                        Detail = "Your token does not allow this operation.",
+                        Type = "https://tools.ietf.org/html/rfc9110#section-15.5.4"
+                    }
+                });
+            }
+        };
     });
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("CourierOnly", policy => policy.RequireRole("Courier"))
     .AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"))
-    .AddPolicy("AuthenticatedUser", policy => policy.RequireAuthenticatedUser())
-    .AddPolicy("CourierIdMatch", policy => 
-        policy.RequireAssertion(context =>
-        {
-            var courierIdClaim = context.User.FindFirst("courierId")?.Value;
-            var routeCourierId = context.Resource as HttpContext;
-            if (routeCourierId?.Request.RouteValues.TryGetValue("courierId", out var routeValue) == true)
-            {
-                return string.Equals(courierIdClaim, routeValue?.ToString(), StringComparison.OrdinalIgnoreCase);
-            }
-            // For scan upload, check the request body
-            return true; // Detailed check in the endpoint
-        }));
+    .AddPolicy("AuthenticatedUser", policy => policy.RequireAuthenticatedUser());
 
-// Development-only token endpoint for easy testing
+// Development-only token service (the /dev/token endpoint is only mapped in Development)
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddScoped<ITokenService, DevelopmentTokenService>();
 }
 
 // ============================================================================
-// Services - API Versioning (Asp.Versioning)
+// Services - Controllers, routing constraints, validation
 // ============================================================================
-builder.Services.AddApiVersioning(options =>
-{
-    options.DefaultApiVersion = new AspVersioning.ApiVersion(1, 0);
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.ReportApiVersions = true;
-    options.ApiVersionReader = AspVersioningApiVersionReader.Combine(
-        new CustomUrlSegmentApiVersionReader(1), // segment index 1: /api/v{version}/...
-        new AspVersioning.HeaderApiVersionReader("x-api-version"),
-        new AspVersioning.QueryStringApiVersionReader("api-version"));
-})
-.AddMvc()
-.AddApiExplorer(options =>
-{
-    options.GroupNameFormat = "'v'VVV";
-    options.SubstituteApiVersionInUrl = true;
-    options.AssumeDefaultVersionWhenUnspecified = true;
-});
+builder.Services.Configure<RouteOptions>(options =>
+    options.ConstraintMap[TrackingNumberRouteConstraint.Name] = typeof(TrackingNumberRouteConstraint));
 
-// ============================================================================
-// Services - OpenAPI / Swagger
-// ============================================================================
-builder.Services.AddOpenApi(options =>
-{
-    options.AddDocumentTransformer((document, context, ct) =>
-    {
-        document.Info.Title = "ApexPost Logistics API";
-        document.Info.Description = "RESTful API for managing shipments and offline scan uploads for ApexPost Logistics courier operations.";
-        document.Info.Version = "v1";
-        document.Info.Contact = new OpenApiContact
-        {
-            Name = "ApexPost Logistics API Team",
-            Email = "api-support@apexpost.example.com",
-            Url = new Uri("https://apexpost.example.com")
-        };
-        document.Info.License = new OpenApiLicense
-        {
-            Name = "Proprietary",
-            Url = new Uri("https://apexpost.example.com/license")
-        };
-        return Task.CompletedTask;
-    });
-});
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
-    }
-});
-
-builder.Services.AddSingleton<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerGenOptions>();
-
-// ============================================================================
-// Services - Infrastructure & Application
-// ============================================================================
-builder.Services.AddSqlInfrastructure(builder.Configuration);
-
-// ============================================================================
-// Services - Custom API Services
-// ============================================================================
-builder.Services.AddScoped<IShipmentApiService, ShipmentApiService>();
-builder.Services.AddScoped<IScanUploadService, ScanUploadService>();
-
-// ============================================================================
-// Services - Validation
-// ============================================================================
-builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddScoped<FluentValidation.IValidator<CreateShipmentRequest>, CreateShipmentRequestValidator>();
-builder.Services.AddScoped<FluentValidation.IValidator<UpdateShipmentRequest>, UpdateShipmentRequestValidator>();
-builder.Services.AddScoped<FluentValidation.IValidator<UpdateStatusRequest>, UpdateStatusRequestValidator>();
-builder.Services.AddScoped<FluentValidation.IValidator<ScanUploadRequest>, ScanUploadRequestValidator>();
+// [ApiController] validates every request model with the DataAnnotations on the DTOs (single source of truth)
+// and answers invalid input with a 400 ValidationProblemDetails.
+builder.Services.AddControllers();
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -192,11 +121,13 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     {
         var problemDetails = new ValidationProblemDetails(context.ModelState)
         {
-            Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+            Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
             Title = "One or more validation errors occurred",
             Status = StatusCodes.Status400BadRequest,
             Instance = context.HttpContext.Request.Path
         };
+        problemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
         return new BadRequestObjectResult(problemDetails)
         {
             ContentTypes = { "application/problem+json" }
@@ -205,25 +136,56 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 // ============================================================================
-// Services - Exception Handling
+// Services - API Versioning (Asp.Versioning) and OpenAPI (built-in generator)
+// ============================================================================
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = false;   // the version is always in the URL: /api/v1/..., /api/v2/...
+    options.ReportApiVersions = true;                      // api-supported-versions / api-deprecated-versions headers
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
+
+    // v1 is deprecated (see [ApiVersion("1.0", Deprecated = true)]) and has a published sunset date.
+    // Responses to v1 requests carry the Sunset header.
+    options.Policies.Sunset(1.0).Effective(new DateTimeOffset(2027, 7, 1, 0, 0, 0, TimeSpan.Zero));
+})
+.AddMvc()
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";                    // "v1", "v2" = the OpenAPI document names
+    options.SubstituteApiVersionInUrl = true;
+});
+
+// One document per version: /openapi/v1.json and /openapi/v2.json
+builder.Services.AddApexPostOpenApi();
+
+// ============================================================================
+// Services - Infrastructure & Application
+// ============================================================================
+builder.Services.AddSqlInfrastructure(builder.Configuration);
+builder.Services.AddScoped<IShipmentApiService, ShipmentApiService>();
+builder.Services.AddScoped<IScanUploadService, ScanUploadService>();
+
+// ============================================================================
+// Services - Exception Handling & ProblemDetails
 // ============================================================================
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
     {
-        context.ProblemDetails.Instance = context.HttpContext.Request.Path;
+        context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
-        
-        if (builder.Environment.IsDevelopment())
+
+        if (builder.Environment.IsDevelopment() && context.Exception is not null)
         {
-            context.ProblemDetails.Extensions["stackTrace"] = context.Exception?.ToString();
+            context.ProblemDetails.Extensions["stackTrace"] = context.Exception.ToString();
         }
     };
 });
 
 // ============================================================================
-// Services - CORS (configure for mobile app / portal)
+// Services - CORS (mobile app / portal)
 // ============================================================================
 builder.Services.AddCors(options =>
 {
@@ -243,41 +205,28 @@ builder.Services.AddCors(options =>
 // ============================================================================
 // Services - Rate Limiting
 // ============================================================================
+static FixedWindowRateLimiterOptions FixedWindow(int permits, int queue) => new()
+{
+    PermitLimit = permits,
+    Window = TimeSpan.FromMinutes(1),
+    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+    QueueLimit = queue
+};
+
+static string PartitionKey(HttpContext context) =>
+    context.User.Identity?.Name ?? context.Request.Headers.Host.ToString();
+
 builder.Services.AddRateLimiter(options =>
 {
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.User?.Identity?.Name ?? context.Request.Headers.Host.ToString(),
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10
-            }));
-    
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => FixedWindow(100, 10)));
+
     options.AddPolicy("ApiPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.User?.Identity?.Name ?? context.Request.Headers.Host.ToString(),
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10
-            }));
-    
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => FixedWindow(100, 10)));
+
     options.AddPolicy("strict", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.User?.Identity?.Name ?? context.Request.Headers.Host.ToString(),
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 20,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5
-            }));
-    
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => FixedWindow(20, 5)));
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -294,168 +243,77 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 // ============================================================================
-// Middleware Pipeline
+// Middleware pipeline (order matters)
+//   exception handler -> HSTS -> HTTPS redirection -> security headers -> status-code pages
+//   -> routing -> CORS -> rate limiter -> authentication -> authorization -> endpoints
 // ============================================================================
-
-// Global exception handler (must be first)
 app.UseExceptionHandler();
 
-// Rate limiting
-app.UseRateLimiter();
-
-// CORS
-app.UseCors("ApiPolicy");
-
-// Authentication & Authorization
-app.UseAuthentication();
-app.UseAuthorization();
-
-// Security headers
-app.Use(async (context, next) =>
-{
-    var isSwagger = context.Request.Path.StartsWithSegments("/swagger");
-
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["X-Frame-Options"] = "DENY";
-    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-
-    // Allow Swagger UI resources
-    if (isSwagger)
-    {
-        context.Response.Headers["Content-Security-Policy"] =
-            "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +  // Swagger UI needs inline scripts
-            "style-src 'self' 'unsafe-inline'; " +                  // Swagger UI needs inline styles
-            "img-src 'self' data:; " +                              // Swagger UI images
-            "font-src 'self' data:; " +                             // Swagger UI fonts
-            "frame-ancestors 'none'";
-    }
-    else
-    {
-        context.Response.Headers["Content-Security-Policy"] =
-            "default-src 'self'; frame-ancestors 'none'";
-    }
-
-    await next();
-});
-// HTTPS redirection
-app.UseHttpsRedirection();
-
-// HSTS (only in non-Development)
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
 
-// OpenAPI / Swagger (only in Development)
+app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    var isSwaggerUi = context.Request.Path.StartsWithSegments("/swagger");
+
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+
+    // Version 1 is deprecated
+    if (context.Request.Path.StartsWithSegments("/api/v1"))
+    {
+        context.Response.Headers["Deprecation"] = "true";
+    }
+
+    context.Response.Headers["Content-Security-Policy"] = isSwaggerUi
+        // The Swagger UI viewer needs inline scripts and styles
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-ancestors 'none'"
+        : "default-src 'self'; frame-ancestors 'none'";
+
+    await next();
+});
+
+// Gives every empty 4xx/5xx response (404 for an unknown route, 405, ...) a problem-details body
+app.UseStatusCodePages();
+
+app.UseRouting();
+app.UseCors("ApiPolicy");
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// OpenAPI documents + Swagger UI viewer (Development only)
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.UseSwagger();
+    app.MapOpenApi();   // /openapi/v1.json, /openapi/v2.json
+
     app.UseSwaggerUI(options =>
     {
-        var provider = app.Services.GetRequiredService<AspVersioningApiExplorer.IApiVersionDescriptionProvider>();
-        foreach (var description in provider.ApiVersionDescriptions)
+        var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+        foreach (var description in provider.ApiVersionDescriptions.OrderByDescending(d => d.ApiVersion))
         {
-            var label = description.ApiVersion.MajorVersion == 1 
-                ? $"v{description.ApiVersion} (deprecated)" 
+            var label = description.IsDeprecated
+                ? $"v{description.ApiVersion} (deprecated)"
                 : $"v{description.ApiVersion}";
-            options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", label);
+            options.SwaggerEndpoint($"/openapi/{description.GroupName}.json", label);
         }
+
         options.RoutePrefix = "swagger";
         options.DisplayRequestDuration();
         options.EnableDeepLinking();
-        options.EnableTryItOutByDefault();
     });
+
+    app.MapDevelopmentTokenEndpoint();
 }
 
-// Health checks
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapControllers();
 
-// ============================================================================
-// API Endpoints with Versioning
-// ============================================================================
-var apiVersionSet = app.NewApiVersionSet()
-    .HasApiVersion(new AspVersioning.ApiVersion(1, 0))
-    .HasApiVersion(new AspVersioning.ApiVersion(2, 0))
-    .ReportApiVersions()
-    .Build();
-
-var v1Group = app.MapGroup("/api/v1")
-    .WithApiVersionSet(apiVersionSet)
-    .MapToApiVersion(new AspVersioning.ApiVersion(1, 0))
-    .RequireRateLimiting("ApiPolicy");
-
-var v2Group = app.MapGroup("/api/v2")
-    .WithApiVersionSet(apiVersionSet)
-    .MapToApiVersion(new AspVersioning.ApiVersion(2, 0))
-    .RequireRateLimiting("ApiPolicy");
-
-// Map endpoints for both versions
-ShipmentEndpoints.Map(v1Group, "1");
-ScanEndpoints.Map(v1Group, "1");
-ShipmentEndpoints.Map(v2Group, "2");
-ScanEndpoints.Map(v2Group, "2");
-
-// ============================================================================
-// Development Token Endpoint (Development only)
-// ============================================================================
-if (app.Environment.IsDevelopment())
-{
-    app.MapPost("/dev/token", (ITokenService tokenService, TokenRequest request) =>
-    {
-        if (string.IsNullOrWhiteSpace(request.CourierId))
-        {
-            return Results.BadRequest(new { error = "CourierId is required" });
-        }
-        
-        var role = string.IsNullOrWhiteSpace(request.Role) ? "Courier" : request.Role;
-        if (role != "Courier" && role != "Admin")
-        {
-            return Results.BadRequest(new { error = "Role must be 'Courier' or 'Admin'" });
-        }
-        
-        var token = tokenService.IssueToken(request.CourierId, role);
-        return Results.Ok(new { access_token = token, token_type = "Bearer", expires_in = 28800 });
-    })
-    .WithName("GetDevToken")
-    .WithSummary("Get a development JWT token")
-    .WithDescription("Returns a JWT token for testing. Only available in Development environment.")
-    .Produces<TokenResponse>(StatusCodes.Status200OK)
-    .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
-    .AllowAnonymous();
-}
-
-// ============================================================================
-// Partner API Endpoint (v2 only, API Key authenticated)
-// ============================================================================
-var partnerGroup = app.MapGroup("/api/v2/partner")
-    .WithApiVersionSet(apiVersionSet)
-    .MapToApiVersion(new AspVersioning.ApiVersion(2, 0))
-    .RequireRateLimiting("ApiPolicy")
-    .AddEndpointFilter<ApiKeyEndpointFilter>();
-
-partnerGroup.MapGet("/shipments/{trackingNumber}", async (
-    string trackingNumber,
-    IShipmentApiService service,
-    CancellationToken cancellationToken) =>
-{
-    var shipment = await service.GetShipmentAsync(trackingNumber, cancellationToken);
-    return shipment is not null ? Results.Ok(shipment) : Results.NotFound();
-})
-.WithName("GetPartnerShipmentV2")
-.WithSummary("Get shipment by tracking number (Partner API)")
-.WithDescription("Read-only endpoint for partners to retrieve shipment details. Requires X-Api-Key header.")
-.Produces<ShipmentDetail>(StatusCodes.Status200OK)
-.Produces(StatusCodes.Status404NotFound)
-.Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
-.Produces<ProblemDetails>(StatusCodes.Status500InternalServerError)
-.AllowAnonymous(); // Auth is handled by the ApiKeyEndpointFilter
-
-// ============================================================================
-// Run
-// ============================================================================
 app.Run();
 
 // Make Program accessible for testing

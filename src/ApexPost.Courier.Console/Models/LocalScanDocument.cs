@@ -23,7 +23,7 @@ public sealed class LocalScanDocument
     /// <summary>
     /// Type of scan performed.
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    
     public ScanType ScanType { get; init; }
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class LocalScanDocument
     /// <summary>
     /// Synchronization status with the server.
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    
     public SyncStatus SyncStatus { get; set; } = SyncStatus.Pending;
 
     /// <summary>
@@ -105,23 +105,21 @@ public sealed class LocalScanDocument
     }
 
     /// <summary>
-    /// Converts to API ScanDocumentRequest for upload.
+    /// Converts to the wire DTO used for upload.
     /// </summary>
-    public ApexPost.Api.DTOs.ScanDocumentRequest ToApiRequest()
+    public ScanDocumentDto ToApiRequest()
     {
-        return new ApexPost.Api.DTOs.ScanDocumentRequest
+        return new ScanDocumentDto
         {
             ScanId = ScanId,
-            ScanType = (ApexPost.Api.DTOs.ScanType)ScanType,
+            ScanType = ScanType,
             CourierId = CourierId,
             Location = Location,
             ScannedAtUtc = ScannedAtUtc,
             Notes = Notes,
-            GpsCoordinates = GpsCoordinates != null ? new ApexPost.Api.DTOs.GpsCoordinates 
-            { 
-                Latitude = GpsCoordinates.Latitude, 
-                Longitude = GpsCoordinates.Longitude 
-            } : null,
+            GpsCoordinates = GpsCoordinates != null
+                ? new GpsCoordinatesDto { Latitude = GpsCoordinates.Latitude, Longitude = GpsCoordinates.Longitude }
+                : null,
             RecipientSignature = RecipientSignature
         };
     }
@@ -175,7 +173,8 @@ public sealed class GpsCoordinates
 /// <summary>
 /// Scan type enumeration matching Part A and API.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+
+[JsonConverter(typeof(JsonStringEnumConverter<ScanType>))]
 public enum ScanType
 {
     Pickup = 0,
@@ -187,7 +186,8 @@ public enum ScanType
 /// <summary>
 /// Synchronization status of a scan document.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+
+[JsonConverter(typeof(JsonStringEnumConverter<SyncStatus>))]
 public enum SyncStatus
 {
     Pending = 0,

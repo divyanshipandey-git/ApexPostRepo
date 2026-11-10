@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+// ShipmentStatus, ScanType and GpsCoordinates are shared with v1 (ApexPost.Api.DTOs): one definition, one schema.
+using ApexPost.Api.DTOs;
 
 namespace ApexPost.Api.DTOs.v2;
 
@@ -189,48 +191,4 @@ public sealed class V2ScanSummary
     /// </summary>
     [JsonPropertyName("recipientSignature")]
     public string? RecipientSignature { get; init; }
-}
-
-/// <summary>
-/// GPS coordinates for location tracking.
-/// </summary>
-public sealed class GpsCoordinates
-{
-    /// <summary>
-    /// Latitude in decimal degrees (-90 to 90).
-    /// </summary>
-    [JsonPropertyName("latitude")]
-    public double Latitude { get; init; }
-
-    /// <summary>
-    /// Longitude in decimal degrees (-180 to 180).
-    /// </summary>
-    [JsonPropertyName("longitude")]
-    public double Longitude { get; init; }
-}
-
-/// <summary>
-/// Shipment status enumeration as string enum.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ShipmentStatus
-{
-    Created = 0,
-    PickedUp = 1,
-    InTransit = 2,
-    OutForDelivery = 3,
-    Delivered = 4,
-    Failed = 5
-}
-
-/// <summary>
-/// Scan type enumeration as string enum.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ScanType
-{
-    Pickup = 0,
-    InTransit = 1,
-    Delivered = 2,
-    Failed = 3
 }

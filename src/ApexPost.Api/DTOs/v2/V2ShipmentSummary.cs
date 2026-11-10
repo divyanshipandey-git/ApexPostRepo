@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ApexPost.Api.DTOs;
 
 namespace ApexPost.Api.DTOs.v2;
 

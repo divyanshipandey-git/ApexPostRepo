@@ -1,5 +1,6 @@
 using ApexPost.Courier.Offline.Abstractions;
 using ApexPost.Courier.Offline.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace ApexPost.Courier.Offline.Services;
 
@@ -40,46 +41,60 @@ public sealed class FakeShipmentUploader : IShipmentUploader
 
 /// <summary>
 /// Service that manages the outbox pattern for offline sync.
-/// Reads pending scans and marks them Synced or Failed after upload attempts.
+/// Reads Pending scans and Failed scans (so a failed upload is retried on the next run)
+/// and marks them Synced or Failed after each upload attempt.
 /// </summary>
 public sealed class OutboxService
 {
     private readonly IScanRepository _scanRepository;
     private readonly IShipmentUploader _uploader;
+    private readonly ILogger<OutboxService>? _logger;
 
-    public OutboxService(IScanRepository scanRepository, IShipmentUploader uploader)
+    public OutboxService(IScanRepository scanRepository, IShipmentUploader uploader, ILogger<OutboxService>? logger = null)
     {
         _scanRepository = scanRepository ?? throw new ArgumentNullException(nameof(scanRepository));
         _uploader = uploader ?? throw new ArgumentNullException(nameof(uploader));
+        _logger = logger;
     }
 
     /// <summary>
-    /// Processes all pending scans by attempting to upload them.
+    /// Processes all Pending scans and re-tries all Failed scans.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Number of scans processed.</returns>
+    /// <returns>Number of scans processed (upload attempted).</returns>
     public async Task<int> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
         var pendingScans = await _scanRepository.GetBySyncStatusAsync(SyncStatus.Pending, cancellationToken);
+        var failedScans = await _scanRepository.GetBySyncStatusAsync(SyncStatus.Failed, cancellationToken);
         var processed = 0;
 
-        foreach (var scan in pendingScans)
+        // Pending first (oldest work), then previously failed scans being retried.
+        foreach (var scan in pendingScans.Concat(failedScans))
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var wasRetry = scan.SyncStatus == SyncStatus.Failed;
 
             try
             {
                 var success = await _uploader.UploadAsync(scan, cancellationToken);
                 scan.SyncStatus = success ? SyncStatus.Synced : SyncStatus.Failed;
-                await _scanRepository.UpdateAsync(scan, cancellationToken);
-                processed++;
+                _logger?.LogInformation(
+                    "Scan {ScanId} {Outcome}{Retry}",
+                    scan.Id, success ? "synced" : "failed to upload", wasRetry ? " (retry)" : string.Empty);
             }
-            catch (Exception)
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
             {
                 scan.SyncStatus = SyncStatus.Failed;
-                await _scanRepository.UpdateAsync(scan, cancellationToken);
-                processed++;
+                _logger?.LogWarning(ex, "Upload of scan {ScanId} threw; it is marked Failed and will be retried", scan.Id);
             }
+
+            await _scanRepository.UpdateAsync(scan, cancellationToken);
+            processed++;
         }
 
         return processed;

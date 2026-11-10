@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ApexPost.Api.DTOs;
 
@@ -27,15 +28,18 @@ public sealed class TokenResponse
     /// <summary>
     /// The JWT access token.
     /// </summary>
+    [JsonPropertyName("access_token")]
     public string AccessToken { get; init; } = string.Empty;
 
     /// <summary>
     /// The token type (always "Bearer").
     /// </summary>
+    [JsonPropertyName("token_type")]
     public string TokenType { get; init; } = "Bearer";
 
     /// <summary>
     /// Token lifetime in seconds.
     /// </summary>
+    [JsonPropertyName("expires_in")]
     public int ExpiresIn { get; init; }
 }

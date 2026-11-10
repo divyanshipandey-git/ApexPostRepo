@@ -376,10 +376,10 @@ Authorization: Bearer {{courierToken}}
 GET {{baseUrl}}/api/v2/shipments/APX-20241109
 Authorization: Bearer {{courierToken}}
 
-### Version via header
+### Version is chosen by the URL segment only (header/query versioning is not enabled).
+### An unversioned path is a 404 problem details response:
 GET {{baseUrl}}/api/shipments/APX-20241109
 Authorization: Bearer {{courierToken}}
-x-api-version: 2.0
 
 ### ============================================================================
 ### HEALTH CHECK (no auth required)
@@ -397,5 +397,5 @@ GET {{baseUrl}}/openapi/v1.json
 ### OpenAPI v2
 GET {{baseUrl}}/openapi/v2.json
 
-### Swagger UI
+### Swagger UI (viewer only; reads /openapi/v1.json and /openapi/v2.json)
 # Open in browser: {{baseUrl}}/swagger

@@ -17,21 +17,18 @@ public sealed class ConflictException : Exception
 }
 
 /// <summary>
+/// Exception thrown when the caller is authenticated but not allowed to perform the operation
+/// (for example uploading scans that belong to a different courier).
+/// </summary>
+public sealed class ForbiddenException : Exception
+{
+    public ForbiddenException(string message) : base(message) { }
+}
+
+/// <summary>
 /// Exception thrown when validation fails.
 /// </summary>
 public sealed class ValidationException : Exception
 {
     public ValidationException(string message) : base(message) { }
-}
-
-/// <summary>
-/// Result of business rule validation.
-/// </summary>
-public sealed class ValidationResult
-{
-    public bool IsValid { get; init; }
-    public string? ErrorMessage { get; init; }
-
-    public static ValidationResult Valid() => new() { IsValid = true };
-    public static ValidationResult Invalid(string errorMessage) => new() { IsValid = false, ErrorMessage = errorMessage };
 }

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ApexPost.Api.DTOs;
 using ApexPost.Courier.Console.Models;
 using Microsoft.Extensions.Logging;
+using Polly.CircuitBreaker;
 using Microsoft.Extensions.Options;
 
 namespace ApexPost.Courier.Console.Services;
@@ -43,6 +43,8 @@ public sealed class SyncResult
     public int ScansSynced { get; init; }
     public int ScansFailed { get; init; }
     public int ScansSkipped { get; init; }
+    /// <summary>Scans left pending to be retried later (for example after a 409 from a concurrent upload).</summary>
+    public int ScansDeferred { get; init; }
     public string? ErrorMessage { get; init; }
     public bool IsSuccess => ScansFailed == 0 && string.IsNullOrEmpty(ErrorMessage);
 }
@@ -57,6 +59,7 @@ public sealed class SyncService : ISyncService, IDisposable
 {
     private readonly IApexApiClient _apiClient;
     private readonly ICourierDatabase _database;
+    private readonly IResilienceStateTracker _resilience;
     private readonly ILogger<SyncService> _logger;
     private readonly SyncOptions _options;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
@@ -80,13 +83,29 @@ public sealed class SyncService : ISyncService, IDisposable
     public SyncService(
         IApexApiClient apiClient,
         ICourierDatabase database,
+        IResilienceStateTracker resilience,
         IOptions<SyncOptions> options,
         ILogger<SyncService> logger)
     {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _database = database ?? throw new ArgumentNullException(nameof(database));
+        _resilience = resilience ?? throw new ArgumentNullException(nameof(resilience));
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _resilience.CircuitStateChanged += OnPollyCircuitChanged;
+    }
+
+    // The Polly circuit breaker on the HttpClient is the source of truth for circuit state.
+    private void OnPollyCircuitChanged(object? sender, bool isOpen)
+    {
+        if (isOpen)
+        {
+            OpenCircuit();
+        }
+        else
+        {
+            CloseCircuit("Polly circuit closed");
+        }
     }
 
     public async Task<SyncResult> SyncPendingScansAsync(CancellationToken cancellationToken = default)
@@ -108,6 +127,13 @@ public sealed class SyncService : ISyncService, IDisposable
                 return new SyncResult { ErrorMessage = "Device is offline" };
             }
 
+            // Half-open: after the reset timeout let one sync attempt through as a probe.
+            if (_circuitOpen && _circuitOpenedAt is { } openedAt
+                && DateTimeOffset.UtcNow - openedAt >= _options.CircuitBreakerResetTimeout)
+            {
+                CloseCircuit("reset timeout elapsed, probing the server");
+            }
+
             if (_circuitOpen)
             {
                 SetStatus(SyncState.CircuitOpen);
@@ -126,16 +152,18 @@ public sealed class SyncService : ISyncService, IDisposable
 
             _logger.LogInformation("Found {Count} pending scans to sync", pendingScans.Count);
 
-            // Batch upload (max 20 per request as per requirements)
+            // One request per shipment (the endpoint is /shipments/{trackingNumber}/scans), at most BatchSize scans
+            // per request. Grouping first guarantees a batch never mixes scans of different shipments.
+            var batchSize = Math.Clamp(_options.BatchSize, 1, 100);
             var batches = pendingScans
-                .Select((scan, index) => new { scan, index })
-                .GroupBy(x => x.index / _options.BatchSize)
-                .Select(g => g.Select(x => x.scan).ToList())
+                .GroupBy(s => s.TrackingNumber, StringComparer.OrdinalIgnoreCase)
+                .SelectMany(g => g.OrderBy(s => s.ScannedAtUtc).Chunk(batchSize).Select(c => c.ToList()))
                 .ToList();
 
             int scansSynced = 0;
             int scansSkipped = 0;
             int scansFailed = 0;
+            int scansDeferred = 0;
             string? errorMessage = null;
             int totalProcessed = 0;
 
@@ -149,14 +177,14 @@ public sealed class SyncService : ISyncService, IDisposable
                     break;
                 }
 
-                var uploadRequest = new ScanUploadRequest
+                var uploadRequest = new ScanUploadRequestDto
                 {
                     Scans = batch.Select(s => s.ToApiRequest()).ToList()
                 };
 
                 try
                 {
-                    var response = await _apiClient.UploadScansAsync(batch.First().TrackingNumber, uploadRequest, cancellationToken);
+                    var response = await _apiClient.UploadScansAsync(batch[0].TrackingNumber, uploadRequest, cancellationToken);
                     
                     if (response != null)
                     {
@@ -190,6 +218,22 @@ public sealed class SyncService : ISyncService, IDisposable
                     _consecutiveFailures++;
                     break;
                 }
+                catch (ApiException ex) when (ex.StatusCode == 409)
+                {
+                    // Another upload of the same scans is in progress. Not a failure: the scans stay pending and the
+                    // next cycle retries them (the server is idempotent, so a repeat is safe).
+                    _logger.LogInformation("Upload for {Tracking} conflicted (409), will retry later", batch[0].TrackingNumber);
+                    scansDeferred += batch.Count;
+                }
+                catch (ApiException ex) when (ex.StatusCode is 400 or 403 or 404 or 422)
+                {
+                    // Permanent client-side problem: retrying the same request cannot succeed.
+                    var reason = $"{ex.StatusCode}: {ex.Detail ?? ex.Message}";
+                    _logger.LogWarning("Batch for {Tracking} rejected by the server ({Reason})", batch[0].TrackingNumber, reason);
+                    foreach (var scan in batch)
+                        await _database.MarkScanFailedAsync(scan.ScanId, reason);
+                    scansFailed += batch.Count;
+                }
                 catch (ApiException ex) when (ex.StatusCode >= 500 || ex.StatusCode == 408)
                 {
                     _logger.LogWarning("Server error during sync (status {StatusCode}), will retry later", ex.StatusCode);
@@ -200,6 +244,13 @@ public sealed class SyncService : ISyncService, IDisposable
                     {
                         OpenCircuit();
                     }
+                }
+                catch (BrokenCircuitException)
+                {
+                    _logger.LogWarning("Circuit breaker is open, stopping sync");
+                    OpenCircuit();
+                    errorMessage = "Server unavailable - working offline";
+                    break;
                 }
                 catch (HttpRequestException ex)
                 {
@@ -234,6 +285,7 @@ public sealed class SyncService : ISyncService, IDisposable
             {
                 ScansSynced = scansSynced,
                 ScansSkipped = scansSkipped,
+                ScansDeferred = scansDeferred,
                 ScansFailed = scansFailed,
                 ErrorMessage = errorMessage
             };
@@ -263,6 +315,9 @@ public sealed class SyncService : ISyncService, IDisposable
     {
         _logger.LogInformation("Connectivity changed: {IsConnected}", isConnected);
         _isConnected = isConnected;
+
+        if (isConnected && _circuitOpen)
+            CloseCircuit("connectivity restored");
 
         if (isConnected && !_circuitOpen)
         {
@@ -313,6 +368,19 @@ public sealed class SyncService : ISyncService, IDisposable
         }
     }
 
+    private void CloseCircuit(string reason)
+    {
+        if (!_circuitOpen)
+            return;
+
+        _circuitOpen = false;
+        _circuitOpenedAt = null;
+        _consecutiveFailures = 0;
+        _logger.LogInformation("Sync circuit closed: {Reason}", reason);
+        if (_currentStatus == SyncState.CircuitOpen)
+            SetStatus(_isConnected ? SyncState.Idle : SyncState.Offline);
+    }
+
     private void OpenCircuit()
     {
         if (!_circuitOpen)
@@ -326,6 +394,7 @@ public sealed class SyncService : ISyncService, IDisposable
 
     public void Dispose()
     {
+        _resilience.CircuitStateChanged -= OnPollyCircuitChanged;
         _syncLock.Dispose();
         _autoSyncCts.Dispose();
     }
@@ -333,6 +402,7 @@ public sealed class SyncService : ISyncService, IDisposable
 
 public sealed class SyncOptions
 {
+    /// <summary>Maximum scans per upload request (configuration key <c>Sync:BatchSize</c>).</summary>
     public int BatchSize { get; set; } = 20;
     public int CircuitBreakerFailureThreshold { get; set; } = 3;
     public TimeSpan CircuitBreakerResetTimeout { get; set; } = TimeSpan.FromSeconds(30);

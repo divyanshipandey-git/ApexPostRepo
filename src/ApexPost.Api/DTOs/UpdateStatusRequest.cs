@@ -6,12 +6,11 @@ namespace ApexPost.Api.DTOs;
 /// <summary>
 /// Request to update a shipment's status.
 /// </summary>
-public sealed class UpdateStatusRequest
+public sealed class UpdateStatusRequest : IValidatableObject
 {
     /// <summary>
     /// The new status for the shipment.
     /// </summary>
-    [Required]
     [JsonPropertyName("status")]
     [EnumDataType(typeof(ShipmentStatus), ErrorMessage = "Invalid status value")]
     public ShipmentStatus Status { get; init; }
@@ -35,6 +34,24 @@ public sealed class UpdateStatusRequest
     /// </summary>
     [JsonPropertyName("location")]
     public GpsCoordinates? Location { get; init; }
+
+    /// <inheritdoc />
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if ((Status == ShipmentStatus.Delivered || Status == ShipmentStatus.Failed) && string.IsNullOrWhiteSpace(Reason))
+        {
+            yield return new ValidationResult(
+                "Reason is required for Delivered or Failed status",
+                [nameof(Reason)]);
+        }
+
+        if (Status == ShipmentStatus.Delivered && string.IsNullOrWhiteSpace(RecipientSignature))
+        {
+            yield return new ValidationResult(
+                "Recipient signature is required for Delivered status",
+                [nameof(RecipientSignature)]);
+        }
+    }
 }
 
 /// <summary>
@@ -45,14 +62,14 @@ public sealed class GpsCoordinates
     /// <summary>
     /// Latitude in decimal degrees (-90 to 90).
     /// </summary>
-    [Range(-90.0, 90.0)]
+    [Range(-90.0, 90.0, ErrorMessage = "Latitude must be between -90 and 90")]
     [JsonPropertyName("latitude")]
     public double Latitude { get; init; }
 
     /// <summary>
     /// Longitude in decimal degrees (-180 to 180).
     /// </summary>
-    [Range(-180.0, 180.0)]
+    [Range(-180.0, 180.0, ErrorMessage = "Longitude must be between -180 and 180")]
     [JsonPropertyName("longitude")]
     public double Longitude { get; init; }
 }

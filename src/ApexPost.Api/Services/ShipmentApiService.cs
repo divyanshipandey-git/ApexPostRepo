@@ -6,6 +6,7 @@ using ApexPost.Application.Abstractions.Repositories;
 using ApexPost.Application.Abstractions.Persistence;
 using ApexPost.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using DomainStatus = ApexPost.Domain.Entities.ShipmentStatus;
 
 namespace ApexPost.Api.Services;
 
@@ -14,16 +15,23 @@ namespace ApexPost.Api.Services;
 /// </summary>
 public interface IShipmentApiService
 {
+    // v1
     Task<PagedResponse<ShipmentSummary>> GetShipmentsAsync(ShipmentFilter filter, CancellationToken cancellationToken = default);
-    Task<ShipmentDetail?> GetShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<ShipmentDetail> GetShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ScanSummary>> GetScanHistoryAsync(string trackingNumber, CancellationToken cancellationToken = default);
     Task<ShipmentDetail> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken cancellationToken = default);
     Task<ShipmentDetail> UpdateShipmentAsync(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default);
+
+    // shared by both versions (no response body)
     Task UpdateShipmentStatusAsync(string trackingNumber, UpdateStatusRequest request, CancellationToken cancellationToken = default);
     Task DeleteShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default);
 
-    // v2 methods
+    // v2 (nested recipient + latestScan)
     Task<V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>> GetShipmentsV2Async(ShipmentFilter filter, CancellationToken cancellationToken = default);
-    Task<V2DTOs.V2ShipmentDetail?> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<V2DTOs.V2ShipmentDetail> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<V2DTOs.V2ScanSummary>> GetScanHistoryV2Async(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<V2DTOs.V2ShipmentDetail> CreateShipmentV2Async(CreateShipmentRequest request, CancellationToken cancellationToken = default);
+    Task<V2DTOs.V2ShipmentDetail> UpdateShipmentV2Async(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -54,33 +62,7 @@ public sealed class ShipmentApiService : IShipmentApiService
         var page = Math.Max(1, filter.Page);
         var pageSize = Math.Clamp(filter.PageSize, 1, ShipmentFilter.MaxPageSize);
 
-        var query = _shipmentRepository.Query();
-
-        if (filter.Status.HasValue)
-        {
-            query = query.Where(s => s.Status == (ApexPost.Domain.Entities.ShipmentStatus)filter.Status.Value);
-        }
-
-        if (!string.IsNullOrEmpty(filter.City))
-        {
-            query = query.Where(s => s.RecipientCity.Contains(filter.City));
-        }
-
-        if (!string.IsNullOrEmpty(filter.CourierId))
-        {
-            query = query.Where(s => s.Scans.Any(scan => scan.CourierId == filter.CourierId));
-        }
-
-        if (filter.FromDate.HasValue)
-        {
-            query = query.Where(s => s.CreatedAtUtc >= filter.FromDate.Value);
-        }
-
-        if (filter.ToDate.HasValue)
-        {
-            query = query.Where(s => s.CreatedAtUtc <= filter.ToDate.Value);
-        }
-
+        var query = ApplyFilter(_shipmentRepository.Query(), filter);
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
@@ -95,7 +77,7 @@ public sealed class ShipmentApiService : IShipmentApiService
                 RecipientCity = s.RecipientCity,
                 WeightKg = s.WeightKg,
                 CreatedAtUtc = s.CreatedAtUtc,
-                LastScanAtUtc = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).Select(scan => scan.ScannedAtUtc).FirstOrDefault(),
+                LastScanAtUtc = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).Select(scan => (DateTimeOffset?)scan.ScannedAtUtc).FirstOrDefault(),
                 ScanCount = s.Scans.Count
             })
             .ToListAsync(cancellationToken);
@@ -109,17 +91,136 @@ public sealed class ShipmentApiService : IShipmentApiService
         };
     }
 
-    public async Task<ShipmentDetail?> GetShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default)
+    public async Task<ShipmentDetail> GetShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default)
     {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
-        if (shipment == null) return null;
-
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
         return MapToDetail(shipment);
+    }
+
+    public async Task<IReadOnlyList<ScanSummary>> GetScanHistoryAsync(string trackingNumber, CancellationToken cancellationToken = default)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+        return MapToDetail(shipment).Scans;
     }
 
     public async Task<ShipmentDetail> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken cancellationToken = default)
     {
-        // Check for duplicate tracking number
+        var shipment = await CreateCoreAsync(request, cancellationToken);
+        return MapToDetail(shipment);
+    }
+
+    public async Task<ShipmentDetail> UpdateShipmentAsync(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default)
+    {
+        var shipment = await UpdateCoreAsync(trackingNumber, request, cancellationToken);
+        return MapToDetail(shipment);
+    }
+
+    public async Task UpdateShipmentStatusAsync(string trackingNumber, UpdateStatusRequest request, CancellationToken cancellationToken = default)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+        var previousStatus = shipment.Status;
+        var newStatus = (DomainStatus)request.Status;
+
+        if (!IsValidTransition(previousStatus, newStatus))
+        {
+            throw new ConflictException(
+                $"Invalid status transition from {previousStatus} to {request.Status}. " +
+                $"Allowed: {string.Join(", ", GetAllowedTransitions(previousStatus))}");
+        }
+
+        shipment.UpdateStatus(
+            newStatus: newStatus,
+            reason: request.Reason,
+            recipientSignature: request.RecipientSignature,
+            latitude: request.Location?.Latitude,
+            longitude: request.Location?.Longitude);
+
+        await _shipmentRepository.UpdateAsync(shipment, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated shipment {TrackingNumber} status from {PreviousStatus} to {NewStatus}",
+            trackingNumber, previousStatus, request.Status);
+    }
+
+    public async Task DeleteShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+
+        if (shipment.Status != DomainStatus.Created)
+        {
+            throw new ConflictException("Shipment can only be deleted while in Created status");
+        }
+
+        await _shipmentRepository.DeleteAsync(shipment, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Deleted shipment {TrackingNumber}", trackingNumber);
+    }
+
+    // =========================================================================
+    // v2 Methods
+    // =========================================================================
+
+    public async Task<V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>> GetShipmentsV2Async(ShipmentFilter filter, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, ShipmentFilter.MaxPageSize);
+
+        var query = ApplyFilter(_shipmentRepository.Query(), filter);
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Materialise the page first: the nested recipient / latestScan mapping cannot be translated to SQL.
+        var shipments = await query
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>
+        {
+            Items = shipments.Select(MapToV2Summary).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    public async Task<V2DTOs.V2ShipmentDetail> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+        return MapToV2Detail(shipment);
+    }
+
+    public async Task<IReadOnlyList<V2DTOs.V2ScanSummary>> GetScanHistoryV2Async(string trackingNumber, CancellationToken cancellationToken = default)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+        return MapToV2Detail(shipment).Scans;
+    }
+
+    public async Task<V2DTOs.V2ShipmentDetail> CreateShipmentV2Async(CreateShipmentRequest request, CancellationToken cancellationToken = default)
+    {
+        var shipment = await CreateCoreAsync(request, cancellationToken);
+        return MapToV2Detail(shipment);
+    }
+
+    public async Task<V2DTOs.V2ShipmentDetail> UpdateShipmentV2Async(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default)
+    {
+        var shipment = await UpdateCoreAsync(trackingNumber, request, cancellationToken);
+        return MapToV2Detail(shipment);
+    }
+
+    // =========================================================================
+    // Shared core logic
+    // =========================================================================
+
+    private async Task<TrackedShipment> RequireShipmentAsync(string trackingNumber, CancellationToken cancellationToken)
+    {
+        return await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken)
+            ?? throw new NotFoundException($"Shipment {trackingNumber} not found");
+    }
+
+    private async Task<TrackedShipment> CreateCoreAsync(CreateShipmentRequest request, CancellationToken cancellationToken)
+    {
         var existing = await _shipmentRepository.GetByTrackingNumberAsync(request.TrackingNumber, cancellationToken);
         if (existing != null)
         {
@@ -140,23 +241,26 @@ public sealed class ShipmentApiService : IShipmentApiService
             createdAtUtc: DateTimeOffset.UtcNow);
 
         await _shipmentRepository.AddAsync(shipment, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created shipment {TrackingNumber}", shipment.TrackingNumber);
-
-        return MapToDetail(shipment);
-    }
-
-    public async Task<ShipmentDetail> UpdateShipmentAsync(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken = default)
-    {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
-        if (shipment == null)
+        try
         {
-            throw new NotFoundException($"Shipment {trackingNumber} not found");
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueKeyConflictException)
+        {
+            // Two requests created the same tracking number at the same time; the unique index decided.
+            throw new ConflictException($"Shipment with tracking number {request.TrackingNumber} already exists");
         }
 
-        // Only allow updates while in Created status
-        if (shipment.Status != ApexPost.Domain.Entities.ShipmentStatus.Created)
+        _logger.LogInformation("Created shipment {TrackingNumber}", shipment.TrackingNumber);
+        return shipment;
+    }
+
+    private async Task<TrackedShipment> UpdateCoreAsync(string trackingNumber, UpdateShipmentRequest request, CancellationToken cancellationToken)
+    {
+        var shipment = await RequireShipmentAsync(trackingNumber, cancellationToken);
+
+        if (shipment.Status != DomainStatus.Created)
         {
             throw new ConflictException("Shipment can only be updated while in Created status");
         }
@@ -176,82 +280,15 @@ public sealed class ShipmentApiService : IShipmentApiService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Updated shipment {TrackingNumber}", shipment.TrackingNumber);
-
-        return MapToDetail(shipment);
+        return shipment;
     }
 
-    public async Task UpdateShipmentStatusAsync(string trackingNumber, UpdateStatusRequest request, CancellationToken cancellationToken = default)
+    private static IQueryable<TrackedShipment> ApplyFilter(IQueryable<TrackedShipment> query, ShipmentFilter filter)
     {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
-        if (shipment == null)
-        {
-            throw new NotFoundException($"Shipment {trackingNumber} not found");
-        }
-
-        // Validate status transition
-        if (!IsValidTransition(shipment.Status, (ApexPost.Domain.Entities.ShipmentStatus)request.Status))
-        {
-            throw new ConflictException(
-                $"Invalid status transition from {shipment.Status} to {request.Status}. " +
-                $"Allowed: {string.Join(", ", GetAllowedTransitions(shipment.Status))}");
-        }
-
-        // Validate Delivered requires signature
-        if (request.Status == ApexPost.Api.DTOs.ShipmentStatus.Delivered && string.IsNullOrWhiteSpace(request.RecipientSignature))
-        {
-            throw new ConflictException("Recipient signature is required for Delivered status");
-        }
-
-        var latitude = request.Location?.Latitude;
-        var longitude = request.Location?.Longitude;
-
-        shipment.UpdateStatus(
-            newStatus: (ApexPost.Domain.Entities.ShipmentStatus)request.Status,
-            reason: request.Reason,
-            recipientSignature: request.RecipientSignature,
-            latitude: latitude,
-            longitude: longitude);
-
-        await _shipmentRepository.UpdateAsync(shipment, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Updated shipment {TrackingNumber} status from {PreviousStatus} to {NewStatus}",
-            trackingNumber, shipment.Status, request.Status);
-    }
-
-    public async Task DeleteShipmentAsync(string trackingNumber, CancellationToken cancellationToken = default)
-    {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
-        if (shipment == null)
-        {
-            throw new NotFoundException($"Shipment {trackingNumber} not found");
-        }
-
-        if (shipment.Status != ApexPost.Domain.Entities.ShipmentStatus.Created)
-        {
-            throw new ConflictException("Shipment can only be deleted while in Created status");
-        }
-
-        await _shipmentRepository.DeleteAsync(shipment, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Deleted shipment {TrackingNumber}", trackingNumber);
-    }
-
-    // =========================================================================
-    // v2 Methods
-    // =========================================================================
-
-    public async Task<V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>> GetShipmentsV2Async(ShipmentFilter filter, CancellationToken cancellationToken = default)
-    {
-        var page = Math.Max(1, filter.Page);
-        var pageSize = Math.Clamp(filter.PageSize, 1, ShipmentFilter.MaxPageSize);
-
-        var query = _shipmentRepository.Query();
-
         if (filter.Status.HasValue)
         {
-            query = query.Where(s => s.Status == (ApexPost.Domain.Entities.ShipmentStatus)filter.Status.Value);
+            var status = (DomainStatus)filter.Status.Value;
+            query = query.Where(s => s.Status == status);
         }
 
         if (!string.IsNullOrEmpty(filter.City))
@@ -274,30 +311,7 @@ public sealed class ShipmentApiService : IShipmentApiService
             query = query.Where(s => s.CreatedAtUtc <= filter.ToDate.Value);
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        var items = await query
-            .OrderByDescending(s => s.CreatedAtUtc)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(s => MapToV2Summary(s))
-            .ToListAsync(cancellationToken);
-
-        return new V2DTOs.V2PagedResponse<V2DTOs.V2ShipmentSummary>
-        {
-            Items = items,
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount
-        };
-    }
-
-    public async Task<V2DTOs.V2ShipmentDetail?> GetShipmentV2Async(string trackingNumber, CancellationToken cancellationToken = default)
-    {
-        var shipment = await _shipmentRepository.GetByTrackingNumberAsync(trackingNumber, cancellationToken);
-        if (shipment == null) return null;
-
-        return MapToV2Detail(shipment);
+        return query;
     }
 
     // =========================================================================
@@ -324,7 +338,7 @@ public sealed class ShipmentApiService : IShipmentApiService
         };
     }
 
-    private ShipmentDetail MapToDetail(TrackedShipment shipment)
+    private static ShipmentDetail MapToDetail(TrackedShipment shipment)
     {
         return new ShipmentDetail
         {
@@ -364,14 +378,14 @@ public sealed class ShipmentApiService : IShipmentApiService
     // v2 Mapping helpers
     // =========================================================================
 
-    private V2DTOs.V2ShipmentSummary MapToV2Summary(TrackedShipment s)
+    private static V2DTOs.V2ShipmentSummary MapToV2Summary(TrackedShipment s)
     {
         var latestScan = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).FirstOrDefault();
         
         return new V2DTOs.V2ShipmentSummary
         {
             TrackingNumber = s.TrackingNumber,
-            Status = (ApexPost.Api.DTOs.v2.ShipmentStatus)s.Status,
+            Status = (ApexPost.Api.DTOs.ShipmentStatus)s.Status,
             Recipient = new V2DTOs.V2RecipientInfo
             {
                 Name = s.RecipientName,
@@ -383,23 +397,25 @@ public sealed class ShipmentApiService : IShipmentApiService
             },
             WeightKg = s.WeightKg,
             CreatedAtUtc = s.CreatedAtUtc,
-            LastScanAtUtc = s.Scans.OrderByDescending(scan => scan.ScannedAtUtc).Select(scan => scan.ScannedAtUtc).FirstOrDefault(),
+            LastScanAtUtc = latestScan?.ScannedAtUtc,
             ScanCount = s.Scans.Count,
             LatestScan = latestScan != null ? new V2DTOs.V2LatestScanSummary
             {
-                ScanType = (ApexPost.Api.DTOs.v2.ScanType)latestScan.ScanType,
+                ScanType = (ApexPost.Api.DTOs.ScanType)latestScan.ScanType,
                 Location = latestScan.Location,
                 ScannedAtUtc = latestScan.ScannedAtUtc
             } : null
         };
     }
 
-    private V2DTOs.V2ShipmentDetail MapToV2Detail(TrackedShipment shipment)
+    private static V2DTOs.V2ShipmentDetail MapToV2Detail(TrackedShipment shipment)
     {
+        var latestScan = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).FirstOrDefault();
+
         return new V2DTOs.V2ShipmentDetail
         {
             TrackingNumber = shipment.TrackingNumber,
-            Status = (ApexPost.Api.DTOs.v2.ShipmentStatus)shipment.Status,
+            Status = (ApexPost.Api.DTOs.ShipmentStatus)shipment.Status,
             WeightKg = shipment.WeightKg,
             Recipient = new V2DTOs.V2RecipientInfo
             {
@@ -414,26 +430,26 @@ public sealed class ShipmentApiService : IShipmentApiService
             DeclaredValue = shipment.DeclaredValue,
             CreatedAtUtc = shipment.CreatedAtUtc,
             UpdatedAtUtc = shipment.UpdatedAtUtc,
-            LatestScan = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).FirstOrDefault() != null
-                ? new V2DTOs.V2LatestScanSummary
+            LatestScan = latestScan is null
+                ? null
+                : new V2DTOs.V2LatestScanSummary
                 {
-                    ScanType = (ApexPost.Api.DTOs.v2.ScanType)shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().ScanType,
-                    Location = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().Location,
-                    ScannedAtUtc = shipment.Scans.OrderByDescending(s => s.ScannedAtUtc).First().ScannedAtUtc
-                }
-                : null,
+                    ScanType = (ApexPost.Api.DTOs.ScanType)latestScan.ScanType,
+                    Location = latestScan.Location,
+                    ScannedAtUtc = latestScan.ScannedAtUtc
+                },
             Scans = shipment.Scans
                 .OrderBy(s => s.ScannedAtUtc)
                 .Select(s => new V2DTOs.V2ScanSummary
                 {
                     ScanId = s.Id,
-                    ScanType = (ApexPost.Api.DTOs.v2.ScanType)s.ScanType,
+                    ScanType = (ApexPost.Api.DTOs.ScanType)s.ScanType,
                     CourierId = s.CourierId,
                     Location = s.Location,
                     ScannedAtUtc = s.ScannedAtUtc,
                     Notes = s.Notes,
                     GpsCoordinates = s.Latitude.HasValue && s.Longitude.HasValue
-                        ? new V2DTOs.GpsCoordinates { Latitude = s.Latitude.Value, Longitude = s.Longitude.Value }
+                        ? new ApexPost.Api.DTOs.GpsCoordinates { Latitude = s.Latitude.Value, Longitude = s.Longitude.Value }
                         : null,
                     RecipientSignature = s.RecipientSignature
                 })
