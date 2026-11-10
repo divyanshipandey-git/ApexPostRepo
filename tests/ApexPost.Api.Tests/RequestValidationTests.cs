@@ -36,13 +36,14 @@ public sealed class RequestValidationTests
     }
 
     [Fact]
-    public async Task TrackingNumber_MustBeARealDate()
+    public async Task TrackingNumber_MustBeApxPlusEightDigits()
     {
-        Assert.Single(Validate(Valid(tracking: "APX-12345678")));   // 8 digits but not a date
-        Assert.Single(Validate(Valid(tracking: "APX-20241307")));   // month 13
+        Assert.Empty(Validate(Valid(tracking: "APX-12345678")));    // exactly 8 digits (^APX-\d{8}$)
         Assert.Single(Validate(Valid(tracking: "APX-2024110")));    // 7 digits
+        Assert.Single(Validate(Valid(tracking: "APX-202411071")));  // 9 digits
+        Assert.Single(Validate(Valid(tracking: "APX-ABCDEFGH")));   // not digits
+        Assert.Single(Validate(Valid(tracking: "XYZ-12345678")));   // wrong prefix
         Assert.Empty(Validate(Valid(tracking: "APX-20240229")));
-        await Task.CompletedTask;
     }
 
     [Fact]

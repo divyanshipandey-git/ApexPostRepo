@@ -66,7 +66,7 @@ public sealed class ShipmentsController : ControllerBase
     // ------------------------------------------------------------------- get
 
     /// <summary>Get one shipment by tracking number, including all scans (v1).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet(TrackingNumberRoute, Name = nameof(GetShipmentV1))]
     [MapToApiVersion("1.0")]
@@ -76,7 +76,7 @@ public sealed class ShipmentsController : ControllerBase
         => await _shipments.GetShipmentAsync(trackingNumber, cancellationToken);
 
     /// <summary>Get one shipment with nested recipient and latest scan (v2).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet(TrackingNumberRoute, Name = nameof(GetShipmentV2))]
     [MapToApiVersion("2.0")]
@@ -88,7 +88,7 @@ public sealed class ShipmentsController : ControllerBase
     // ---------------------------------------------------------------- create
 
     /// <summary>Create a shipment (v1).</summary>
-    /// <param name="request">The shipment to create. The tracking number must be unique and match APX-YYYYMMDD.</param>
+    /// <param name="request">The shipment to create. The tracking number must be unique and match APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost]
     [MapToApiVersion("1.0")]
@@ -103,7 +103,7 @@ public sealed class ShipmentsController : ControllerBase
     }
 
     /// <summary>Create a shipment (v2).</summary>
-    /// <param name="request">The shipment to create. The tracking number must be unique and match APX-YYYYMMDD.</param>
+    /// <param name="request">The shipment to create. The tracking number must be unique and match APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost]
     [MapToApiVersion("2.0")]
@@ -120,7 +120,7 @@ public sealed class ShipmentsController : ControllerBase
     // ---------------------------------------------------------------- update
 
     /// <summary>Update the editable details of a shipment (v1). Only allowed while the status is Created.</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">The fields to change.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPut(TrackingNumberRoute)]
@@ -134,7 +134,7 @@ public sealed class ShipmentsController : ControllerBase
         => await _shipments.UpdateShipmentAsync(trackingNumber, request, cancellationToken);
 
     /// <summary>Update the editable details of a shipment (v2). Only allowed while the status is Created.</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">The fields to change.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPut(TrackingNumberRoute)]
@@ -154,7 +154,7 @@ public sealed class ShipmentsController : ControllerBase
     /// Created → PickedUp → InTransit → OutForDelivery → Delivered, and Failed from any non-final state.
     /// Requires the Courier role.
     /// </summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">The new status. Delivered needs a reason and a recipient signature.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPatch(TrackingNumberRoute + "/status")]
@@ -173,7 +173,7 @@ public sealed class ShipmentsController : ControllerBase
     // ---------------------------------------------------------------- delete
 
     /// <summary>Delete a shipment (v1 and v2). Only allowed while the status is Created. Requires the Admin role.</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpDelete(TrackingNumberRoute)]
     [Authorize(Policy = "AdminOnly")]

@@ -17,11 +17,19 @@ public sealed class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFil
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var expectedKey = configuration["PartnerApiKey"]
-            ?? configuration["ApiKeys:Partner"]
-            ?? Environment.GetEnvironmentVariable("APEXPOST_PARTNER_API_KEY");
 
-        if (string.IsNullOrWhiteSpace(expectedKey))
+        // Keys come from configuration only (User Secrets / environment): "PartnerApiKey" for a single key, or
+        // "PartnerApiKeys:<PartnerName>" for one key per partner. Nothing is hard-coded or committed.
+        var expectedKeys = configuration.GetSection("PartnerApiKeys").GetChildren()
+            .Select(c => c.Value)
+            .Append(configuration["PartnerApiKey"])
+            .Append(configuration["ApiKeys:Partner"])
+            .Append(Environment.GetEnvironmentVariable("APEXPOST_PARTNER_API_KEY"))
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => Encoding.UTF8.GetBytes(k!))
+            .ToList();
+
+        if (expectedKeys.Count == 0)
         {
             context.Result = Problem(
                 StatusCodes.Status500InternalServerError,
@@ -38,9 +46,13 @@ public sealed class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFil
         }
 
         var provided = Encoding.UTF8.GetBytes(providedKey.ToString());
-        var expected = Encoding.UTF8.GetBytes(expectedKey);
+        var matched = false;
+        foreach (var expected in expectedKeys)
+        {
+            matched |= CryptographicOperations.FixedTimeEquals(provided, expected);
+        }
 
-        if (!CryptographicOperations.FixedTimeEquals(provided, expected))
+        if (!matched)
         {
             context.Result = Problem(StatusCodes.Status401Unauthorized, "Unauthorized", "Invalid API key");
         }

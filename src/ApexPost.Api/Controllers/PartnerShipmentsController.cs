@@ -29,7 +29,7 @@ public sealed class PartnerShipmentsController : ControllerBase
     }
 
     /// <summary>Get a shipment by tracking number (partner API). Requires the X-Api-Key header.</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet("{trackingNumber:" + TrackingNumberRouteConstraint.Name + "}")]
     [ProducesResponseType<V2ShipmentDetail>(StatusCodes.Status200OK)]
