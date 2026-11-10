@@ -75,7 +75,7 @@ dotnet run --project src/ApexPost.Api --launch-profile https   # terminal 1 (sec
 cd src/ApexPost.Api
 dotnet user-secrets set "ConnectionStrings:ApexPost" "Server=(localdb)\MSSQLLocalDB;Database=ApexPostApi;Trusted_Connection=True;Encrypt=False"
 dotnet user-secrets set "Jwt:SigningKey" "<at least 32 random characters>"
-dotnet user-secrets set "PartnerApiKey" "<random partner key>"
+dotnet user-secrets set "PartnerApiKey" "<random partner key>"   # or one key per partner: "PartnerApiKeys:AcmeCo"
 ```
 
 Environment variables work too (`Jwt__SigningKey`, `ConnectionStrings__ApexPost`, `PartnerApiKey`). The API refuses to start without `Jwt:SigningKey`. In Development, `/dev/token` only answers local requests and only for the ids listed under `DevTokens:CourierIds` / `DevTokens:AdminIds` in `appsettings.Development.json`.

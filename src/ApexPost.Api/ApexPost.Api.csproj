@@ -14,7 +14,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
 
     <!-- Single OpenAPI generator: the built-in one. It serves /openapi/{documentName}.json -->
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />
 
     <!-- Swagger UI *viewer only* (no Swashbuckle document generator is referenced).
          It is pointed at the built-in /openapi/v1.json and /openapi/v2.json documents. -->

@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using ApexPost.Api.Filters;
 
 namespace ApexPost.Api.OpenApi;
@@ -31,6 +31,7 @@ public static class ApiDocuments
         {
             services.AddOpenApi(documentName, options =>
             {
+                options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0;   // widest generator support (NSwag)
                 options.AddDocumentTransformer<ApiVersionDocumentTransformer>();
                 options.AddOperationTransformer<VersionAndSecurityOperationTransformer>();
             });
@@ -73,6 +74,7 @@ internal sealed class ApiVersionDocumentTransformer : IOpenApiDocumentTransforme
         };
 
         document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
         document.Components.SecuritySchemes[ApiDocuments.BearerScheme] = new OpenApiSecurityScheme
         {
             Type = SecuritySchemeType.Http,
@@ -119,12 +121,12 @@ internal sealed partial class VersionAndSecurityOperationTransformer : IOpenApiO
 
         if (!allowsAnonymous && metadata.OfType<IAuthorizeData>().Any())
         {
-            operation.Security.Add(Requirement(ApiDocuments.BearerScheme));
+            (operation.Security ??= []).Add(Requirement(ApiDocuments.BearerScheme, context));
         }
 
         if (metadata.OfType<ApiKeyAuthorizeAttribute>().Any())
         {
-            operation.Security.Add(Requirement(ApiDocuments.ApiKeyScheme));
+            (operation.Security ??= []).Add(Requirement(ApiDocuments.ApiKeyScheme, context));
         }
 
         return Task.CompletedTask;
@@ -133,11 +135,8 @@ internal sealed partial class VersionAndSecurityOperationTransformer : IOpenApiO
     [GeneratedRegex("V[0-9]+$")]
     private static partial Regex VersionSuffix();
 
-    private static OpenApiSecurityRequirement Requirement(string schemeId) => new()
+    private static OpenApiSecurityRequirement Requirement(string schemeId, OpenApiOperationTransformerContext context) => new()
     {
-        [new OpenApiSecurityScheme
-        {
-            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = schemeId }
-        }] = []
+        [new OpenApiSecuritySchemeReference(schemeId, context.Document)] = []
     };
 }

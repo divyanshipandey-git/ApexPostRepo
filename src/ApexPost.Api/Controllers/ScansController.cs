@@ -39,7 +39,7 @@ public sealed class ScansController : ControllerBase
     /// <c>rejectionDetails</c> with a reason. Requires the Courier role, and every scan must carry the
     /// courierId of the caller's token.
     /// </summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">Up to 100 scans.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost]
@@ -55,7 +55,7 @@ public sealed class ScansController : ControllerBase
         => await _uploads.UploadScansAsync(trackingNumber, User.FindFirst("courierId")?.Value, request, cancellationToken);
 
     /// <summary>Get the scan history of a shipment, ordered by scan time (v1).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet]
     [MapToApiVersion("1.0")]
@@ -66,7 +66,7 @@ public sealed class ScansController : ControllerBase
         => Ok(await _shipments.GetScanHistoryAsync(trackingNumber, cancellationToken));
 
     /// <summary>Get the scan history of a shipment, ordered by scan time (v2).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet]
     [MapToApiVersion("2.0")]

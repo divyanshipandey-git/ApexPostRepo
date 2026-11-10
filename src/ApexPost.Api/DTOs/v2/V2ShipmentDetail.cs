@@ -10,7 +10,7 @@ namespace ApexPost.Api.DTOs.v2;
 public sealed class V2ShipmentDetail
 {
     /// <summary>
-    /// Unique tracking number in format APX-YYYYMMDD.
+    /// Unique tracking number in format APX-NNNNNNNN.
     /// </summary>
     [JsonPropertyName("trackingNumber")]
     public string TrackingNumber { get; init; } = string.Empty;

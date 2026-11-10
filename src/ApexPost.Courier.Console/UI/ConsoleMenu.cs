@@ -338,7 +338,7 @@ public sealed class ConsoleMenu
         System.Console.Clear();
         WriteHeader("New Scan");
 
-        System.Console.Write("Tracking Number (APX-YYYYMMDD): ");
+        System.Console.Write("Tracking Number (APX-NNNNNNNN): ");
         var trackingNumber = System.Console.ReadLine()?.Trim();
         
         if (string.IsNullOrWhiteSpace(trackingNumber))

@@ -9,7 +9,7 @@ namespace ApexPost.Api.DTOs;
 public sealed class CreateShipmentRequest
 {
     /// <summary>
-    /// Unique tracking number in format APX-YYYYMMDD (a real calendar date).
+    /// Unique tracking number in format APX-NNNNNNNN.
     /// </summary>
     [Required]
     [RegularExpression(TrackingNumberFormat.Pattern, ErrorMessage = TrackingNumberFormat.ErrorMessage)]
@@ -90,10 +90,10 @@ public sealed class CreateShipmentRequest
 /// </summary>
 public static class TrackingNumberFormat
 {
-    /// <summary>APX- followed by a calendar date: YYYY (1900-2099), MM (01-12), DD (01-31).</summary>
-    public const string Pattern = @"^APX-(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$";
+    /// <summary>APX- followed by exactly eight digits.</summary>
+    public const string Pattern = @"^APX-\d{8}$";
 
-    public const string ErrorMessage = "Tracking number must match format APX-YYYYMMDD (for example APX-20241107)";
+    public const string ErrorMessage = "Tracking number must match format APX-NNNNNNNN (eight digits, for example APX-20241107)";
 }
 
 /// <summary>
