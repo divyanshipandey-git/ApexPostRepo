@@ -79,12 +79,8 @@ public sealed class LocalScanDocument
         // Validate tracking number format: APX-NNNNNNNN
         var trimmedTrackingNumber = trackingNumber.Trim();
         if (!Regex.IsMatch(trimmedTrackingNumber, @"^APX-\d{8}$"))
-            throw new ArgumentException("Tracking number must be in format APX-NNNNNNNN (e.g., APX-20240115)", nameof(trackingNumber));
+            throw new ArgumentException("Tracking number must be in format APX-NNNNNNNN (8 digits, e.g., APX-20240115)", nameof(trackingNumber));
 
-        // Validate date portion
-        var datePart = trimmedTrackingNumber.Substring(4); // YYYYMMDD
-        if (!DateTime.TryParseExact(datePart, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var parsedDate))
-            throw new ArgumentException($"Invalid date in tracking number: {datePart}. Month must be 01-12, day must be valid for the month.", nameof(trackingNumber));
 
         if (string.IsNullOrWhiteSpace(courierId))
             throw new ArgumentException("Courier ID is required", nameof(courierId));
