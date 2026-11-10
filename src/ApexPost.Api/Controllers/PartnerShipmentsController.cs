@@ -14,6 +14,7 @@ namespace ApexPost.Api.Controllers;
 [ApiController]
 [ApiVersion("2.0")]
 [Route("api/v{version:apiVersion}/partner/shipments")]
+[Tags("Partner")]
 [ApiKeyAuthorize]
 [EnableRateLimiting("ApiPolicy")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
@@ -31,7 +32,8 @@ public sealed class PartnerShipmentsController : ControllerBase
     /// <summary>Get a shipment by tracking number (partner API). Requires the X-Api-Key header.</summary>
     /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    [HttpGet("{trackingNumber:" + TrackingNumberRouteConstraint.Name + "}")]
+    [HttpGet("{trackingNumber:" + TrackingNumberRouteConstraint.Name + "}", Name = nameof(GetPartnerShipment))]
+    [EndpointSummary("Get a shipment (partner API key)")]
     [ProducesResponseType<V2ShipmentDetail>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<V2ShipmentDetail>> GetPartnerShipment(string trackingNumber, CancellationToken cancellationToken)

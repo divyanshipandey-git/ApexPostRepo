@@ -23,7 +23,7 @@
     "/api/v2/partner/shipments/{trackingNumber}": {
       "get": {
         "tags": [
-          "PartnerShipments"
+          "Partner"
         ],
         "summary": "Get a shipment by tracking number (partner API). Requires the X-Api-Key header.",
         "operationId": "GetPartnerShipment",
@@ -2271,7 +2271,7 @@
   },
   "tags": [
     {
-      "name": "PartnerShipments"
+      "name": "Partner"
     },
     {
       "name": "Scans"
