@@ -89,7 +89,7 @@ public sealed class ConsoleMenu
 
     private void ShowMainMenu()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("ApexPost Courier Console");
         WriteInfo($"Courier: {(_currentCourierId != string.Empty ? _currentCourierId : "Not logged in")} | Role: {_currentRole}");
         WriteOfflineBanner();
@@ -172,9 +172,22 @@ public sealed class ConsoleMenu
         }
     }
 
+    private static void WaitForKey()
+    {
+        // Console.ReadKey throws when stdin is redirected (tests, CI, piped demos).
+        if (!System.Console.IsInputRedirected) System.Console.ReadKey();
+        else System.Console.ReadLine();
+    }
+
+    private static void ClearScreen()
+    {
+        // Console.Clear throws when stdout is redirected.
+        if (!System.Console.IsOutputRedirected) System.Console.Clear();
+    }
+
     private async Task LoginAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("Login - Get Development Token");
 
         System.Console.Write("Enter Courier ID: ");
@@ -251,7 +264,7 @@ public sealed class ConsoleMenu
 
     private async Task PasteTokenAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("Paste Existing Token");
 
         System.Console.WriteLine("Paste your JWT token below (press Enter twice when done):");
@@ -335,10 +348,10 @@ public sealed class ConsoleMenu
 
     private async Task NewScanAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("New Scan");
 
-        System.Console.Write("Tracking Number (APX-YYYYMMDD): ");
+        System.Console.Write("Tracking Number (APX-NNNNNNNN): ");
         var trackingNumber = System.Console.ReadLine()?.Trim();
         
         if (string.IsNullOrWhiteSpace(trackingNumber))
@@ -402,7 +415,7 @@ public sealed class ConsoleMenu
 
     private async Task PendingScansAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("Pending Scans");
 
         var scans = await _database.GetPendingScansAsync();
@@ -428,12 +441,12 @@ public sealed class ConsoleMenu
         }
 
         System.Console.WriteLine("\nPress any key to continue...");
-        System.Console.ReadKey();
+        WaitForKey();
     }
 
     private async Task ShowSyncStatusAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("Sync Status");
         WriteOfflineBanner();
 
@@ -458,12 +471,12 @@ public sealed class ConsoleMenu
         System.Console.WriteLine($"Connectivity: {(_syncService.CurrentStatus == SyncState.Offline ? "Offline" : "Online")}");
 
         System.Console.WriteLine("\nPress any key to continue...");
-        System.Console.ReadKey();
+        WaitForKey();
     }
 
     private async Task ManualSyncAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("Manual Sync");
 
         WriteInfo("Starting sync of pending scans...");
@@ -481,12 +494,12 @@ public sealed class ConsoleMenu
         }
 
         System.Console.WriteLine("\nPress any key to continue...");
-        System.Console.ReadKey();
+        WaitForKey();
     }
 
     private async Task ListAllScansAsync()
     {
-        System.Console.Clear();
+        ClearScreen();
         WriteHeader("All Scans");
 
         var scans = await _database.ListAllScansAsync();
@@ -510,7 +523,7 @@ public sealed class ConsoleMenu
         }
 
         System.Console.WriteLine("\nPress any key to continue...");
-        System.Console.ReadKey();
+        WaitForKey();
     }
 
     private async Task AutoSyncLoopAsync(CancellationToken cancellationToken)

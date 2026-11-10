@@ -111,7 +111,7 @@ catch (HttpRequestException ex)
 
 static async Task<V2ShipmentDetail> CreateShipmentAsync(IApexPostClient client, ILogger logger)
 {
-    // Tracking numbers are APX-YYYYMMDD; pick a random past date and retry on the (unlikely) 409.
+    // Tracking numbers are APX-NNNNNNNN; pick a random past date and retry on the (unlikely) 409.
     for (var attempt = 1; ; attempt++)
     {
         var trackingNumber = "APX-" + DateTime.UtcNow.Date.AddDays(-Random.Shared.Next(1, 2000)).ToString("yyyyMMdd");

@@ -75,7 +75,7 @@ dotnet run --project src/ApexPost.Api --launch-profile https   # terminal 1 (sec
 cd src/ApexPost.Api
 dotnet user-secrets set "ConnectionStrings:ApexPost" "Server=(localdb)\MSSQLLocalDB;Database=ApexPostApi;Trusted_Connection=True;Encrypt=False"
 dotnet user-secrets set "Jwt:SigningKey" "<at least 32 random characters>"
-dotnet user-secrets set "PartnerApiKey" "<random partner key>"
+dotnet user-secrets set "PartnerApiKey" "<random partner key>"   # or one key per partner: "PartnerApiKeys:AcmeCo"
 ```
 
 Environment variables work too (`Jwt__SigningKey`, `ConnectionStrings__ApexPost`, `PartnerApiKey`). The API refuses to start without `Jwt:SigningKey`. In Development, `/dev/token` only answers local requests and only for the ids listed under `DevTokens:CourierIds` / `DevTokens:AdminIds` in `appsettings.Development.json`.
@@ -197,3 +197,7 @@ Create short-lived feature branches from `main`, make small commits, run build/t
 ## Status
 
 The current implementation includes branch dashboards and repository-backed reports, staff administration, product catalogue and stock adjustments, shipping-label preview, staff cookie authentication, courier parcel-status integration, mixed counter sales, transaction-linked money orders and identity checks, authorized void/full-refund workflows, cached reflection validation, the C# 14 extension-member/`field` examples, and a `ValueTask` product cache. The label preview is not carrier-ready because shipments do not yet capture a recipient postal address; courier tracking and payment settlement remain simulations. See [docs/RUBRIC-CHECKLIST.md](docs/RUBRIC-CHECKLIST.md) for requirement-level evidence and remaining operational gaps.
+
+### Courier client and OpenAPI version
+- The courier client is the .NET console app `src/ApexPost.Courier.Console` (stand-in for the MAUI app; see [SECURITY.md](SECURITY.md)). The Part A harness is `tools/ApexPost.Courier.Offline.Console`.
+- The built-in generator is configured to emit **OpenAPI 3.0** (`options.OpenApiVersion`) so NSwag can generate the client; `nswag run nswag.json` regenerates `src/ApexPost.Client` from `contracts/v2.json`, and `scripts/Export-Contracts.ps1` refreshes `contracts/` from the running API.

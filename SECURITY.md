@@ -294,9 +294,15 @@ No secret is committed. `appsettings.json` has no connection string, signing key
 |---|---|
 | `ConnectionStrings:ApexPost` | `dotnet user-secrets set "ConnectionStrings:ApexPost" "..." --project src/ApexPost.Api` or env var `ConnectionStrings__ApexPost` |
 | `Jwt:SigningKey` (32+ chars) | `dotnet user-secrets set "Jwt:SigningKey" "..."` or env var `Jwt__SigningKey` |
-| `PartnerApiKey` | `dotnet user-secrets set "PartnerApiKey" "..."` or env var `PartnerApiKey` |
+| `PartnerApiKey` or `PartnerApiKeys:<PartnerName>` | `dotnet user-secrets set "PartnerApiKey" "..."` (one shared key) or `dotnet user-secrets set "PartnerApiKeys:AcmeCo" "..."` (one key per partner); env vars `PartnerApiKey` / `PartnerApiKeys__AcmeCo`. Compared in constant time; never committed. |
 | `DevTokens:CourierIds` / `AdminIds` | Development only, in `appsettings.Development.json` |
 
 ## 8. Courier app token storage
 
 The courier app (`src/ApexPost.Courier.Console`) keeps its JWT in a file encrypted with Windows DPAPI (`DataProtectionScope.CurrentUser`), behind the `ITokenStorage` interface. This is the console-app equivalent of MAUI `SecureStorage`: the token is never stored in clear text and only the same Windows user can decrypt it. A MAUI head would register a `SecureStorage`-backed `ITokenStorage` instead (Keychain / Keystore) without any other change.
+
+## Mobile stand-in and development certificate
+
+- **The courier client is a .NET console app** (`ApexPost.Courier.Console`). It is the agreed stand-in for the MAUI app: it uses the same typed `IHttpClientFactory` client, `AuthHeaderHandler`, Polly resilience pipeline, source-generated JSON context and Part A Couchbase Lite outbox that a MAUI head would use. Only the token store differs (see above: DPAPI-encrypted file on Windows, `SecureStorage` on MAUI) and it sits behind `ITokenStorage`.
+- **Certificate validation is never disabled.** Neither the API nor the client contains a certificate-validation bypass, in Debug or in Release. For local HTTPS, trust the ASP.NET Core development certificate once instead:
+  `dotnet dev-certs https --trust`. If a future Android-emulator build ever needs a bypass for `https://10.0.2.2`, it must be wrapped in `#if DEBUG`, limited to the host `localhost`/`10.0.2.2`, and listed here.

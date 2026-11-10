@@ -67,7 +67,7 @@ Authorization: Bearer <token>
 **Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| trackingNumber | string | Yes | Tracking number (format: APX-YYYYMMDD) |
+| trackingNumber | string | Yes | Tracking number (format: APX-NNNNNNNN) |
 
 **Response (200):** ShipmentDetail or V2ShipmentDetail
 
@@ -79,7 +79,7 @@ Authorization: Bearer <token>
 **Request Body:** CreateShipmentRequest
 
 **Required Fields:**
-- `trackingNumber` (format: `APX-YYYYMMDD`)
+- `trackingNumber` (format: `APX-NNNNNNNN`)
 - `weightKg` (0.1 - 70)
 - `recipientName`
 - `recipientPhone` (E.164 format)
@@ -293,7 +293,7 @@ Returns all scans ordered by `scannedAtUtc` ascending.
   "status": 400,
   "instance": "/api/v1/shipments",
   "errors": {
-    "trackingNumber": ["Tracking number must match format APX-YYYYMMDD"],
+    "trackingNumber": ["Tracking number must match format APX-NNNNNNNN"],
     "weightKg": ["Weight must be between 0.1 and 70 kg"]
   }
 }

@@ -103,7 +103,7 @@ Invalid transitions return **409 Conflict** with allowed transitions.
 - Self check
 
 ### Domain Models
-- `TrackedShipment` (APX-YYYYMMDD tracking#, weight 0.1-70kg, recipient info, status enum)
+- `TrackedShipment` (APX-NNNNNNNN tracking#, weight 0.1-70kg, recipient info, status enum)
 - `TrackedShipmentScan` (scan history with GPS, signature, sync status)
 - Separate from Week 3 `Shipment` entity (different bounded context)
 

@@ -113,7 +113,13 @@ builder.Services.Configure<RouteOptions>(options =>
 
 // [ApiController] validates every request model with the DataAnnotations on the DTOs (single source of truth)
 // and answers invalid input with a 400 ValidationProblemDetails.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
+
+// The built-in OpenAPI generator reads this option set: Strict keeps numbers as plain "integer"/"number" in the
+// generated documents (otherwise they become "number or string", which breaks client generation).
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -298,8 +304,8 @@ if (app.Environment.IsDevelopment())
         foreach (var description in provider.ApiVersionDescriptions.OrderByDescending(d => d.ApiVersion))
         {
             var label = description.IsDeprecated
-                ? $"v{description.ApiVersion} (deprecated)"
-                : $"v{description.ApiVersion}";
+                ? $"v{description.ApiVersion.MajorVersion} (deprecated)"
+                : $"v{description.ApiVersion.MajorVersion}";
             options.SwaggerEndpoint($"/openapi/{description.GroupName}.json", label);
         }
 
