@@ -60,6 +60,7 @@ public sealed class SyncService : ISyncService, IDisposable
     private readonly IApexApiClient _apiClient;
     private readonly ICourierDatabase _database;
     private readonly IResilienceStateTracker _resilience;
+    private readonly ITokenStorage _tokenStorage;
     private readonly ILogger<SyncService> _logger;
     private readonly SyncOptions _options;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
@@ -84,12 +85,14 @@ public sealed class SyncService : ISyncService, IDisposable
         IApexApiClient apiClient,
         ICourierDatabase database,
         IResilienceStateTracker resilience,
+        ITokenStorage tokenStorage,
         IOptions<SyncOptions> options,
         ILogger<SyncService> logger)
     {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _resilience = resilience ?? throw new ArgumentNullException(nameof(resilience));
+        _tokenStorage = tokenStorage ?? throw new ArgumentNullException(nameof(tokenStorage));
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilience.CircuitStateChanged += OnPollyCircuitChanged;
@@ -212,6 +215,7 @@ public sealed class SyncService : ISyncService, IDisposable
                 catch (ApiException ex) when (ex.StatusCode == 401)
                 {
                     _logger.LogWarning("Authentication failed during sync (401), clearing token");
+                    await _tokenStorage.ClearTokenAsync();
                     SetStatus(SyncState.Error);
                     errorMessage = "Authentication failed - please log in again";
                     scansFailed += batch.Count;

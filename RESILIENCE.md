@@ -3,7 +3,16 @@
 ## Overview
 This document describes the resilience patterns implemented in the ApexPost Courier app (`src/ApexPost.Courier.Console`, a .NET console app) for reliable API communication over unreliable networks.
 
-> **Console app, not MAUI.** The courier client in this repository is a console application, not a .NET MAUI project (a MAUI app cannot be built in the Linux/CI environment this work was prepared in). All resilience code (Polly pipeline, sync service, JSON context, token storage seam) is UI-agnostic and moves to a MAUI head unchanged; the MAUI-specific parts are called out below (`Connectivity`, `SecureStorage`, emulator URL). **Please confirm with your instructor that a console client is acceptable for the "mobile" part; if a MAUI app is required, it must be added on top of these services.**
+> **Console app, not MAUI (agreed stand-in).** The courier client is a .NET console application; a MAUI head and the demo video were confirmed as not required. All resilience code (Polly pipeline, sync service, JSON context, `ITokenStorage` seam) is UI-agnostic and moves to a MAUI head unchanged. The MAUI-specific parts are only `Connectivity` (here `NetworkChange`), the emulator base URL (`Api:AndroidEmulatorBaseUrl`) and **`SecureStorage`**: the token store is behind `ITokenStorage`, and the console implementation encrypts the token with Windows DPAPI (`DataProtectionScope.CurrentUser`), the desktop equivalent of `SecureStorage`. See SECURITY.md.
+
+### Observed runtime behaviour (2026-11-10, API stopped and restarted)
+| Event | What the console app logged / did |
+|---|---|
+| API down, upload attempted | `Retry 1/3`, `2/3`, `3/3` with exponential backoff + jitter (delays differ per run); scans stay `Pending` |
+| Repeated connection failures | `Circuit breaker OPENED for 30s`, banner *Server unavailable - working offline*, status `CircuitOpen`; new scans still saved locally |
+| 30 s later, API up again | `OnCircuitHalfOpened` -> probe request -> `OnCircuitClosed`; 5 pending scans uploaded and marked `Synced` |
+| Invalid bearer token | HTTP 401 is **not retried** (`Handled: False`), the token is cleared from storage and the app returns to the login menu |
+Screenshots: `screenshots/part-d-retry-logs.png`, `part-d-circuit-open.png`, `part-d-circuit-half-open.png`, `part-d-circuit-recovery.png`, `part-d-token-cleared.png`.
 
 ## Table of Contents
 1. [Retry Policy](#1-retry-policy)
