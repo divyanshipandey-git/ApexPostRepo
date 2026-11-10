@@ -16,7 +16,7 @@ public sealed class TrackedShipment
     public string Id { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Gets the tracking number in format APX-YYYYMMDD.
+    /// Gets the tracking number in format APX-NNNNNNNN.
     /// </summary>
     public string TrackingNumber { get; private set; } = string.Empty;
 
@@ -110,7 +110,7 @@ public sealed class TrackedShipment
         ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
         if (!System.Text.RegularExpressions.Regex.IsMatch(trackingNumber, @"^APX-\d{8}$"))
         {
-            throw new ArgumentException("Tracking number must match format APX-YYYYMMDD", nameof(trackingNumber));
+            throw new ArgumentException("Tracking number must match format APX-NNNNNNNN", nameof(trackingNumber));
         }
 
         if (weightKg <= 0 || weightKg > 70)

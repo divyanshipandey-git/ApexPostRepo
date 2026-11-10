@@ -56,8 +56,9 @@ internal class Program
             client.Timeout = TimeSpan.FromSeconds(30);
         })
         .AddHttpMessageHandler<AuthHeaderHandler>()
-        .AddStandardResilienceHandler()
-        .Configure((options, sp) =>
+        .AddStandardResilienceHandler();
+        builder.Services.AddOptions<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>("IApexApiClient-standard")
+            .Configure<IServiceProvider>((options, sp) =>
         {
             var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ApexPost.Resilience");
             var tracker = sp.GetRequiredService<IResilienceStateTracker>();

@@ -16,6 +16,7 @@ namespace ApexPost.Api.Controllers;
 [ApiVersion("1.0", Deprecated = true)]
 [ApiVersion("2.0")]
 [Route("api/v{version:apiVersion}/shipments/{trackingNumber:" + TrackingNumberRouteConstraint.Name + "}/scans")]
+[Tags("Scans")]
 [Authorize]
 [EnableRateLimiting("strict")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
@@ -39,10 +40,11 @@ public sealed class ScansController : ControllerBase
     /// <c>rejectionDetails</c> with a reason. Requires the Courier role, and every scan must carry the
     /// courierId of the caller's token.
     /// </summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">Up to 100 scans.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    [HttpPost]
+    [HttpPost(Name = nameof(UploadScans))]
+    [EndpointSummary("Bulk upload offline scans")]
     [Authorize(Policy = "CourierOnly")]
     [Consumes("application/json")]
     [ProducesResponseType<ScanUploadResponse>(StatusCodes.Status200OK)]
@@ -55,9 +57,10 @@ public sealed class ScansController : ControllerBase
         => await _uploads.UploadScansAsync(trackingNumber, User.FindFirst("courierId")?.Value, request, cancellationToken);
 
     /// <summary>Get the scan history of a shipment, ordered by scan time (v1).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    [HttpGet]
+    [HttpGet(Name = nameof(GetScanHistoryV1))]
+    [EndpointSummary("Get scan history (v1)")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType<IReadOnlyList<ScanSummary>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -66,9 +69,10 @@ public sealed class ScansController : ControllerBase
         => Ok(await _shipments.GetScanHistoryAsync(trackingNumber, cancellationToken));
 
     /// <summary>Get the scan history of a shipment, ordered by scan time (v2).</summary>
-    /// <param name="trackingNumber">Tracking number in format APX-YYYYMMDD.</param>
+    /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    [HttpGet]
+    [HttpGet(Name = nameof(GetScanHistoryV2))]
+    [EndpointSummary("Get scan history (v2)")]
     [MapToApiVersion("2.0")]
     [ProducesResponseType<IReadOnlyList<V2ScanSummary>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

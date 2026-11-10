@@ -5,7 +5,7 @@ using ApexPost.Api.DTOs;
 namespace ApexPost.Api.Routing;
 
 /// <summary>
-/// Route constraint <c>{trackingNumber:trackingNumber}</c>: the segment must look like APX-YYYYMMDD.
+/// Route constraint <c>{trackingNumber:trackingNumber}</c>: the segment must look like APX-NNNNNNNN.
 /// A request for any other shape never reaches a controller and gets a 404 problem response.
 /// The pattern is the same one the request DTOs validate, so the rule is defined once.
 /// </summary>

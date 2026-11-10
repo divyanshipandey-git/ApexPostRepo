@@ -56,4 +56,4 @@ This replaces the Week 3 traceability matrix for Week 4 work (see [RUBRIC-CHECKL
 | "Server unavailable - working offline" banner | `ConsoleMenu.WriteOfflineBanner` (main menu, sync status, on state change) | Implemented |
 | Sync correctness | scans grouped per tracking number then chunked; 409 deferred; permanent 4xx marked Failed; circuit reset timeout | Verified with a fake API and database |
 | Token storage | DPAPI behind `ITokenStorage` (console equivalent of SecureStorage) | Documented in SECURITY.md |
-| MAUI vs console | still a console app; wording fixed in RESILIENCE.md | **Ask the instructor** |
+| Mobile app type | Console courier app is the agreed stand-in for MAUI (instructor confirmed MAUI and the demo video are not required); documented in SECURITY.md | Closed |

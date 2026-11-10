@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.0.4",
   "info": {
     "title": "ApexPost Logistics API (Deprecated)",
     "description": "RESTful API for managing shipments and offline scan uploads. DEPRECATED: use version 2.",
@@ -20,6 +20,385 @@
     }
   ],
   "paths": {
+    "/api/v1/shipments/{trackingNumber}/scans": {
+      "post": {
+        "tags": [
+          "Scans"
+        ],
+        "summary": "Bulk upload offline scans (v1 and v2). Idempotent: scan IDs that are already stored are reported in\r\n`duplicateScanIds` and skipped; scans that break a business rule are listed in\r\n`rejectionDetails` with a reason. Requires the Courier role, and every scan must carry the\r\ncourierId of the caller's token.",
+        "operationId": "UploadScans",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Cancellation token.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanUploadRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanUploadResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanUploadResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Scans"
+        ],
+        "summary": "Get the scan history of a shipment, ordered by scan time (v1).",
+        "operationId": "GetScanHistory",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScanSummary"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScanSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScanSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/shipments": {
       "get": {
         "tags": [
@@ -35,8 +414,7 @@
               "maximum": 2147483647,
               "minimum": 1,
               "type": "integer",
-              "format": "int32",
-              "default": 1
+              "format": "int32"
             }
           },
           {
@@ -46,8 +424,7 @@
               "maximum": 50,
               "minimum": 1,
               "type": "integer",
-              "format": "int32",
-              "default": 20
+              "format": "int32"
             }
           },
           {
@@ -89,30 +466,20 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedResponseOfShipmentSummary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          },
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -122,7 +489,17 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -132,7 +509,17 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -142,9 +529,59 @@
           "500": {
             "description": "Internal Server Error",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResponseOfShipmentSummary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResponseOfShipmentSummary"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResponseOfShipmentSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
               }
             }
@@ -153,7 +590,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -164,20 +601,121 @@
         "summary": "Create a shipment (v1).",
         "operationId": "CreateShipment",
         "requestBody": {
-          "required": true,
+          "description": "Cancellation token.",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateShipmentRequest"
               }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShipmentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShipmentRequest"
+              }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Created",
             "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShipmentDetail"
                 }
@@ -187,29 +725,19 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
               }
             }
@@ -217,27 +745,17 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -248,7 +766,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -258,34 +776,34 @@
         "tags": [
           "Shipments"
         ],
-        "summary": "Get one shipment by tracking number (v1).",
+        "summary": "Get one shipment by tracking number, including all scans (v1).",
         "operationId": "GetShipment",
         "parameters": [
           {
             "name": "trackingNumber",
             "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
             "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShipmentDetail"
-                }
-              }
-            }
-          },
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -295,17 +813,17 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -315,7 +833,17 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -325,7 +853,57 @@
           "500": {
             "description": "Internal Server Error",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -336,7 +914,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -350,28 +928,129 @@
           {
             "name": "trackingNumber",
             "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
             "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
             "schema": {
               "type": "string"
             }
           }
         ],
         "requestBody": {
-          "required": true,
+          "description": "Cancellation token.",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateShipmentRequest"
               }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShipmentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShipmentRequest"
+              }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDetail"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShipmentDetail"
                 }
@@ -381,29 +1060,19 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
               }
             }
@@ -411,7 +1080,17 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -421,27 +1100,17 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -452,7 +1121,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -460,27 +1129,34 @@
         "tags": [
           "Shipments"
         ],
-        "summary": "Delete a shipment. Only allowed while the status is Created. Requires the Admin role.",
+        "summary": "Delete a shipment (v1 and v2). Only allowed while the status is Created. Requires the Admin role.",
         "operationId": "DeleteShipment",
         "parameters": [
           {
             "name": "trackingNumber",
             "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
             "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
-          "204": {
-            "description": "No Content"
-          },
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -490,27 +1166,17 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -520,7 +1186,17 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -530,7 +1206,60 @@
           "500": {
             "description": "Internal Server Error",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -541,7 +1270,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -551,60 +1280,140 @@
         "tags": [
           "Shipments"
         ],
-        "summary": "Change the status of a shipment. Requires the Courier role.",
-        "description": "Allowed transitions: Created → PickedUp → InTransit → OutForDelivery → Delivered, and Failed from any non-final state.",
+        "summary": "Change the status of a shipment (v1 and v2). Allowed transitions:\r\nCreated → PickedUp → InTransit → OutForDelivery → Delivered, and Failed from any non-final state.\r\nRequires the Courier role.",
         "operationId": "UpdateShipmentStatus",
         "parameters": [
           {
             "name": "trackingNumber",
             "in": "path",
+            "description": "Tracking number in format APX-NNNNNNNN.",
             "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
             "schema": {
               "type": "string"
             }
           }
         ],
         "requestBody": {
-          "required": true,
+          "description": "Cancellation token.",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateStatusRequest"
               }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "204": {
             "description": "No Content"
           },
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
+              },
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
               }
             }
@@ -612,7 +1421,17 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -622,156 +1441,17 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true,
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/shipments/{trackingNumber}/scans": {
-      "post": {
-        "tags": [
-          "Scans"
-        ],
-        "summary": "Bulk upload offline scans. Requires the Courier role.",
-        "description": "Idempotent: scan IDs that are already stored are reported in duplicateScanIds and skipped; scans that break a business rule are listed in rejectionDetails. Every scan must carry the courierId of the caller's token.",
-        "operationId": "UploadScans",
-        "parameters": [
-          {
-            "name": "trackingNumber",
-            "in": "path",
-            "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScanUploadRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScanUploadResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Unsupported Media Type",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/problem+json": {
+              },
+              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -782,96 +1462,7 @@
         "deprecated": true,
         "security": [
           {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "tags": [
-          "Scans"
-        ],
-        "summary": "Get the scan history of a shipment, ordered by scan time (v1).",
-        "operationId": "GetScanHistory",
-        "parameters": [
-          {
-            "name": "trackingNumber",
-            "in": "path",
-            "required": true,
-            "description": "Tracking number in format APX-YYYYMMDD.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ScanSummary"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true,
-        "security": [
-          {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -891,9 +1482,9 @@
         "type": "object",
         "properties": {
           "trackingNumber": {
-            "pattern": "^APX-(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])$",
+            "pattern": "^APX-\\d{8}$",
             "type": "string",
-            "description": "Unique tracking number in format APX-YYYYMMDD (a real calendar date)."
+            "description": "Unique tracking number in format APX-NNNNNNNN."
           },
           "weightKg": {
             "maximum": 70,
@@ -927,6 +1518,7 @@
           },
           "recipientPostalCode": {
             "maxLength": 20,
+            "minLength": 0,
             "type": "string",
             "description": "Recipient postal code.",
             "nullable": true
@@ -939,6 +1531,7 @@
           },
           "specialInstructions": {
             "maxLength": 500,
+            "minLength": 0,
             "type": "string",
             "description": "Optional special handling instructions.",
             "nullable": true
@@ -951,7 +1544,8 @@
             "format": "double",
             "nullable": true
           }
-        }
+        },
+        "description": "Request to create a new shipment."
       },
       "GpsCoordinates": {
         "type": "object",
@@ -970,7 +1564,8 @@
             "description": "Longitude in decimal degrees (-180 to 180).",
             "format": "double"
           }
-        }
+        },
+        "description": "GPS coordinates for location tracking."
       },
       "PagedResponseOfShipmentSummary": {
         "type": "object",
@@ -995,10 +1590,10 @@
           },
           "totalPages": {
             "type": "integer",
-            "format": "int32",
-            "readOnly": true
+            "format": "int32"
           }
-        }
+        },
+        "description": "Paged response wrapper."
       },
       "ProblemDetails": {
         "type": "object",
@@ -1029,6 +1624,7 @@
       "ScanDocumentRequest": {
         "required": [
           "scanId",
+          "scanType",
           "courierId",
           "location",
           "scannedAtUtc"
@@ -1038,7 +1634,7 @@
           "scanId": {
             "pattern": "^scan::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             "type": "string",
-            "description": "Unique scan ID from the offline store (format: scan::{Guid})."
+            "description": "Unique scan ID from Part A offline store (format: scan::{Guid})."
           },
           "scanType": {
             "$ref": "#/components/schemas/ScanType"
@@ -1057,26 +1653,38 @@
           },
           "scannedAtUtc": {
             "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp when scan was performed."
+            "description": "UTC timestamp when scan was performed. Business rules that depend on other data (not in the future,\r\nnot before the shipment was created, valid scan sequence) are applied per scan by the server and\r\nreported in `rejectionDetails` instead of failing the whole batch.",
+            "format": "date-time"
           },
           "notes": {
             "maxLength": 500,
+            "minLength": 0,
             "type": "string",
-            "description": "Notes about the scan (a Failed scan without a reason is rejected).",
+            "description": "Notes about the scan (a Failed scan without a reason in the notes is rejected with a reason).",
             "nullable": true
           },
           "gpsCoordinates": {
-            "$ref": "#/components/schemas/GpsCoordinates",
-            "nullable": true
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/GpsCoordinates"
+              }
+            ]
           },
           "recipientSignature": {
             "maxLength": 100,
+            "minLength": 0,
             "type": "string",
-            "description": "Recipient signature name (a Delivered scan without one is rejected).",
+            "description": "Recipient signature name (a Delivered scan without one is rejected with a reason).",
             "nullable": true
           }
-        }
+        },
+        "description": "Individual scan document from courier offline store."
       },
       "ScanRejectionDetail": {
         "type": "object",
@@ -1089,7 +1697,8 @@
             "type": "string",
             "description": "The reason for rejection."
           }
-        }
+        },
+        "description": "Details for a rejected scan."
       },
       "ScanSummary": {
         "type": "object",
@@ -1115,14 +1724,24 @@
             "nullable": true
           },
           "gpsCoordinates": {
-            "$ref": "#/components/schemas/GpsCoordinates",
-            "nullable": true
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/GpsCoordinates"
+              }
+            ]
           },
           "recipientSignature": {
             "type": "string",
             "nullable": true
           }
-        }
+        },
+        "description": "Scan summary for shipment detail."
       },
       "ScanType": {
         "enum": [
@@ -1131,7 +1750,7 @@
           "Delivered",
           "Failed"
         ],
-        "type": "string"
+        "description": "Scan type enumeration matching Part A."
       },
       "ScanUploadRequest": {
         "required": [
@@ -1148,7 +1767,8 @@
             },
             "description": "List of scan documents to upload."
           }
-        }
+        },
+        "description": "Request to bulk upload offline scans from courier devices."
       },
       "ScanUploadResponse": {
         "type": "object",
@@ -1168,7 +1788,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The scan IDs that were skipped as duplicates. Never listed in rejectionDetails."
+            "description": "The scan IDs that were skipped as duplicates. Duplicates are not errors, so they are\r\nlisted here and never in List&lt;ScanRejectionDetail&gt; ScanUploadResponse.RejectionDetails."
           },
           "rejected": {
             "type": "integer",
@@ -1185,10 +1805,10 @@
           "totalProcessed": {
             "type": "integer",
             "description": "Total scans in the request.",
-            "format": "int32",
-            "readOnly": true
+            "format": "int32"
           }
-        }
+        },
+        "description": "Response for scan upload with counts."
       },
       "ShipmentDetail": {
         "type": "object",
@@ -1247,7 +1867,8 @@
               "$ref": "#/components/schemas/ScanSummary"
             }
           }
-        }
+        },
+        "description": "Detailed shipment response."
       },
       "ShipmentStatus": {
         "enum": [
@@ -1258,7 +1879,7 @@
           "Delivered",
           "Failed"
         ],
-        "type": "string"
+        "description": "Shipment status enumeration matching the allowed transitions."
       },
       "ShipmentSummary": {
         "type": "object",
@@ -1292,7 +1913,8 @@
             "type": "integer",
             "format": "int32"
           }
-        }
+        },
+        "description": "Shipment summary for list responses."
       },
       "UpdateShipmentRequest": {
         "type": "object",
@@ -1301,56 +1923,67 @@
             "maximum": 70,
             "minimum": 0.1,
             "type": "number",
-            "format": "double",
             "description": "Package weight in kilograms (0.1 - 70 kg).",
+            "format": "double",
             "nullable": true
           },
           "recipientName": {
             "maxLength": 100,
             "minLength": 1,
             "type": "string",
+            "description": "Recipient full name.",
             "nullable": true
           },
           "recipientPhone": {
             "pattern": "^\\+?[1-9]\\d{1,14}$",
             "type": "string",
+            "description": "Recipient phone number in E.164 format.",
             "nullable": true
           },
           "recipientAddress": {
             "maxLength": 200,
             "minLength": 1,
             "type": "string",
+            "description": "Recipient street address.",
             "nullable": true
           },
           "recipientCity": {
             "maxLength": 50,
             "minLength": 1,
             "type": "string",
+            "description": "Recipient city.",
             "nullable": true
           },
           "recipientPostalCode": {
             "maxLength": 20,
+            "minLength": 0,
             "type": "string",
+            "description": "Recipient postal code.",
             "nullable": true
           },
           "recipientCountry": {
             "pattern": "^[A-Z]{2}$",
             "type": "string",
+            "description": "Recipient country code (ISO 3166-1 alpha-2).",
             "nullable": true
           },
           "specialInstructions": {
             "maxLength": 500,
+            "minLength": 0,
             "type": "string",
+            "description": "Optional special handling instructions.",
             "nullable": true
           },
           "declaredValue": {
             "maximum": 10000,
             "minimum": 0,
             "type": "number",
+            "description": "Optional declared value for insurance.",
             "format": "double",
             "nullable": true
           }
-        }
+        },
+        "description": "Request to update an existing shipment's editable details."
       },
       "UpdateStatusRequest": {
         "type": "object",
@@ -1360,21 +1993,33 @@
           },
           "reason": {
             "maxLength": 500,
+            "minLength": 0,
             "type": "string",
-            "description": "Reason for the change (required for Delivered and Failed).",
+            "description": "Optional reason for the status change (required for Delivered/Failed).",
             "nullable": true
           },
           "recipientSignature": {
             "maxLength": 100,
+            "minLength": 0,
             "type": "string",
-            "description": "Recipient signature name (required for Delivered).",
+            "description": "Optional recipient signature name (required when status is Delivered).",
             "nullable": true
           },
           "location": {
-            "$ref": "#/components/schemas/GpsCoordinates",
-            "nullable": true
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/GpsCoordinates"
+              }
+            ]
           }
-        }
+        },
+        "description": "Request to update a shipment's status."
       },
       "ValidationProblemDetails": {
         "type": "object",
@@ -1413,26 +2058,26 @@
       }
     },
     "securitySchemes": {
-      "ApiKey": {
-        "type": "apiKey",
-        "description": "Partner API key for the read-only partner endpoints.",
-        "name": "X-Api-Key",
-        "in": "header"
-      },
       "Bearer": {
         "type": "http",
         "description": "JWT access token. In Development get one from POST /dev/token.",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      },
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "Partner API key for the read-only partner endpoints.",
+        "name": "X-Api-Key",
+        "in": "header"
       }
     }
   },
   "tags": [
     {
-      "name": "Shipments"
+      "name": "Scans"
     },
     {
-      "name": "Scans"
+      "name": "Shipments"
     }
   ]
 }

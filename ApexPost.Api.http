@@ -399,3 +399,150 @@ GET {{baseUrl}}/openapi/v2.json
 
 ### Swagger UI (viewer only; reads /openapi/v1.json and /openapi/v2.json)
 # Open in browser: {{baseUrl}}/swagger
+### ============================================================================
+### VERSION 1 (deprecated) - one success and one failure request per endpoint
+### v1 responses carry Deprecation: true and a Sunset header.
+### ============================================================================
+
+### v1 GET list - success (200)
+GET {{baseUrl}}/api/v1/shipments?page=1&pageSize=10
+Authorization: Bearer {{courierToken}}
+
+### v1 GET list - failure (400: pageSize above the maximum of 50)
+GET {{baseUrl}}/api/v1/shipments?page=1&pageSize=500
+Authorization: Bearer {{courierToken}}
+
+### v1 POST create - success (201 + Location)
+POST {{baseUrl}}/api/v1/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "trackingNumber": "APX-20241110",
+  "weightKg": 2.5,
+  "recipientName": "Asha Verma",
+  "recipientPhone": "+14155550123",
+  "recipientAddress": "12 Demo Street",
+  "recipientCity": "Springfield"
+}
+
+### v1 POST create - failure (400: bad tracking number and weight)
+POST {{baseUrl}}/api/v1/shipments
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "trackingNumber": "BAD", "weightKg": 500 }
+
+### v1 GET one - success (200)
+GET {{baseUrl}}/api/v1/shipments/APX-20241110
+Authorization: Bearer {{courierToken}}
+
+### v1 GET one - failure (404)
+GET {{baseUrl}}/api/v1/shipments/APX-99999999
+Authorization: Bearer {{courierToken}}
+
+### v1 PUT - success (200, only while status is Created)
+PUT {{baseUrl}}/api/v1/shipments/APX-20241110
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "weightKg": 3.0,
+  "recipientName": "Asha Verma",
+  "recipientPhone": "+14155550123",
+  "recipientAddress": "14 Demo Street",
+  "recipientCity": "Springfield"
+}
+
+### v1 PUT - failure (404)
+PUT {{baseUrl}}/api/v1/shipments/APX-99999999
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "weightKg": 3.0,
+  "recipientName": "Asha Verma",
+  "recipientPhone": "+14155550123",
+  "recipientAddress": "14 Demo Street",
+  "recipientCity": "Springfield"
+}
+
+### v1 PATCH status - success (204)
+PATCH {{baseUrl}}/api/v1/shipments/APX-20241110/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "status": "PickedUp" }
+
+### v1 PATCH status - failure (409: Created -> Delivered is not allowed)
+PATCH {{baseUrl}}/api/v1/shipments/APX-20241110/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "status": "Delivered" }
+
+### v1 DELETE - success (204, admin token, status Created)
+DELETE {{baseUrl}}/api/v1/shipments/APX-20241110
+Authorization: Bearer {{adminToken}}
+
+### v1 DELETE - failure (403: courier token)
+DELETE {{baseUrl}}/api/v1/shipments/APX-20241110
+Authorization: Bearer {{courierToken}}
+
+### v1 GET scan history - success (200)
+GET {{baseUrl}}/api/v1/shipments/APX-20241110/scans
+Authorization: Bearer {{courierToken}}
+
+### v1 GET scan history - failure (404)
+GET {{baseUrl}}/api/v1/shipments/APX-99999999/scans
+Authorization: Bearer {{courierToken}}
+
+### v1 POST scans - failure (403: courierId differs from the token)
+POST {{baseUrl}}/api/v1/shipments/APX-20241110/scans
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{
+  "scans": [
+    {
+      "scanId": "scan::00000000-0000-4000-8000-000000000001",
+      "scanType": "Pickup",
+      "courierId": "COURIER-999",
+      "location": "Springfield Depot",
+      "scannedAtUtc": "2026-11-10T10:00:00Z"
+    }
+  ]
+}
+
+### ============================================================================
+### VERSION 2 - extra failure cases so every endpoint has a success and a failure
+### ============================================================================
+
+### v2 PUT - failure (404 unknown tracking number)
+PUT {{baseUrl}}/api/v2/shipments/APX-99999999
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "weightKg": 3.0, "recipientName": "Jane Doe", "recipientPhone": "+15551234567", "recipientAddress": "123 Main St", "recipientCity": "Springfield" }
+
+### v2 GET scan history - failure (404)
+GET {{baseUrl}}/api/v2/shipments/APX-99999999/scans
+Authorization: Bearer {{courierToken}}
+
+### v2 PATCH status - failure (404)
+PATCH {{baseUrl}}/api/v2/shipments/APX-99999999/status
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "status": "PickedUp" }
+
+### v2 DELETE - failure (404, admin token)
+DELETE {{baseUrl}}/api/v2/shipments/APX-99999999
+Authorization: Bearer {{adminToken}}
+
+### v2 POST scans - failure (404 unknown shipment)
+POST {{baseUrl}}/api/v2/shipments/APX-99999999/scans
+Authorization: Bearer {{courierToken}}
+Content-Type: application/json
+
+{ "scans": [ { "scanId": "scan::00000000-0000-4000-8000-000000000002", "scanType": "Pickup", "courierId": "COURIER-001", "location": "Depot", "scannedAtUtc": "2026-11-10T10:00:00Z" } ] }

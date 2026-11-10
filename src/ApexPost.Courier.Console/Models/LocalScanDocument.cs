@@ -76,10 +76,10 @@ public sealed class LocalScanDocument
         if (string.IsNullOrWhiteSpace(trackingNumber))
             throw new ArgumentException("Tracking number is required", nameof(trackingNumber));
 
-        // Validate tracking number format: APX-YYYYMMDD
+        // Validate tracking number format: APX-NNNNNNNN
         var trimmedTrackingNumber = trackingNumber.Trim();
         if (!Regex.IsMatch(trimmedTrackingNumber, @"^APX-\d{8}$"))
-            throw new ArgumentException("Tracking number must be in format APX-YYYYMMDD (e.g., APX-20240115)", nameof(trackingNumber));
+            throw new ArgumentException("Tracking number must be in format APX-NNNNNNNN (e.g., APX-20240115)", nameof(trackingNumber));
 
         // Validate date portion
         var datePart = trimmedTrackingNumber.Substring(4); // YYYYMMDD
