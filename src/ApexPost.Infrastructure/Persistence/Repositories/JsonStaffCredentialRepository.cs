@@ -2,6 +2,11 @@ using ApexPost.Application.Abstractions.Repositories;
 
 namespace ApexPost.Infrastructure.Persistence.Repositories;
 
+/// <summary>
+/// JSON file-backed implementation of <see cref="IStaffCredentialRepository"/> for import/test scenarios only.
+/// Does NOT provide SQL transaction guarantees, concurrency handling, or audit persistence.
+/// Use <see cref="SqlStaffCredentialRepository"/> for all SQL-backed workflows.
+/// </summary>
 public sealed class JsonStaffCredentialRepository : IStaffCredentialRepository
 {
     private readonly JsonFileStore<StaffCredential> _store;

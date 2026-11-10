@@ -14,5 +14,7 @@
 - [ADR-0024 — SQL parameterization and permissions](0024-sql-parameterization-and-runtime-permissions.md)
 - [ADR-0025 — Patched PKCS dependency override](0025-pkcs-security-override.md)
 - [ADR-0026 — Address remains an unpersisted value object](0026-address-remains-unpersisted.md)
+- [ADR-0027 — Courier Offline Storage with Couchbase Lite](0027-courier-offline-couchbase-lite.md)
+- [ADR-0028 — Shipment Tracking REST API](0028-shipment-tracking-api.md)
 
 ADR-0003, ADR-0008, ADR-0009, and ADR-0014 record historical JSON behavior and are superseded for the Web runtime by ADR-0015. The remaining Week 2 decisions continue to describe the business/domain and Web behavior where they do not conflict with SQL persistence. This repository does not adopt Couchbase or offline synchronization.

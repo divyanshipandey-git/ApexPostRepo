@@ -32,33 +32,89 @@
             <h1 id="login-title">Welcome back</h1>
             <p>Sign in with your staff account to continue to the counter platform.</p>
         </div>
-        <form asp-controller="Account" asp-action="Login" method="post" class="login-form" id="login-form">
+        <form asp-controller="Account" asp-action="Login" method="post" class="login-form" id="login-form" novalidate>
             <input asp-for="ReturnUrl" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger validation-summary" role="alert"></div>
+            <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert" aria-live="polite"></div>
+
             <div class="form-field">
-                <label asp-for="Email">Email address</label>
-                <input asp-for="Email" class="form-control text-input" autocomplete="username" inputmode="email" placeholder="name@apexpost.example" autofocus />
-                <span asp-validation-for="Email" class="invalid-feedback field-error"></span>
+                <label asp-for="Email" class="form-label">Email address <span class="text-danger" aria-hidden="true">*</span></label>
+                <input asp-for="Email" class="form-control text-input" autocomplete="username" inputmode="email" placeholder="name@apexpost.example" autofocus required aria-describedby="email-hint" />
+                <span id="email-hint" class="form-hint">Your ApexPost staff email</span>
+                <span asp-validation-for="Email" class="field-error"></span>
             </div>
+
             <div class="form-field">
-                <label asp-for="Password"></label>
+                <label asp-for="Password" class="form-label">Password <span class="text-danger" aria-hidden="true">*</span></label>
                 <div class="password-control">
-                    <input asp-for="Password" class="form-control text-input" autocomplete="current-password" aria-describedby="password-hint" />
-                    <button class="password-toggle" type="button" id="password-toggle" aria-controls="Password" aria-pressed="false">Show</button>
+                    <input asp-for="Password" class="form-control text-input" autocomplete="current-password" required aria-describedby="password-hint" />
+                    <button class="password-toggle" type="button" id="password-toggle" aria-controls="Password" aria-pressed="false" aria-label="Toggle password visibility">
+                        <span class="toggle-text">Show</span>
+                        <svg class="toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
                 </div>
-                <span asp-validation-for="Password" class="invalid-feedback field-error"></span>
-                <span id="password-hint" class="visually-hidden">Password is hidden. Use Show to reveal it temporarily.</span>
+                <span asp-validation-for="Password" class="field-error"></span>
+                <span id="password-hint" class="form-hint">Your password is hidden. Use Show to reveal it temporarily.</span>
             </div>
-            <button type="submit" class="btn btn-primary button button-primary button-wide" id="login-submit">
-                <span class="submit-label">Sign in securely</span>
-                <span class="submit-pending" aria-hidden="true"></span>
+
+            <button type="submit" class="btn btn-primary button button-primary button-wide" id="login-submit" aria-busy="false">
+                <span class="submit-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 5"/></svg>
+                    Sign in securely
+                </span>
+                <span class="submit-pending visually-hidden" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4"/><animate attributeName="stroke-dashoffset" dur="0.65s" repeatCount="indefinite" from="0" to="31.4"/></svg>
+                    Signing in…
+                </span>
             </button>
+
             <span class="visually-hidden" id="login-status" role="status" aria-live="polite"></span>
         </form>
-        <p class="login-support">Access is restricted to authorized ApexPost staff.</p>
+        <p class="login-support">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Access is restricted to authorized ApexPost staff.
+        </p>
     </div>
 </section>
 
 @section Scripts {
     <script src="~/js/login.js" asp-append-version="true" defer></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggle = document.getElementById('password-toggle');
+            const password = document.getElementById('Password');
+
+            if (toggle && password) {
+                toggle.addEventListener('click', function () {
+                    const isVisible = password.type === 'text';
+                    password.type = isVisible ? 'password' : 'text';
+                    this.setAttribute('aria-pressed', !isVisible);
+                    this.querySelector('.toggle-text').textContent = isVisible ? 'Show' : 'Hide';
+                    this.querySelector('.toggle-icon').innerHTML = isVisible
+                        ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                        : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>';
+                });
+            }
+
+            // Enter key handling
+            document.getElementById('login-form')?.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+                    e.preventDefault();
+                    this.dispatchEvent(new Event('submit'));
+                }
+            });
+
+            // Loading state on submit
+            this.querySelector('#login-form')?.addEventListener('submit', function (e) {
+                if (this.checkValidity()) {
+                    const btn = document.getElementById('login-submit');
+                    const label = btn.querySelector('.submit-label');
+                    const pending = btn.querySelector('.submit-pending');
+                    btn.disabled = true;
+                    btn.setAttribute('aria-busy', 'true');
+                    label.classList.add('visually-hidden');
+                    pending.classList.remove('visually-hidden');
+                }
+            });
+        });
+    </script>
 }

@@ -31,6 +31,7 @@ public sealed class CounterSaleService
     private readonly ProductCatalogCache? _productCatalogCache;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CounterSaleService>? _logger;
+    private readonly IMoneyOrderRepository _moneyOrderRepository;
 
     public CounterSaleService(
         ICounterTransactionRepository transactionRepository,
@@ -47,6 +48,7 @@ public sealed class CounterSaleService
         IEnumerable<TaxRate> taxRates,
         TimeProvider timeProvider,
         IUnitOfWork unitOfWork,
+        IMoneyOrderRepository moneyOrderRepository,
         ProductCatalogCache? productCatalogCache = null,
         ILogger<CounterSaleService>? logger = null)
     {
@@ -64,6 +66,7 @@ public sealed class CounterSaleService
         ArgumentNullException.ThrowIfNull(taxRates);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(moneyOrderRepository);
 
         _transactionRepository = transactionRepository;
         _inventoryRepository = inventoryRepository;
@@ -80,6 +83,7 @@ public sealed class CounterSaleService
         _timeProvider = timeProvider;
         _productCatalogCache = productCatalogCache;
         _unitOfWork = unitOfWork;
+        _moneyOrderRepository = moneyOrderRepository;
         _logger = logger;
     }
 
@@ -190,13 +194,12 @@ public sealed class CounterSaleService
                     request.Shipping.DestinationZone,
                     request.Shipping.ServiceLevel,
                     new Weight(request.Shipping.WeightKg));
+                var dimensions = request.Shipping.Dimensions;
                 _ = new Shipment(
                     "validation-only",
                     request.Shipping.ItemType,
                     new Weight(request.Shipping.WeightKg),
-                    request.Shipping.LengthCm,
-                    request.Shipping.WidthCm,
-                    request.Shipping.HeightCm,
+                    dimensions,
                     request.Shipping.DestinationZone,
                     request.Shipping.ServiceLevel);
             }
@@ -300,31 +303,32 @@ public sealed class CounterSaleService
             return new CounterSaleResult(CounterSaleStatus.InvalidRequest);
         }
 
+        // Reserve stock first (outside the transaction so we can restore it if the transaction fails)
         InventoryReservation? inventoryReservation = null;
-        var shipmentPersisted = false;
-        var moneyOrderPersisted = false;
+        if (quantities.Count > 0)
+        {
+            var reservationResult = await _inventoryRepository.TryReserveAsync(
+                branchCode.Value,
+                quantities,
+                cancellationToken);
+            if (reservationResult.Status != InventoryReservationStatus.Reserved)
+            {
+                return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
+            }
+
+            inventoryReservation = reservationResult.Reservation
+                ?? throw new InvalidOperationException(
+                    "A successful stock reservation must include its rollback token.");
+        }
+
+        // Execute the entire sale (shipment, money order, transaction, stock commit)
+        // in a single database transaction via ExecuteInTransactionAsync.
+        // If anything fails, the transaction rolls back and we restore the stock reservation.
         try
         {
-            var persistenceStatus = await _unitOfWork.ExecuteInTransactionAsync(
+            var result = await _unitOfWork.ExecuteInTransactionAsync(
                 async token =>
                 {
-                    if (quantities.Count > 0)
-                    {
-                        // Keep the stock check and all sale writes inside the same SQL transaction.
-                        var reservationResult = await _inventoryRepository.TryReserveAsync(
-                            branchCode.Value,
-                            quantities,
-                            token);
-                        if (reservationResult.Status != InventoryReservationStatus.Reserved)
-                        {
-                            return CounterSaleStatus.InsufficientStock;
-                        }
-
-                        inventoryReservation = reservationResult.Reservation
-                            ?? throw new InvalidOperationException(
-                                "A successful stock reservation must include its rollback token.");
-                    }
-
                     if (request.Shipping is not null)
                     {
                         var shipping = request.Shipping;
@@ -332,24 +336,22 @@ public sealed class CounterSaleService
                             shipmentId!,
                             shipping.ItemType,
                             shipping.WeightKg,
-                            shipping.LengthCm,
-                            shipping.WidthCm,
-                            shipping.HeightCm,
+                            shipping.Dimensions,
                             shipping.DestinationZone,
                             shipping.ServiceLevel,
                             token,
                             branchCode,
                             transactionId);
-                        shipmentPersisted = !_unitOfWork.SupportsAtomicTransactions;
                     }
 
                     if (moneyOrder is not null)
                     {
-                        await _moneyOrderService.SavePreparedAsync(moneyOrder, token);
-                        moneyOrderPersisted = !_unitOfWork.SupportsAtomicTransactions;
+                        await _moneyOrderService.StagePreparedAsync(moneyOrder, token);
                     }
 
                     await _transactionRepository.AddAsync(transaction, token);
+
+                    // Commit the stock reservation (makes the stock decrease permanent)
                     if (inventoryReservation is not null)
                     {
                         await _inventoryRepository.CommitReservationAsync(inventoryReservation, token);
@@ -359,13 +361,61 @@ public sealed class CounterSaleService
                 },
                 cancellationToken);
 
-            if (persistenceStatus == CounterSaleStatus.InsufficientStock)
+            if (result == CounterSaleStatus.InsufficientStock)
             {
                 return new CounterSaleResult(CounterSaleStatus.InsufficientStock);
             }
         }
         catch (Exception persistenceException)
         {
+            // Restore stock reservation if the transaction failed
+            if (inventoryReservation is not null)
+            {
+                try
+                {
+                    await _inventoryRepository.RestoreReservationAsync(inventoryReservation, CancellationToken.None);
+                }
+                catch (Exception restoreException)
+                {
+                    _logger?.LogError(
+                        restoreException,
+                        "Failed to restore stock reservation after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
+            // Remove staged money order if the transaction failed
+            if (moneyOrder is not null)
+            {
+                try
+                {
+                    await _moneyOrderRepository.DeleteAsync(moneyOrder.Id, CancellationToken.None);
+                }
+                catch (Exception deleteException)
+                {
+                    _logger?.LogError(
+                        deleteException,
+                        "Failed to remove staged money order after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
+            // Remove staged shipment if the transaction failed
+            if (shipmentId is not null)
+            {
+                try
+                {
+                    await _shipmentRepository.DeleteAsync(shipmentId, CancellationToken.None);
+                }
+                catch (Exception deleteException)
+                {
+                    _logger?.LogError(
+                        deleteException,
+                        "Failed to remove staged shipment after persistence failure for counter {CounterId}.",
+                        request.CounterId);
+                }
+            }
+
             if (persistenceException is ConcurrencyConflictException)
             {
                 _logger?.LogWarning(
@@ -373,39 +423,6 @@ public sealed class CounterSaleService
                     "Counter sale was rejected by a stock concurrency conflict for counter {CounterId}.",
                     request.CounterId);
                 return new CounterSaleResult(CounterSaleStatus.ConcurrencyConflict);
-            }
-
-            if (!_unitOfWork.SupportsAtomicTransactions)
-            {
-                // Legacy JSON adapters persist independently; SQL sales use one database transaction
-                // and must never be repaired with compensating deletes after a failed commit.
-                try
-                {
-                    if (shipmentPersisted)
-                    {
-                        await _shipmentRepository.DeleteAsync(shipmentId!, CancellationToken.None);
-                    }
-
-                    if (moneyOrderPersisted)
-                    {
-                        await _moneyOrderService.DeleteAsync(moneyOrder!.Id, CancellationToken.None);
-                    }
-
-                    if (inventoryReservation is not null)
-                    {
-                        await _inventoryRepository.RestoreReservationAsync(
-                            inventoryReservation,
-                            CancellationToken.None);
-                    }
-
-                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                }
-                catch (Exception rollbackException)
-                {
-                    throw new InvalidOperationException(
-                        "A counter sale failed and its compensating rollback could not be confirmed.",
-                        new AggregateException(persistenceException, rollbackException));
-                }
             }
 
             if (persistenceException is OperationCanceledException)
@@ -431,9 +448,9 @@ public sealed class CounterSaleService
                 CancellationToken.None);
         }
 
-        if (inventoryReservation is not null)
+        if (quantities.Count > 0)
         {
-            foreach (var sku in inventoryReservation.SkuQuantities.Keys)
+            foreach (var sku in quantities.Keys)
             {
                 var current = await _inventoryRepository.GetByBranchAndSkuAsync(
                     branchCode.Value,
@@ -542,19 +559,19 @@ public sealed class CounterSaleService
         Enum.IsDefined(request.PaymentMethod) &&
         (request.Shipping is null ||
          (!string.IsNullOrWhiteSpace(request.Shipping.ItemType) &&
-          request.Shipping.ItemType.Length <= 16 &&
-          !string.IsNullOrWhiteSpace(request.Shipping.DestinationZone) &&
-          request.Shipping.DestinationZone.Length <= 32)) &&
+           request.Shipping.ItemType.Length <= 16 &&
+           !string.IsNullOrWhiteSpace(request.Shipping.DestinationZone) &&
+           request.Shipping.DestinationZone.Length <= 32)) &&
         (request.MoneyOrder is null ||
          (request.MoneyOrder.Amount > 0 &&
-          request.MoneyOrder.Amount <= 1_000_000_000m &&
-          !string.IsNullOrWhiteSpace(request.MoneyOrder.SenderName) &&
-          request.MoneyOrder.SenderName.Length <= 120 &&
-          !string.IsNullOrWhiteSpace(request.MoneyOrder.RecipientName) &&
-          request.MoneyOrder.RecipientName.Length <= 120 &&
-          (request.MoneyOrder.IdentityVerification is null ||
-           (!string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.DocumentType) &&
-            request.MoneyOrder.IdentityVerification.DocumentType.Length <= 80 &&
-            !string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.MaskedDocumentNumber) &&
-            request.MoneyOrder.IdentityVerification.MaskedDocumentNumber.Length <= 32))));
+           request.MoneyOrder.Amount <= 1_000_000_000m &&
+           !string.IsNullOrWhiteSpace(request.MoneyOrder.SenderName) &&
+           request.MoneyOrder.SenderName.Length <= 120 &&
+           !string.IsNullOrWhiteSpace(request.MoneyOrder.RecipientName) &&
+           request.MoneyOrder.RecipientName.Length <= 120 &&
+           (request.MoneyOrder.IdentityVerification is null ||
+            (!string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.DocumentType) &&
+             request.MoneyOrder.IdentityVerification.DocumentType.Length <= 80 &&
+             !string.IsNullOrWhiteSpace(request.MoneyOrder.IdentityVerification.MaskedDocumentNumber) &&
+             request.MoneyOrder.IdentityVerification.MaskedDocumentNumber.Length <= 32))));
 }

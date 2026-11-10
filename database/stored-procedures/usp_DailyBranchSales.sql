@@ -7,48 +7,39 @@ BEGIN
 
     IF @Date IS NULL
         THROW 51005, 'A report date is required.', 1;
+
     IF @BranchCode IS NOT NULL AND NULLIF(LTRIM(RTRIM(@BranchCode)), '') IS NULL
         THROW 51006, 'Branch code cannot be blank.', 1;
 
-    IF @BranchCode IS NOT NULL
-    BEGIN
-        SET @BranchCode = LTRIM(RTRIM(@BranchCode));
-        IF NOT EXISTS (SELECT 1 FROM dbo.Branches WHERE BranchCode = @BranchCode)
-            THROW 51010, 'The requested branch does not exist.', 1;
-    END;
+    /*
+    Optional @BranchCode parameter with similar parameter sniffing considerations
+    as usp_LowStockReport. However, this procedure uses a date range filter
+    that is typically selective (one day), and the index
+    IX_CounterTransactions_Branch_Occurred_Status has BranchCode as the leading
+    column. The optimizer can effectively use this index for both filtered and
+    unfiltered cases. OPTION (RECOMPILE) is not strictly necessary here but
+    could be added if parameter sniffing issues are observed in production.
+    */
 
-    DECLARE @StartUtc datetime2(7) = CONVERT(datetime2(7), @Date);
-    DECLARE @EndUtc datetime2(7) = DATEADD(day, 1, @StartUtc);
-
-    ;WITH DailySales AS
-    (
-        SELECT transactionRow.BranchCode,
-               COUNT_BIG(DISTINCT transactionRow.Id) AS TransactionCount,
-               SUM(CASE WHEN line.ItemType = 'Retail'
-                    THEN line.LineTotal + line.LineTotal * tax.Rate ELSE 0 END) AS RetailSales,
-               SUM(CASE WHEN line.ItemType = 'Service'
-                    THEN line.LineTotal + line.LineTotal * tax.Rate ELSE 0 END) AS ServiceSales
-        FROM dbo.CounterTransactions AS transactionRow
-        INNER JOIN dbo.TransactionLines AS line
-            ON line.TransactionId = transactionRow.Id
-        INNER JOIN dbo.TransactionTaxRates AS tax
-            ON tax.TransactionId = line.TransactionId
-           AND tax.Category = line.TaxCategory
-        WHERE transactionRow.Status = 'Paid'
-          AND transactionRow.OccurredAtUtc >= @StartUtc
-          AND transactionRow.OccurredAtUtc < @EndUtc
-          AND line.ItemType IN ('Retail', 'Service')
-          AND (@BranchCode IS NULL OR transactionRow.BranchCode = @BranchCode)
-        GROUP BY transactionRow.BranchCode
-    )
-    SELECT branch.BranchCode,
-           @Date AS SaleDate,
-           COALESCE(sales.TransactionCount, 0) AS TransactionCount,
-           COALESCE(sales.RetailSales, 0) AS RetailSales,
-           COALESCE(sales.ServiceSales, 0) AS ServiceSales,
-           COALESCE(sales.RetailSales, 0) + COALESCE(sales.ServiceSales, 0) AS TotalSales
-    FROM dbo.Branches AS branch
-    LEFT JOIN DailySales AS sales ON sales.BranchCode = branch.BranchCode
-    WHERE @BranchCode IS NULL OR branch.BranchCode = @BranchCode
-    ORDER BY branch.BranchCode;
+    SELECT transactionRow.BranchCode,
+           CONVERT(date, transactionRow.OccurredAtUtc) AS SaleDate,
+           COUNT_BIG(DISTINCT transactionRow.Id) AS TransactionCount,
+           COALESCE(SUM(CASE WHEN line.ItemType = 'Retail'
+                THEN line.LineTotal + line.LineTotal * tax.Rate ELSE 0 END), 0) AS RetailSales,
+           COALESCE(SUM(CASE WHEN line.ItemType = 'Service'
+                THEN line.LineTotal + line.LineTotal * tax.Rate ELSE 0 END), 0) AS ServiceSales,
+           COALESCE(SUM(CASE WHEN line.ItemType IN ('Retail', 'Service')
+                THEN line.LineTotal + line.LineTotal * tax.Rate ELSE 0 END), 0) AS TotalSales
+    FROM dbo.CounterTransactions AS transactionRow
+    INNER JOIN dbo.TransactionLines AS line
+        ON line.TransactionId = transactionRow.Id
+    INNER JOIN dbo.TransactionTaxRates AS tax
+        ON tax.TransactionId = line.TransactionId
+       AND tax.Category = line.TaxCategory
+    WHERE transactionRow.Status = 'Paid'
+      AND transactionRow.OccurredAtUtc >= @Date
+      AND transactionRow.OccurredAtUtc < DATEADD(day, 1, @Date)
+      AND line.ItemType IN ('Retail', 'Service')
+      AND (@BranchCode IS NULL OR transactionRow.BranchCode = @BranchCode)
+    GROUP BY transactionRow.BranchCode, CONVERT(date, transactionRow.OccurredAtUtc);
 END;

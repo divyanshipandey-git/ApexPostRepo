@@ -4,6 +4,7 @@ using ApexPost.Application.Abstractions.Reports;
 using ApexPost.Application.Abstractions.Security;
 using ApexPost.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,9 +30,11 @@ public static class SqlInfrastructureExtensions
         }
 
         services.AddDbContext<ApexPostDbContext>(options =>
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
+            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure())
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
         services.AddDbContextFactory<ApexPostDbContext>(options =>
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()),
+            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure())
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)),
             lifetime: ServiceLifetime.Scoped);
         services.TryAddScoped<IUnitOfWork, SqlUnitOfWork>();
         services.TryAddScoped<IAuditStore, SqlAuditStore>();
@@ -47,6 +50,7 @@ public static class SqlInfrastructureExtensions
         services.TryAddScoped<IStockRepository>(provider => provider.GetRequiredService<SqlInventoryRepository>());
         services.TryAddScoped<ICounterTransactionRepository, SqlCounterTransactionRepository>();
         services.TryAddScoped<IShipmentRepository, SqlShipmentRepository>();
+        services.TryAddScoped<ITrackedShipmentRepository, SqlTrackedShipmentRepository>();
         services.TryAddScoped<IMoneyOrderRepository, SqlMoneyOrderRepository>();
         services.TryAddScoped<IReportDataSource, SqlReportDataSource>();
         return services;

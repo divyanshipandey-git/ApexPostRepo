@@ -1,5 +1,4 @@
-﻿
-using ApexPost.Domain.Entities;
+﻿using ApexPost.Domain.Entities;
 
 namespace ApexPost.Application.Abstractions.Repositories;
 

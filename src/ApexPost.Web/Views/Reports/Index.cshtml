@@ -4,18 +4,32 @@
 }
 
 <section class="page-heading">
-    <p class="eyebrow">Operations and audit</p>
-    <h1>Branch reports</h1>
-    <p>Reports use saved counter, stock, shipment, and money-order records. Daily activity uses UTC date boundaries.</p>
+    <div>
+        <p class="eyebrow">Operations and audit</p>
+        <h1>Branch reports</h1>
+        <p>Reports use saved counter, stock, shipment, and money-order records. Daily activity uses UTC date boundaries.</p>
+    </div>
+    <span class="badge badge-info">Data updated in real time</span>
 </section>
 
-<form method="get" asp-action="Index" class="card surface-card mb-4">
+<!-- Filter Form -->
+<form method="get" asp-action="Index" class="card surface-card mb-4" aria-labelledby="filter-heading">
+    <div class="card-header">
+        <h2 id="filter-heading" class="section-title mb-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12 22 3"/><line x1="6" y1="6" x2="6" y2="16"/><line x1="18" y1="6" x2="18" y2="16"/></svg>
+            Report filters
+        </h2>
+    </div>
     <div class="card-body d-flex align-items-end gap-3 flex-wrap">
-        <div><label for="date" class="form-label">Report date (UTC)</label><input id="date" name="date" type="date" value="@Model.Date.ToString("yyyy-MM-dd")" class="form-control" /></div>
-        <div>
-            <label for="branchCode" class="form-label">Branch</label>
-            <select id="branchCode" name="branchCode" class="form-select">
-                @if (Model.BranchScope is null) { <option value="">All branches</option> }
+        <div class="form-field flex-grow-1" style="min-width: 160px;">
+            <label for="date" class="form-label">Report date (UTC) <span class="text-danger" aria-hidden="true">*</span></label>
+            <input id="date" name="date" type="date" value="@Model.Date.ToString("yyyy-MM-dd")" class="form-control text-input" required aria-describedby="date-hint" />
+            <span id="date-hint" class="form-hint">UTC date for daily reports</span>
+        </div>
+        <div class="form-field" style="min-width: 180px;">
+            <label for="branchCode" class="form-label">Branch <span class="text-danger" aria-hidden="true">*</span></label>
+            <select id="branchCode" name="branchCode" class="form-select" required>
+                @if (Model.BranchScope is null) { <option value="">All branches (Admin/Auditor)</option> }
                 @foreach (var branch in Model.Branches)
                 {
                     if (string.Equals(branch.Code, Model.BranchScope, StringComparison.OrdinalIgnoreCase))
@@ -29,58 +43,283 @@
                 }
             </select>
         </div>
-        <div>
+        <div class="form-field" style="min-width: 140px;">
             <label for="threshold" class="form-label">Low-stock threshold</label>
-            <input id="threshold" name="threshold" type="number" min="0" max="100000" value="@Model.Threshold" class="form-control" />
+            <input id="threshold" name="threshold" type="number" min="0" max="100000" value="@Model.Threshold" class="form-control text-input" aria-describedby="threshold-hint" />
+            <span id="threshold-hint" class="form-hint">0–100,000 (default: 5)</span>
         </div>
-        <button type="submit" class="button button-primary">Run reports</button>
+        <button type="submit" class="button button-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-1"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12 22 3"/></svg>
+            Run reports
+        </button>
     </div>
 </form>
 
-<section class="card surface-card mb-4"><div class="card-body">
-    <h2 class="section-title">Daily sales split</h2>
-    @if (Model.DailySales.Count == 0) { <p class="form-hint">No dated paid sales were found for this date.</p> }
-    else
-    {
-        <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Branch</th><th>Transactions</th><th>Retail</th><th>Services</th><th>Total</th></tr></thead><tbody>
-        @foreach (var row in Model.DailySales) { <tr><th>@row.BranchCode</th><td>@row.TransactionCount</td><td>@row.RetailSales.ToString("C")</td><td>@row.ServiceSales.ToString("C")</td><td>@row.TotalSales.ToString("C")</td></tr> }
-        </tbody></table></div>
-    }
-</div></section>
-
-<section class="card surface-card mb-4"><div class="card-body">
-    <h2 class="section-title">Low stock</h2>
-    @if (Model.LowStock.Count == 0) { <p class="form-hint">No products are at or below reorder level 5.</p> }
-    else
-    {
-        <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Branch</th><th>SKU</th><th>Product</th><th>On hand</th><th>Reorder level</th></tr></thead><tbody>
-        @foreach (var row in Model.LowStock) { <tr><th>@row.BranchCode</th><td>@row.Sku</td><td>@row.ProductName</td><td>@row.QuantityOnHand</td><td>@row.Threshold</td></tr> }
-        </tbody></table></div>
-    }
-</div></section>
-
-<section class="card surface-card mb-4"><div class="card-body">
-    <h2 class="section-title">Shipping by zone and service</h2>
-    @if (Model.ShippingVolume.Count == 0) { <p class="form-hint">No dated shipments were found for this date.</p> }
-    else
-    {
-        <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Zone</th><th>Service</th><th>Shipments</th></tr></thead><tbody>
-        @foreach (var row in Model.ShippingVolume) { <tr><th>@row.DestinationZone</th><td>@row.ServiceLevel</td><td>@row.ShipmentCount</td></tr> }
-        </tbody></table></div>
-    }
-</div></section>
-
-@if (Model.CanViewAuditorReport)
+<!-- Quick Stats Row -->
+@if (Model.DailySales.Count > 0 || Model.LowStock.Count > 0 || Model.ShippingVolume.Count > 0 || (Model.CanViewAuditorReport && Model.ServiceActivity.Count > 0))
 {
-    <section class="card surface-card"><div class="card-body">
-        <h2 class="section-title">Money orders and identity checks by branch</h2>
-        <p><a asp-action="MoneyOrders">View paginated money order details</a> · <a asp-action="IdentityVerifications">View paginated identity verification details</a> · <a asp-action="TopProducts">Top products by region</a></p>
-        @if (Model.ServiceActivity.Count == 0) { <p class="form-hint">No money orders or verification records were found for this date.</p> }
+    <section class="dashboard-grid mb-4" aria-label="Quick stats" role="region">
+        <article class="card surface-card">
+            <div class="card-body text-center">
+                <h2>Total branches</h2>
+                <p class="dashboard-value">@Model.DailySales.Count</p>
+            </div>
+        </article>
+        <article class="card surface-card">
+            <div class="card-body text-center">
+                <h2>Low-stock items</h2>
+                <p class="dashboard-value text-warning">@Model.LowStock.Count</p>
+            </div>
+        </article>
+        <article class="card surface-card">
+            <div class="card-body text-center">
+                <h2>Shipments</h2>
+                <p class="dashboard-value text-info">@Model.ShippingVolume.Sum(s => s.ShipmentCount)</p>
+            </div>
+        </article>
+        @if (Model.CanViewAuditorReport)
+        {
+            <article class="card surface-card">
+                <div class="card-body text-center">
+                    <h2>Money orders</h2>
+                    <p class="dashboard-value">@Model.ServiceActivity.Sum(s => s.MoneyOrderCount)</p>
+                </div>
+            </article>
+        }
+    </section>
+}
+
+<!-- Daily Sales Split -->
+<section class="card surface-card mb-4" aria-labelledby="daily-sales-heading">
+    <div class="card-header">
+        <h2 id="daily-sales-heading" class="section-title mb-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Daily sales split (retail vs services)
+        </h2>
+    </div>
+    <div class="card-body">
+        @if (Model.DailySales.Count == 0)
+        {
+            <div class="empty-state" role="status">
+                <div class="empty-state-icon" aria-hidden="true">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <p class="empty-state-title">No sales data</p>
+                <p class="empty-state-text">No dated paid sales were found for this date and branch selection.</p>
+            </div>
+        }
         else
         {
-            <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Branch</th><th>Money orders</th><th>Identity checks</th></tr></thead><tbody>
-            @foreach (var row in Model.ServiceActivity) { <tr><th>@row.BranchCode</th><td>@row.MoneyOrderCount</td><td>@row.IdentityVerificationCount</td></tr> }
-            </tbody></table></div>
+            <div class="table-responsive">
+                <table class="table align-middle" aria-describedby="daily-sales-desc">
+                    <caption id="daily-sales-desc" class="visually-hidden">Daily sales split by branch showing transaction count, retail, services, and total sales</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Branch</th>
+                            <th scope="col">Transactions</th>
+                            <th scope="col">Retail sales</th>
+                            <th scope="col">Service sales</th>
+                            <th scope="col">Total sales</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.DailySales)
+                        {
+                            <tr>
+                                <th scope="row"><code>@row.BranchCode</code></th>
+                                <td>@row.TransactionCount</td>
+                                <td>@row.RetailSales.ToString("C")</td>
+                                <td>@row.ServiceSales.ToString("C")</td>
+                                <td class="fw-bold">@row.TotalSales.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
-    </div></section>
+    </div>
+</section>
+
+<!-- Low Stock -->
+<section class="card surface-card mb-4" aria-labelledby="low-stock-heading">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h2 id="low-stock-heading" class="section-title mb-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Low stock (threshold: @Model.Threshold)
+            </h2>
+            <a class="button button-secondary button-sm" asp-controller="Inventory" asp-action="Index" asp-route-branchCode="@Model.BranchScope">
+                View inventory
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model.LowStock.Count == 0)
+        {
+            <div class="empty-state" role="status">
+                <div class="empty-state-icon" aria-hidden="true">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <p class="empty-state-title">All stock levels healthy</p>
+                <p class="empty-state-text">No products are at or below the reorder level.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle" aria-describedby="low-stock-desc">
+                    <caption id="low-stock-desc" class="visually-hidden">Low stock items for @(Model.BranchScope ?? "all branches") showing SKU, product name, available quantity, and reorder level</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Branch</th>
+                            <th scope="col">SKU</th>
+                            <th scope="col">Product</th>
+                            <th scope="col">On hand</th>
+                            <th scope="col">Reorder level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.LowStock)
+                        {
+                            var isCritical = row.QuantityOnHand == 0;
+                            <tr class="@(isCritical ? "table-danger" : string.Empty)" @(isCritical ? "aria-label=\"Critical: out of stock\"" : string.Empty)>
+                                <th scope="row"><code>@row.BranchCode</code></th>
+                                <td><code>@row.Sku</code></td>
+                                <td>@row.ProductName</td>
+                                <td>
+                                    <span class="@(isCritical ? "text-danger fw-bold" : (row.QuantityOnHand <= 2 ? "text-warning fw-semibold" : ""))">
+                                        @row.QuantityOnHand
+                                    </span>
+                                </td>
+                                <td>@row.Threshold</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.LowStock.Any(i => i.QuantityOnHand == 0))
+            {
+                <div class="notice notice-warning mt-3" role="alert">
+                    <span class="notice-icon" aria-hidden="true">!</span>
+                    <p>Some items are <strong>out of stock</strong>. Use <a asp-controller="Stock" asp-action="Index" class="fw-semibold">Stock management</a> to replenish immediately.</p>
+                </div>
+            }
+        }
+    </div>
+</section>
+
+<!-- Shipping by Zone and Service -->
+<section class="card surface-card mb-4" aria-labelledby="shipping-heading">
+    <div class="card-header">
+        <h2 id="shipping-heading" class="section-title mb-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            Shipping volume by zone and service
+        </h2>
+    </div>
+    <div class="card-body">
+        @if (Model.ShippingVolume.Count == 0)
+        {
+            <div class="empty-state" role="status">
+                <div class="empty-state-icon" aria-hidden="true">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </div>
+                <p class="empty-state-title">No shipments</p>
+                <p class="empty-state-text">No dated shipments were found for this date.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle" aria-describedby="shipping-desc">
+                    <caption id="shipping-desc" class="visually-hidden">Shipping volume by destination zone and service level</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Zone</th>
+                            <th scope="col">Service</th>
+                            <th scope="col">Shipments</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.ShippingVolume)
+                        {
+                            <tr>
+                                <th scope="row"><code>@row.DestinationZone</code></th>
+                                <td>
+                                    <span class="badge badge-@(row.ServiceLevel == "Express" ? "danger" : row.ServiceLevel == "Registered" ? "info" : "primary")">
+                                        @row.ServiceLevel
+                                    </span>
+                                </td>
+                                <td>@row.ShipmentCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- Auditor Reports -->
+@if (Model.CanViewAuditorReport)
+{
+    <section class="card surface-card" aria-labelledby="auditor-heading">
+        <div class="card-header">
+            <h2 id="auditor-heading" class="section-title mb-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Money orders & identity checks by branch
+            </h2>
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <a asp-action="MoneyOrders" class="button button-secondary button-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Paginated money orders
+                </a>
+                <a asp-action="IdentityVerifications" class="button button-secondary button-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    Paginated identity checks
+                </a>
+                <a asp-action="TopProducts" class="button button-secondary button-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/><line x1="17" y1="20" x2="7" y2="20"/></svg>
+                    Top products by region
+                </a>
+            </div>
+
+            @if (Model.ServiceActivity.Count == 0)
+            {
+                <div class="empty-state" role="status">
+                    <div class="empty-state-icon" aria-hidden="true">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <p class="empty-state-title">No money orders or verifications</p>
+                    <p class="empty-state-text">No money orders or verification records were found for this date.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle" aria-describedby="auditor-desc">
+                        <caption id="auditor-desc" class="visually-hidden">Branch-level money order and identity verification counts</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Branch</th>
+                                <th scope="col">Money orders</th>
+                                <th scope="col">Identity checks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Model.ServiceActivity)
+                            {
+                                <tr>
+                                    <th scope="row"><code>@row.BranchCode</code></th>
+                                    <td>@row.MoneyOrderCount</td>
+                                    <td>@row.IdentityVerificationCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
 }
