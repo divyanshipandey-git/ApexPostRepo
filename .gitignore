@@ -11,6 +11,9 @@ appsettings.Local.json
 secrets.json
 .env
 .env.*
+*.json
+!**/appsettings.json
+!**/appsettings.*.json
 
 # Runtime data (keep seed files in data/seed)
 data/runtime/
