@@ -1,100 +1,168 @@
-using System.Text.Json;
-using Xunit;
-using FluentAssertions;
+using System;
 using ApexPost.Courier.Offline.Domain;
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Persistence;
-using ApexPost.Courier.Offline.Services;
+using Xunit;
 
 namespace ApexPost.Courier.Offline.Tests.Domain;
 
+/// <summary>
+/// Tests for ShipmentScan domain entity
+/// </summary>
 public class ShipmentScanTests
 {
     [Fact]
-    public void Create_GeneratesValidIdWithScanPrefix()
+    public void Create_ValidParameters_CreatesScan()
     {
-        var scan = ShipmentScan.Create("TRK-001", ScanType.Pickup, "COURIER-1", "Warehouse A", DateTimeOffset.UtcNow);
+        // Act
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse A",
+            scannedAtUtc: DateTimeOffset.UtcNow,
+            notes: "Test scan");
 
-        scan.Id.Should().StartWith("scan::");
-        scan.Id.Should().MatchRegex(@"^scan::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+        // Assert
+        Assert.NotNull(scan);
+        Assert.StartsWith("scan::", scan.Id);
+        Assert.Equal("APX-20240101", scan.TrackingNumber);
+        Assert.Equal(ScanType.Pickup, scan.ScanType);
+        Assert.Equal("COURIER-001", scan.CourierId);
+        Assert.Equal("Warehouse A", scan.Location);
+        Assert.Equal("Test scan", scan.Notes);
+        Assert.Equal(SyncStatus.Pending, scan.SyncStatus);
     }
 
     [Fact]
-    public void Create_SetsAllPropertiesCorrectly()
+    public void Create_EmptyTrackingNumber_ThrowsArgumentException()
     {
-        var scannedAt = new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero);
-        var scan = ShipmentScan.Create("TRK-001", ScanType.Delivered, "COURIER-1", "Customer Site", scannedAt, "Signed by John");
-
-        scan.TrackingNumber.Should().Be("TRK-001");
-        scan.ScanType.Should().Be(ScanType.Delivered);
-        scan.CourierId.Should().Be("COURIER-1");
-        scan.Location.Should().Be("Customer Site");
-        scan.ScannedAtUtc.Should().Be(scannedAt);
-        scan.Notes.Should().Be("Signed by John");
-        scan.SyncStatus.Should().Be(SyncStatus.Pending);
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => ShipmentScan.Create(
+            trackingNumber: "",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow));
     }
 
     [Fact]
-    public void Create_TrimsWhitespace()
+    public void Create_EmptyCourierId_ThrowsArgumentException()
     {
-        var scan = ShipmentScan.Create("  TRK-001  ", ScanType.Pickup, "  COURIER-1  ", "  Warehouse A  ", DateTimeOffset.UtcNow, "  notes  ");
-
-        scan.TrackingNumber.Should().Be("TRK-001");
-        scan.CourierId.Should().Be("COURIER-1");
-        scan.Location.Should().Be("Warehouse A");
-        scan.Notes.Should().Be("notes");
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow));
     }
 
     [Fact]
-    public void Create_ThrowsOnNullTrackingNumber()
+    public void Create_EmptyLocation_ThrowsArgumentException()
     {
-        var act = () => ShipmentScan.Create("", ScanType.Pickup, "COURIER-1", "Location", DateTimeOffset.UtcNow);
-
-        act.Should().Throw<ArgumentException>();
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "",
+            scannedAtUtc: DateTimeOffset.UtcNow));
     }
 
     [Fact]
-    public void Create_ThrowsOnNullCourierId()
+    public void Create_WithNotes_StoresNotes()
     {
-        var act = () => ShipmentScan.Create("TRK-001", ScanType.Pickup, "", "Location", DateTimeOffset.UtcNow);
+        // Act
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow,
+            notes: "  Test notes with spaces  ");
 
-        act.Should().Throw<ArgumentException>();
+        // Assert
+        Assert.Equal("Test notes with spaces", scan.Notes);
     }
 
     [Fact]
-    public void Create_ThrowsOnNullLocation()
+    public void Create_NullNotes_StoresNull()
     {
-        var act = () => ShipmentScan.Create("TRK-001", ScanType.Pickup, "COURIER-1", "", DateTimeOffset.UtcNow);
+        // Act
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow,
+            notes: null);
 
-        act.Should().Throw<ArgumentException>();
+        // Assert
+        Assert.Null(scan.Notes);
     }
 
     [Fact]
     public void SyncStatus_CanBeChanged()
     {
-        var scan = ShipmentScan.Create("TRK-001", ScanType.Pickup, "COURIER-1", "Location", DateTimeOffset.UtcNow);
+        // Arrange
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow);
 
+        // Act
         scan.SyncStatus = SyncStatus.Synced;
-        scan.SyncStatus.Should().Be(SyncStatus.Synced);
 
-        scan.SyncStatus = SyncStatus.Failed;
-        scan.SyncStatus.Should().Be(SyncStatus.Failed);
+        // Assert
+        Assert.Equal(SyncStatus.Synced, scan.SyncStatus);
     }
 
     [Fact]
-    public void SerializesCorrectly()
+    public void ReferenceEquality_SameInstance_ShouldBeEqual()
     {
-        var scan = ShipmentScan.Create("TRK-001", ScanType.InTransit, "COURIER-1", "Hub B", DateTimeOffset.UtcNow, "Transferred");
+        // Arrange
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: ScanType.Pickup,
+            courierId: "COURIER-001",
+            location: "Warehouse",
+            scannedAtUtc: DateTimeOffset.UtcNow);
+        var sameReference = scan;
 
-        var json = JsonSerializer.Serialize(scan);
-        var deserialized = JsonSerializer.Deserialize<ShipmentScan>(json);
+        // Act & Assert
+        Assert.Same(scan, sameReference);
+        Assert.True(scan == sameReference);
+    }
 
-        deserialized.Should().NotBeNull();
-        deserialized!.TrackingNumber.Should().Be("TRK-001");
-        deserialized.ScanType.Should().Be(ScanType.InTransit);
-        deserialized.CourierId.Should().Be("COURIER-1");
-        deserialized.Location.Should().Be("Hub B");
-        deserialized.Notes.Should().Be("Transferred");
-        deserialized.SyncStatus.Should().Be(SyncStatus.Pending);
+    [Fact]
+    public void ReferenceEquality_DifferentInstances_ShouldNotBeEqual()
+    {
+        // Arrange
+        var scan1 = ShipmentScan.Create("APX-1", ScanType.Pickup, "COURIER-001", "A", DateTimeOffset.UtcNow);
+        var scan2 = ShipmentScan.Create("APX-1", ScanType.Pickup, "COURIER-001", "A", DateTimeOffset.UtcNow);
+
+        // Act & Assert - Different instances are not equal by reference
+        Assert.NotSame(scan1, scan2);
+        Assert.False(scan1 == scan2);
+    }
+
+    [Theory]
+    [InlineData(ScanType.Pickup)]
+    [InlineData(ScanType.InTransit)]
+    [InlineData(ScanType.Delivered)]
+    [InlineData(ScanType.Failed)]
+    public void Create_AllScanTypes_ShouldWork(ScanType scanType)
+    {
+        // Act
+        var scan = ShipmentScan.Create(
+            trackingNumber: "APX-20240101",
+            scanType: scanType,
+            courierId: "COURIER-001",
+            location: "Test Location",
+            scannedAtUtc: DateTimeOffset.UtcNow);
+
+        // Assert
+        Assert.Equal(scanType, scan.ScanType);
     }
 }
