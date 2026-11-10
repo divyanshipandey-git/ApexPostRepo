@@ -47,7 +47,7 @@ builder.Configuration
 // ============================================================================
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://apexpost.example.com";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "apexpost-api";
-var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] ?? "dev-super-secret-signing-key-that-is-at-least-32-chars-long!!";
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey must be configured in User Secrets or appsettings.json");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
