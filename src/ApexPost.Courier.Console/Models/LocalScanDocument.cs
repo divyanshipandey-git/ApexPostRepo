@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace ApexPost.Courier.Console.Models;
 
@@ -74,6 +75,17 @@ public sealed class LocalScanDocument
     {
         if (string.IsNullOrWhiteSpace(trackingNumber))
             throw new ArgumentException("Tracking number is required", nameof(trackingNumber));
+
+        // Validate tracking number format: APX-YYYYMMDD
+        var trimmedTrackingNumber = trackingNumber.Trim();
+        if (!Regex.IsMatch(trimmedTrackingNumber, @"^APX-\d{8}$"))
+            throw new ArgumentException("Tracking number must be in format APX-YYYYMMDD (e.g., APX-20240115)", nameof(trackingNumber));
+
+        // Validate date portion
+        var datePart = trimmedTrackingNumber.Substring(4); // YYYYMMDD
+        if (!DateTime.TryParseExact(datePart, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var parsedDate))
+            throw new ArgumentException($"Invalid date in tracking number: {datePart}. Month must be 01-12, day must be valid for the month.", nameof(trackingNumber));
+
         if (string.IsNullOrWhiteSpace(courierId))
             throw new ArgumentException("Courier ID is required", nameof(courierId));
         if (string.IsNullOrWhiteSpace(location))
@@ -82,7 +94,7 @@ public sealed class LocalScanDocument
         return new LocalScanDocument
         {
             ScanId = $"scan::{Guid.NewGuid()}",
-            TrackingNumber = trackingNumber.Trim(),
+            TrackingNumber = trimmedTrackingNumber,
             ScanType = scanType,
             CourierId = courierId.Trim(),
             Location = location.Trim(),
