@@ -21,7 +21,7 @@ public sealed class DevelopmentTokenService : ITokenService
     {
         var issuer = _configuration["Jwt:Issuer"] ?? "https://apexpost.example.com";
         var audience = _configuration["Jwt:Audience"] ?? "apexpost-api";
-        var signingKey = _configuration["Jwt:SigningKey"] ?? "dev-super-secret-signing-key-that-is-at-least-32-chars-long!!";
+        var signingKey = _configuration["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey must be configured in User Secrets or appsettings.json");
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
