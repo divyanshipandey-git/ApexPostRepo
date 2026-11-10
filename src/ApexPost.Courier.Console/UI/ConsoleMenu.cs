@@ -66,6 +66,15 @@ public sealed class ConsoleMenu
 
         while (_isRunning)
         {
+            // D10: after a 401 the sync service clears the stored token. Detect that here and fall back to the login menu.
+            if (_currentCourierId != string.Empty && !await _tokenStorage.HasValidTokenAsync())
+            {
+                _currentCourierId = string.Empty;
+                _currentRole = "Courier";
+                WriteError("Session expired or rejected by the server (401) - please log in again.");
+                await Task.Delay(System.Console.IsOutputRedirected ? 0 : 1500);
+            }
+
             ShowMainMenu();
             await ProcessInputAsync();
         }
@@ -119,6 +128,12 @@ public sealed class ConsoleMenu
     private async Task ProcessInputAsync()
     {
         var input = System.Console.ReadLine()?.Trim();
+        if (input is null)
+        {
+            // End of input (stdin closed): stop instead of looping on "invalid option".
+            _isRunning = false;
+            return;
+        }
         
         if (_currentCourierId == string.Empty)
         {
@@ -297,20 +312,29 @@ public sealed class ConsoleMenu
                 return;
             }
 
-            var payload = parts[1];
-            // Add padding if needed
+            // JWTs are base64url encoded (- and _ instead of + and /, no padding)
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
             switch (payload.Length % 4)
             {
                 case 2: payload += "=="; break;
                 case 3: payload += "="; break;
             }
-            
+
             var payloadBytes = Convert.FromBase64String(payload);
             var payloadJson = Encoding.UTF8.GetString(payloadBytes);
             using var doc = JsonDocument.Parse(payloadJson);
-            
-            var courierId = doc.RootElement.GetProperty("courierId").GetString() ?? "UNKNOWN";
-            var role = doc.RootElement.GetProperty("role").GetString() ?? "Courier";
+
+            // The API puts the role under the long ClaimTypes.Role URI; tolerate a short "role" claim too.
+            static string? Claim(JsonElement root, params string[] names)
+            {
+                foreach (var n in names)
+                    if (root.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String)
+                        return v.GetString();
+                return null;
+            }
+
+            var courierId = Claim(doc.RootElement, "courierId") ?? "UNKNOWN";
+            var role = Claim(doc.RootElement, "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role") ?? "Courier";
 
             var tokenData = new TokenData
             {
