@@ -1,5 +1,6 @@
 using ApexPost.Domain.Entities;
 using ApexPost.Application.Validation;
+using ApexPost.Domain.ValueObjects;
 using System.ComponentModel.DataAnnotations;
 
 namespace ApexPost.Application.Services.Transactions;
@@ -18,9 +19,7 @@ public sealed record CounterSaleProductRequest(
 public sealed record CounterShippingRequest(
     [property: RequiredText(16)] string ItemType,
     [property: Range(typeof(decimal), "0.001", "1000")] decimal WeightKg,
-    [property: Range(typeof(decimal), "0.1", "10000")] decimal LengthCm,
-    [property: Range(typeof(decimal), "0.1", "10000")] decimal WidthCm,
-    [property: Range(typeof(decimal), "0.1", "10000")] decimal HeightCm,
+    Dimensions Dimensions,
     [property: RequiredText(32)] string DestinationZone,
     ShippingServiceLevel ServiceLevel);
 

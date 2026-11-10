@@ -12,6 +12,7 @@ using ApexPost.Infrastructure.Security;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -506,6 +507,9 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
 
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApexPostDbContext>();
+            // Suppress pending model changes warning for test database
+            db.Database.SetCommandTimeout(TimeSpan.FromMinutes(5));
+            // Configure warnings to ignore pending model changes
             await db.Database.MigrateAsync();
             var hasher = scope.ServiceProvider.GetRequiredService<IStaffPasswordHasher>();
             db.Branches.Add(new Branch(new BranchCode(BranchCode), "SQL HTTP Branch", "Test", new TimeOnly(0), new TimeOnly(23, 59)));

@@ -38,7 +38,7 @@ public static class DependencyInjection
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
         options.DataDirectory = JsonPersistenceOptions.ResolveDataDirectory(options.DataDirectory);
 
-        services.TryAddScoped<IUnitOfWork, NoOpUnitOfWork>();
+services.TryAddScoped<IUnitOfWork, NoOpUnitOfWork>();
         services.TryAddSingleton(options);
         services.TryAddSingleton<JsonAuditLog>();
         services.TryAddSingleton<IAuditStore>(provider => provider.GetRequiredService<JsonAuditLog>());

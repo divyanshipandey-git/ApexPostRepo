@@ -4,168 +4,339 @@
 }
 
 <section class="page-heading">
-    <p class="eyebrow">Counter operations</p>
-    <h1>New counter transaction</h1>
-    <p>Build a basket from the current catalogue. Product prices, tax, branch and staff identity are taken from server data.</p>
+    <div>
+        <p class="eyebrow">Counter operations</p>
+        <h1>New counter transaction</h1>
+        <p>Build a basket from the current catalogue. Prices, tax, branch and staff identity are verified from server data.</p>
+    </div>
+    <span class="badge badge-info">All data validated server-side</span>
 </section>
 
-<form asp-action="Create" method="post" class="form-stack transaction-form">
-    <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+<form asp-action="Create" method="post" class="form-stack transaction-form" novalidate>
+    <div asp-validation-summary="All" class="validation-summary" role="alert" aria-live="polite"></div>
+
     @if (!string.IsNullOrWhiteSpace(Model.Message))
     {
-        <div class="alert alert-danger" role="alert">@Model.Message</div>
+        <div class="notice notice-error" role="alert">
+            <span class="notice-icon" aria-hidden="true">!</span>
+            <p>@Model.Message</p>
+        </div>
     }
 
-    <section class="card shadow-sm surface-card" aria-labelledby="counter-section-title">
+    <!-- Counter & Payment Section -->
+    <section class="card surface-card" aria-labelledby="counter-section-title">
+        <div class="card-header">
+            <h2 id="counter-section-title" class="section-title mb-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Counter & payment
+            </h2>
+        </div>
         <div class="card-body">
-            <h2 id="counter-section-title" class="section-title">Counter and payment</h2>
+            <p class="section-copy mb-4">Select the counter and payment method for this sale.</p>
             <div class="form-grid">
-                <div>
-                    <label asp-for="CounterId" class="form-label">Counter</label>
-                    <select asp-for="CounterId" class="form-select">
+                <div class="form-field">
+                    <label asp-for="CounterId" class="form-label">Counter <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select asp-for="CounterId" class="form-select" aria-describedby="counter-hint" required>
                         <option value="">Select a counter</option>
                         @foreach (var counter in Model.CounterOptions)
                         {
                             <option value="@counter.Id">@counter.Name</option>
                         }
                     </select>
-                    <span asp-validation-for="CounterId" class="field-validation-error"></span>
+                    <span id="counter-hint" class="form-hint">Only active counters at your branch are shown.</span>
+                    <span asp-validation-for="CounterId" class="field-error"></span>
                 </div>
-                <div>
-                    <label asp-for="PaymentMethod" class="form-label">Payment method</label>
-                    <select asp-for="PaymentMethod" class="form-select">
+                <div class="form-field">
+                    <label asp-for="PaymentMethod" class="form-label">Payment method <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select asp-for="PaymentMethod" class="form-select" required>
                         <option value="">Select payment method</option>
                         <option value="Cash">Cash</option>
                         <option value="Card">Card</option>
                         <option value="Upi">UPI</option>
                     </select>
-                    <span asp-validation-for="PaymentMethod" class="field-validation-error"></span>
+                    <span asp-validation-for="PaymentMethod" class="field-error"></span>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="card shadow-sm surface-card" aria-labelledby="product-section-title">
+    <!-- Retail Products Section -->
+    <section class="card surface-card" aria-labelledby="product-section-title">
+        <div class="card-header">
+            <h2 id="product-section-title" class="section-title mb-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><path d="M20 7 14 16l-4-4-4 4"/><path d="M14 7v9"/><path d="M7 7v9"/></svg>
+                Retail products
+            </h2>
+        </div>
         <div class="card-body">
-            <h2 id="product-section-title" class="section-title">Retail products</h2>
-            <p class="section-copy">Choose up to five product lines. Quantities are checked against this branch's available stock.</p>
+            <p class="section-copy mb-4">Choose up to five product lines. Quantities are checked against this branch's available stock in real time.</p>
             @for (var index = 0; index < Model.Products.Count; index++)
             {
-                <div class="form-grid transaction-line">
-                    <div>
-                        <label asp-for="Products[index].Sku" class="form-label">Product @(index + 1)</label>
-                        <select asp-for="Products[index].Sku" class="form-select">
-                            <option value="">No product</option>
+                <div class="form-grid transaction-line mb-3 @(index > 0 ? "pt-3 border-top" : "")" style="border-color: var(--line);">
+                    <div class="form-field" style="min-width: 0;">
+                        <label asp-for="Products[index].Sku" class="form-label">Product @(index + 1) <span class="text-danger" aria-hidden="true">*</span></label>
+                        <select asp-for="Products[index].Sku" class="form-select" aria-describedby="product-hint-@index" required>
+                            <option value="">No product selected</option>
                             @foreach (var product in Model.ProductOptions)
                             {
-                                <option value="@product.Sku">@product.Name (@product.Sku) · @product.UnitPrice.ToString("C") · @product.TaxCategory tax</option>
+                                <option value="@product.Sku" data-price="@product.UnitPrice" data-tax="@product.TaxCategory">
+                                    @product.Name (@product.Sku) · @product.UnitPrice.ToString("C") · @product.TaxCategory tax
+                                </option>
                             }
                         </select>
-                        <span asp-validation-for="Products[index].Sku" class="field-validation-error"></span>
+                        <span id="product-hint-@index" class="form-hint">Prices include applicable tax. Stock is verified on submit.</span>
+                        <span asp-validation-for="Products[index].Sku" class="field-error"></span>
                     </div>
-                    <div>
-                        <label asp-for="Products[index].Quantity" class="form-label">Quantity</label>
-                        <input asp-for="Products[index].Quantity" class="form-control" type="number" min="1" max="1000" />
+                    <div class="form-field" style="max-width: 120px;">
+                        <label asp-for="Products[index].Quantity" class="form-label">Qty <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input asp-for="Products[index].Quantity" class="form-control text-input" type="number" min="1" max="1000" required />
+                        <span asp-validation-for="Products[index].Quantity" class="field-error"></span>
                     </div>
                 </div>
             }
         </div>
     </section>
 
-    <section class="card shadow-sm surface-card" aria-labelledby="shipping-section-title">
-        <div class="card-body">
-            <h2 id="shipping-section-title" class="section-title">Shipping service (optional)</h2>
-            <div class="form-check mb-3">
-                <input asp-for="IncludeShipping" class="form-check-input" />
-                <label asp-for="IncludeShipping" class="form-check-label">Add a parcel or letter shipment to this transaction</label>
+    <!-- Shipping Section -->
+    <section class="card surface-card" aria-labelledby="shipping-section-title">
+        <div class="card-header">
+            <div class="d-flex align-items-center justify-content-between">
+                <h2 id="shipping-section-title" class="section-title mb-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    Shipping service <span class="badge badge-secondary ms-2">Optional</span>
+                </h2>
             </div>
-            <div class="form-grid">
-                <div>
-                    <label asp-for="ItemType" class="form-label">Item type</label>
-                    <select asp-for="ItemType" class="form-select">
+        </div>
+        <div class="card-body">
+            <div class="form-check mb-3">
+                <input asp-for="IncludeShipping" class="form-check-input" id="includeShipping" aria-describedby="shipping-hint" />
+                <label class="form-check-label fw-medium" for="includeShipping">Add a parcel or letter shipment to this transaction</label>
+            </div>
+            <p id="shipping-hint" class="form-hint mb-3">Shipping charges use configured zone and service-level pricing. The server validates weight and dimensions against service limits.</p>
+
+            <div class="form-grid" id="shippingFields" style="display: none;">
+                <div class="form-field">
+                    <label asp-for="ItemType" class="form-label">Item type <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select asp-for="ItemType" class="form-select" required>
                         <option value="">Select type</option>
                         <option value="Parcel">Parcel</option>
                         <option value="Letter">Letter</option>
                     </select>
                 </div>
-                <div>
-                    <label asp-for="ShippingServiceLevel" class="form-label">Service level</label>
-                    <select asp-for="ShippingServiceLevel" class="form-select">
+                <div class="form-field">
+                    <label asp-for="ShippingServiceLevel" class="form-label">Service level <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select asp-for="ShippingServiceLevel" class="form-select" required>
                         <option value="">Select level</option>
-                        <option value="Standard">Standard</option>
-                        <option value="Express">Express</option>
-                        <option value="Registered">Registered</option>
+                        <option value="Standard">Standard (max 30 kg)</option>
+                        <option value="Express">Express (max 20 kg)</option>
+                        <option value="Registered">Registered (max 10 kg)</option>
                     </select>
                 </div>
-                <div>
-                    <label asp-for="DestinationZone" class="form-label">Destination zone</label>
-                    <input asp-for="DestinationZone" class="form-control" maxlength="32" autocomplete="off" />
+                <div class="form-field">
+                    <label asp-for="DestinationZone" class="form-label">Destination zone <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="DestinationZone" class="form-control text-input" maxlength="32" autocomplete="off" placeholder="e.g. ZONE1" required />
                 </div>
-                <div>
-                    <label asp-for="WeightKg" class="form-label">Weight (kg)</label>
-                    <input asp-for="WeightKg" class="form-control" type="number" min="0.01" step="0.01" />
+                <div class="form-field">
+                    <label asp-for="WeightKg" class="form-label">Weight (kg) <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="WeightKg" class="form-control text-input" type="number" min="0.01" step="0.01" required />
                 </div>
-                <div>
-                    <label asp-for="LengthCm" class="form-label">Length (cm)</label>
-                    <input asp-for="LengthCm" class="form-control" type="number" min="0.01" step="0.01" />
+                <div class="form-field">
+                    <label asp-for="LengthCm" class="form-label">Length (cm) <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="LengthCm" class="form-control text-input" type="number" min="0.01" step="0.01" required />
                 </div>
-                <div>
-                    <label asp-for="WidthCm" class="form-label">Width (cm)</label>
-                    <input asp-for="WidthCm" class="form-control" type="number" min="0.01" step="0.01" />
+                <div class="form-field">
+                    <label asp-for="WidthCm" class="form-label">Width (cm) <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="WidthCm" class="form-control text-input" type="number" min="0.01" step="0.01" required />
                 </div>
-                <div>
-                    <label asp-for="HeightCm" class="form-label">Height (cm)</label>
-                    <input asp-for="HeightCm" class="form-control" type="number" min="0.01" step="0.01" />
+                <div class="form-field">
+                    <label asp-for="HeightCm" class="form-label">Height (cm) <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="HeightCm" class="form-control text-input" type="number" min="0.01" step="0.01" required />
                 </div>
             </div>
-            <span asp-validation-for="IncludeShipping" class="field-validation-error"></span>
-            <p class="form-hint">Shipping charges use configured zone and service-level pricing. The server validates the weight and dimensions.</p>
+            <span asp-validation-for="IncludeShipping" class="field-error"></span>
         </div>
     </section>
 
-    <section class="card shadow-sm surface-card" aria-labelledby="money-order-section-title">
+    <!-- Money Order Section -->
+    <section class="card surface-card" aria-labelledby="money-order-section-title">
+        <div class="card-header">
+            <div class="d-flex align-items-center justify-content-between">
+                <h2 id="money-order-section-title" class="section-title mb-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-2" style="vertical-align: -3px;"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Money order <span class="badge badge-secondary ms-2">Optional</span>
+                </h2>
+            </div>
+        </div>
         <div class="card-body">
-            <h2 id="money-order-section-title" class="section-title">Money order (optional)</h2>
             <div class="form-check mb-3">
-                <input asp-for="IncludeMoneyOrder" class="form-check-input" />
-                <label asp-for="IncludeMoneyOrder" class="form-check-label">Issue a money order in this transaction</label>
+                <input asp-for="IncludeMoneyOrder" class="form-check-input" id="includeMoneyOrder" aria-describedby="mo-hint" />
+                <label class="form-check-label fw-medium" for="includeMoneyOrder">Issue a money order in this transaction</label>
             </div>
-            <p class="form-hint">The configured fee is @Model.MoneyOrderFee.ToString("C"). Orders above @Model.MoneyOrderVerificationThreshold.ToString("C") require a successful staff-recorded identity check. Enter only a masked document number; never enter the full number.</p>
-            <div class="form-grid">
-                <div>
-                    <label asp-for="MoneyOrderAmount" class="form-label">Money order amount</label>
-                    <input asp-for="MoneyOrderAmount" class="form-control" type="number" min="0.01" max="1000000000" step="0.01" />
-                    <span asp-validation-for="MoneyOrderAmount" class="field-validation-error"></span>
+            <p id="mo-hint" class="form-hint mb-3">The configured fee is <strong>@Model.MoneyOrderFee.ToString("C")</strong>. Orders above <strong>@Model.MoneyOrderVerificationThreshold.ToString("C")</strong> require a successful staff-recorded identity check. <strong>Enter only a masked document number (XXXX1234 format); never enter the full number.</strong></p>
+
+            <div class="form-grid" id="moneyOrderFields" style="display: none;">
+                <div class="form-field">
+                    <label asp-for="MoneyOrderAmount" class="form-label">Money order amount <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="MoneyOrderAmount" class="form-control text-input" type="number" min="0.01" max="1000000000" step="0.01" required />
+                    <span asp-validation-for="MoneyOrderAmount" class="field-error"></span>
                 </div>
-                <div>
-                    <label asp-for="MoneyOrderSenderName" class="form-label">Sender name</label>
-                    <input asp-for="MoneyOrderSenderName" class="form-control" maxlength="120" autocomplete="name" />
+                <div class="form-field">
+                    <label asp-for="MoneyOrderSenderName" class="form-label">Sender name <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="MoneyOrderSenderName" class="form-control text-input" maxlength="120" autocomplete="name" required />
                 </div>
-                <div>
-                    <label asp-for="MoneyOrderRecipientName" class="form-label">Recipient name</label>
-                    <input asp-for="MoneyOrderRecipientName" class="form-control" maxlength="120" />
+                <div class="form-field">
+                    <label asp-for="MoneyOrderRecipientName" class="form-label">Recipient name <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input asp-for="MoneyOrderRecipientName" class="form-control text-input" maxlength="120" required />
                 </div>
             </div>
-            <fieldset class="identity-verification-fields mt-3">
-                <legend class="form-label">Identity check, when required</legend>
+
+            <fieldset class="identity-verification-fields mt-3" id="identityFields" style="display: none;">
+                <legend class="form-label fw-medium">Identity check (required for orders above @Model.MoneyOrderVerificationThreshold.ToString("C"))</legend>
                 <div class="form-grid">
-                    <div>
-                        <label asp-for="IdentityDocumentType" class="form-label">Document type</label>
-                        <input asp-for="IdentityDocumentType" class="form-control" maxlength="80" />
+                    <div class="form-field">
+                        <label asp-for="IdentityDocumentType" class="form-label">Document type <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input asp-for="IdentityDocumentType" class="form-control text-input" maxlength="80" placeholder="e.g. Government ID" required />
                     </div>
-                    <div>
-                        <label asp-for="IdentityMaskedDocumentNumber" class="form-label">Masked number (XXXX1234)</label>
-                        <input asp-for="IdentityMaskedDocumentNumber" class="form-control" maxlength="8" placeholder="XXXX1234" autocomplete="off" />
+                    <div class="form-field">
+                        <label asp-for="IdentityMaskedDocumentNumber" class="form-label">Masked number <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input asp-for="IdentityMaskedDocumentNumber" class="form-control text-input" maxlength="8" placeholder="XXXX1234" autocomplete="off" required aria-describedby="masked-hint" />
+                        <span id="masked-hint" class="form-hint">Format: XXXX followed by 4 visible characters (e.g., XXXX1234)</span>
+                        <span asp-validation-for="IdentityMaskedDocumentNumber" class="field-error"></span>
                     </div>
                 </div>
                 <div class="form-check mt-3">
-                    <input asp-for="IdentityVerified" class="form-check-input" />
-                    <label asp-for="IdentityVerified" class="form-check-label">I checked the document in person and verified the customer's identity</label>
+                    <input asp-for="IdentityVerified" class="form-check-input" id="identityVerified" required />
+                    <label class="form-check-label" for="identityVerified"><strong>I checked the document in person and verified the customer's identity</strong></label>
                 </div>
-                <span asp-validation-for="IdentityMaskedDocumentNumber" class="field-validation-error"></span>
+                <span asp-validation-for="IdentityVerified" class="field-error"></span>
             </fieldset>
         </div>
     </section>
 
-    <button class="button button-primary" type="submit">Complete transaction</button>
+    <div class="form-actions mt-4">
+        <button type="submit" class="button button-primary button-wide" id="submitBtn" aria-busy="false">
+            <span class="submit-text">Complete transaction</span>
+            <span class="submit-pending visually-hidden" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4"/><animate attributeName="stroke-dashoffset" dur="0.65s" repeatCount="indefinite" from="0" to="31.4"/></svg>
+                Processing…
+            </span>
+        </button>
+    </div>
 </form>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const includeShipping = document.getElementById('includeShipping');
+            const includeMoneyOrder = document.getElementById('includeMoneyOrder');
+            const shippingFields = document.getElementById('shippingFields');
+            const moneyOrderFields = document.getElementById('moneyOrderFields');
+            const identityFields = document.getElementById('identityFields');
+            const moAmount = document.querySelector('[asp-for="MoneyOrderAmount"]');
+            const moThreshold = @Model.MoneyOrderVerificationThreshold;
+
+            function toggleFields(checkbox, fieldsContainer, requiredInputs = null) {
+                if (checkbox.checked) {
+                    fieldsContainer.style.display = 'grid';
+                    fieldsContainer.hidden = false;
+                    if (requiredInputs) {
+                        requiredInputs.forEach(input => input.required = true);
+                    }
+                } else {
+                    fieldsContainer.style.display = 'none';
+                    fieldsContainer.hidden = true;
+                    if (requiredInputs) {
+                        requiredInputs.forEach(input => input.required = false);
+                    }
+                }
+            }
+
+            // Shipping toggle
+            includeShipping.addEventListener('change', function () {
+                const inputs = shippingFields.querySelectorAll('select, input');
+                toggleFields(this, shippingFields, Array.from(inputs));
+            });
+
+            // Money Order toggle
+            includeMoneyOrder.addEventListener('change', function () {
+                const inputs = moneyOrderFields.querySelectorAll('input, select');
+                toggleFields(this, moneyOrderFields, Array.from(inputs));
+
+                // Show/hide identity fields based on amount
+                updateIdentityVisibility();
+            });
+
+            // Monitor money order amount for identity threshold
+            if (moAmount) {
+                moAmount.addEventListener('input', updateIdentityVisibility);
+            }
+
+            function updateIdentityVisibility() {
+                const amount = parseFloat(moAmount?.value || '0');
+                const needsIdentity = amount >= moThreshold;
+
+                if (needsIdentity) {
+                    identityFields.style.display = 'block';
+                    identityFields.hidden = false;
+                    identityFields.querySelectorAll('input, select').forEach(input => input.required = true);
+                } else {
+                    identityFields.style.display = 'none';
+                    identityFields.hidden = true;
+                    identityFields.querySelectorAll('input, select').forEach(input => input.required = false);
+                }
+            }
+
+            // Initial check
+            updateIdentityVisibility();
+
+            // Form submit loading state
+            const form = document.querySelector('.transaction-form');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = submitBtn.querySelector('.submit-text');
+            const submitPending = submitBtn.querySelector('.submit-pending');
+
+            form.addEventListener('submit', function (e) {
+                if (form.checkValidity()) {
+                    submitBtn.disabled = true;
+                    submitBtn.setAttribute('aria-busy', 'true');
+                    submitText.classList.add('visually-hidden');
+                    submitPending.classList.remove('visually-hidden');
+                }
+            });
+
+            // Enhance select dropdowns with live price preview for products
+            document.querySelectorAll('[id^="Products_"][id$="__Sku"]').forEach(select => {
+                select.addEventListener('change', function () {
+                    const selectedOption = this.options[this.selectedIndex];
+                    if (selectedOption.dataset.price) {
+                        const price = parseFloat(selectedOption.dataset.price).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+                        const tax = selectedOption.dataset.tax;
+                        const category = selectedOption.dataset.category;
+                        const hint = this.parentElement.querySelector('.form-hint');
+                        if (hint) {
+                            hint.textContent = `Price: ${price} · Tax: ${tax} · Category: ${category}`;
+                        }
+                    }
+                });
+            });
+
+            // Masked document number formatting
+            const maskedInput = document.querySelector('[asp-for="IdentityMaskedDocumentNumber"]');
+            if (maskedInput) {
+                maskedInput.addEventListener('input', function () {
+                    this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (this.value.length > 8) this.value = this.value.slice(0, 8);
+                });
+            }
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    if (!submitBtn.disabled) {
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                }
+            });
+        });
+    </script>
+}

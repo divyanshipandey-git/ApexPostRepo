@@ -60,7 +60,7 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("id=\"theme-toggle\"", content);
         Assert.Contains("aria-label=\"Switch to dark theme\"", content);
         Assert.Contains("class=\"form-control text-input\"", content);
-        Assert.Contains("class=\"card shadow-sm surface-card inquiry-form\"", content);
+        Assert.Contains("class=\"card surface-card inquiry-form\"", content);
         Assert.DoesNotContain("Counter Transactions", content);
         Assert.DoesNotContain("Money Orders", content);
 
@@ -96,7 +96,8 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("IND01", content);
         Assert.Contains("Envelope", content);
         Assert.Contains("ENV001", content);
-        Assert.Contains("<dd>12</dd>", content);
+        Assert.Contains("Quantity on hand</dt>", content);
+Assert.Contains("12", content);
     }
 
     [Theory]
@@ -1008,9 +1009,9 @@ public sealed class WebApplicationIntegrationTests
         Assert.Contains("Central Branch counter", html);
         Assert.Contains("Envelope (ENV001)", html);
         Assert.Contains("name=\"__RequestVerificationToken\"", html);
-        Assert.Contains("Shipping service (optional)", html);
-        Assert.Contains("Money order (optional)", html);
-        Assert.Contains("Identity check, when required", html);
+        Assert.Contains("Shipping service", html);
+        Assert.Contains("Money order", html);
+        Assert.Contains("Identity check (required", html);
     }
 
     [Fact]
@@ -1631,9 +1632,7 @@ public sealed class WebApplicationIntegrationTests
                 shipmentId,
                 "Parcel",
                 new Weight(1.25m),
-                20m,
-                15m,
-                10m,
+                new Dimensions(20m, 15m, 10m),
                 "ZONE1",
                 ShippingServiceLevel.Standard));
         }
@@ -1772,6 +1771,7 @@ public sealed class WebApplicationIntegrationTests
                 services.RemoveAll<IShipmentRepository>();
                 services.RemoveAll<IMoneyOrderRepository>();
                 services.RemoveAll<IReportDataSource>();
+                services.RemoveAll<ITrackedShipmentRepository>();
 
                 services.AddInfrastructure(options => options.DataDirectory = DataDirectory);
                 services.AddDataProtection()

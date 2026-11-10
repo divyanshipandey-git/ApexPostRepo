@@ -1,6 +1,6 @@
 # Assignment requirement traceability
 
-> Historical Week 2 traceability snapshot: the JSON persistence references below document how those assignment requirements were originally implemented and tested. Week 3 supersedes JSON as the Web runtime persistence mechanism; the current SQL-only runtime, migrations, import boundary, and verification state are documented in [ADR-0015](adr/0015-sql-runtime-and-reporting-boundary.md) and the [Week 3 final report](WEEK3-FINAL-SUBMISSION-REPORT.md). The Week 2 business requirements remain in scope.
+> Historical Week 2 traceability snapshot: the JSON persistence references below document how those assignment requirements were originally implemented and tested. Week 3 supersedes JSON as the Web runtime persistence mechanism; the current SQL-only runtime, migrations, import boundary, and verification state are documented in [ADR-0015](adr/0015-sql-runtime-and-reporting-boundary.md) and the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md). The Week 2 business requirements remain in scope.
 
 This matrix maps the authoritative `apexpost.txt` requirements to implementation and verification. “Verified” means the referenced code and/or automated test was inspected or run in this checkout. Simulations and documented deployment limits are called out instead of being presented as production integrations.
 
@@ -11,13 +11,13 @@ This matrix maps the authoritative `apexpost.txt` requirements to implementation
 | MVC report filters and role scope | Verified | `/Reports` accepts UTC date, branch, and validated low-stock threshold. Branch Managers remain restricted to their home branch; Auditors and Administrators may filter by branch. Auditor/Admin money-order, identity-verification, and top-products workflows have SQL-backed route coverage. |
 | SQL-side report work | Verified | Daily sales and low stock use parameterized stored procedures; shipment, branch service activity, paginated detail, and top-products queries filter/aggregate in SQL. Application returns report DTOs rather than exposing `IQueryable`. |
 | Administrator price revision | Verified with business-rule assumption | Category price updates use `ExecuteUpdateAsync` inside the SQL unit-of-work transaction. Current behavior sets an absolute fixed price for all products in a category; confirm this assumption before operational use. |
-| Exception and transaction handling | Verified | Concurrency conflicts map to HTTP 409, request cancellation propagates, unexpected exceptions return safe Problem Details, counter-sale persistence failures are logged/compensated, and audit-write failures do not replace business responses. See [exception handling review](EXCEPTION-HANDLING-REVIEW.md). |
+| Exception and transaction handling | Verified | Concurrency conflicts map to HTTP 409, request cancellation propagates, unexpected exceptions return safe Problem Details, counter-sale persistence failures are logged/compensated, and audit-write failures do not replace business responses. See [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md#9-exception-handling-and-middleware). |
 | Database scripts, migration, and ADRs | Verified | Seven EF migrations are represented in the generated idempotent script; the latest migration includes rollback definitions. Standalone query/procedure/index/seed/verification scripts and ADR-0016 through ADR-0025 document the organization and decisions. |
-| Query translation and performance evidence | Verified as synthetic evidence | `PERFORMANCE.md` includes current filtered query shapes and corrected synthetic LocalDB actual-plan, IO, time, write-read, and storage measurements. These do not establish production performance. |
+| Query translation and performance evidence | Verified as synthetic evidence | [docs/WEEK3-COMPLETE-DOCUMENTATION.md#5-performance-evidence](docs/WEEK3-COMPLETE-DOCUMENTATION.md#5-performance-evidence) includes current filtered query shapes and corrected synthetic LocalDB actual-plan, IO, time, write-read, and storage measurements. These do not establish production performance. |
 | Automated validation | Verified | The latest SQL-enabled Release run passed 407 tests (112 Domain, 214 Application, 81 Web integration), 0 failed, 0 skipped; the explicit Release build had 0 warnings and errors. |
 | Explicit exclusions | Verified | No Couchbase, CounterTerminal, offline mode, synchronization, SyncInbox/outbox, or conflict-resolution code was added. |
 
-For the complete request-by-request assessment and remaining caveats, see the [Week 3 requirement gap analysis](WEEK3-REQUIREMENT-GAP-ANALYSIS.md) and [Week 3 final submission report](WEEK3-FINAL-SUBMISSION-REPORT.md).
+For the complete request-by-request assessment and remaining caveats, see the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md).
 
 ## Part A — Functional requirements
 

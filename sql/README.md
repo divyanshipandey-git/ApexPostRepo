@@ -1,6 +1,8 @@
-# ApexPost SQL demonstrations
+# ApexPost SQL Demonstrations
 
 The root `sql` folder contains runnable SQL examples and session-based demonstrations. The deployed schema, EF migration reference, reporting queries, and stored procedure definitions remain authoritative under [`database/`](../database/); the files there are intentionally not copied here.
+
+**Complete Week 3 documentation:** [`../docs/WEEK3-COMPLETE-DOCUMENTATION.md`](../docs/WEEK3-COMPLETE-DOCUMENTATION.md)
 
 ## Reports
 
@@ -14,30 +16,44 @@ The root `sql` folder contains runnable SQL examples and session-based demonstra
 | Low stock | [`queries/low-stock-report.sql`](queries/low-stock-report.sql) |
 | Identity verifications per branch | [`queries/identity-verifications-per-branch.sql`](queries/identity-verifications-per-branch.sql) |
 
-## Transactions and concurrency
+## Transactions and Concurrency
 
 Both transaction examples reject databases outside the `ApexPost_SqlIT_*` test-catalog prefix. The counter-sale example rolls back by default; change `@CommitDemo` only when intentionally testing against disposable data. The blocking scripts are read-only and use an explicit stock key.
 
 - [`transactions/counter-sale-transaction.sql`](transactions/counter-sale-transaction.sql)
 - [`transactions/stock-adjustment-transaction.sql`](transactions/stock-adjustment-transaction.sql)
-- [`concurrency/`](concurrency/)
+- [`concurrency/`](concurrency/) — blocking/deadlock demos and automation scripts
 
-## Existing SQL assets
+### Automation Scripts (PowerShell)
+
+Run from repository root with `APEXPOST_SQL_TEST_CONNECTION` set:
+
+```powershell
+# Performance evidence (saves .sqlplan files to docs/performance-plans/)
+$env:APEXPOST_PERF_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=master;Trusted_Connection=True;"
+./docs/performance-plans/Run-PerformanceEvidence.ps1
+
+# Blocking demo (captures sys.dm_exec_requests output)
+$env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=master;Trusted_Connection=True;"
+./docs/performance-plans/Run-BlockingDemo.ps1
+```
+
+## Existing SQL Assets
 
 - Schema and idempotent deployment script: [`database/schema/`](../database/schema/)
 - EF Core migrations: [`src/ApexPost.Infrastructure/Persistence/Migrations/`](../src/ApexPost.Infrastructure/Persistence/Migrations/)
-- Stored procedures: [`database/stored-procedures/`](../database/stored-procedures/)
+- Stored procedures: [`database/stored-procedures/`](../database/stored-procedures/) (also mirrored under [`sql/stored-procedures/`](stored-procedures/) for SQLCMD convenience)
 - Index evidence: [`database/indexes/`](../database/indexes/)
-- Performance evidence: [`database/performance/`](../database/performance/) and [`PERFORMANCE.md`](../PERFORMANCE.md)
+- Performance evidence: [`database/performance/`](../database/performance/) and [`docs/performance-plans/`](../docs/performance-plans/)
 - Schema verification: [`database/verification/VerifyApexPostDb.sql`](../database/verification/VerifyApexPostDb.sql)
 
-Run the `:r` wrapper scripts from the repository root in SQLCMD mode (or use `sqlcmd -i`) connected to a disposable development/test catalog. The two report-specific queries and transaction/concurrency demos are self-contained. Do not run transaction demos against persistent `ApexPostDb`. See [`database/README.md`](../database/README.md) for deployment and database setup guidance.
+Run the SQL scripts from the repository root in SQLCMD mode (or use `sqlcmd -i`) connected to a disposable development/test catalog. The two report-specific queries and transaction/concurrency demos are self-contained. Do not run transaction demos against persistent `ApexPostDb`. See [`database/README.md`](../database/README.md) for deployment and database setup guidance.
 
-## Least-privilege application access
+## Least-Privilege Application Access
 
 Use a dedicated database role for the Web application's runtime identity. These grants describe the intended permission set; no deployed restricted principal was provisioned or inspected as part of this repository verification.
 
-| Permission | Granted objects | Why the runtime needs it |
+| Permission | Granted Objects | Why the Runtime Needs It |
 |---|---|---|
 | `SELECT` | Branches, counters, staff, staff credentials, roles, products/categories, branch stock, shipping zones/rates, shipments, counter transactions/lines/tax rates/payments, money orders, identity verifications, and stock movements | Sign-in/role checks, branch and counter authorization, current price/stock validation, transaction and auditor reports, and loading existing records before state changes. |
 | `INSERT` | Branches, counters, staff, staff credentials, products, branch stock, counter transactions, transaction lines/tax rates, payments, shipments, money orders, identity verifications, stock movements, and audit entries | Supported Web workflows create these records; the stock-adjustment and transaction paths must insert their associated history, payment, and audit records. Grant only the subset actually used by enabled features. |
