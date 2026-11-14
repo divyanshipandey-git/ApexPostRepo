@@ -60,6 +60,20 @@ Boundary tests of commit `afa7099` failed on purpose-found gaps in `TrackedShipm
 1. weights 0.01 to 0.09 kg were accepted although the rule (and the error message) says the minimum is 0.1 kg;
 2. `"APX-20250101\n"` passed `^APX-\d{8}$` because .NET `$` also matches before a final newline; the domain now uses `\z`.
 
-## 8. Not done, on purpose
+## 8. Cycle 3: the rule is wired into the API
 
-The surcharge is not yet added to any API response or stored on the shipment; that would change the OpenAPI contracts (`contracts/v2.json`) and needs a product decision. The pure rule is ready to be called from `ShipmentApiService`.
+The first two cycles built the pure rule. Cycle 3 applies it to a real shipment and exposes it in the v2 API, again test-first.
+
+| Step | Commit | What happened |
+|---|---|---|
+| **RED** | `88afae6` | A stub `TrackedShipment.Surcharge` returns 0. New tests fail: 3 unit tests (`TrackedShipmentSurchargeTests`: 40 kg, 70 kg, recalculation after `UpdateDetails`) and 4 API tests (`PostShipment_V2_ReportsTheHeavyParcelSurcharge` through `WebApplicationFactory`; a 5th test, "v1 has no surcharge field", is already green and guards the frozen v1 contract). |
+| **GREEN** | `088ae10` | `Surcharge => HeavyParcelSurcharge.Calculate(WeightKg)` and `SurchargeAmount` in `V2ShipmentDetail`, mapped in `MapToV2Detail`. |
+| **REFACTOR** | `d6fa243` | `using` instead of a fully qualified name; the DTO documentation points at `HeavyParcelSurcharge` instead of repeating 12.50 / 0.75 / 30 (one source of truth). Behaviour unchanged. |
+
+Follow-up (not a TDD step): `contracts/v2.json` was re-exported from the running API and the NSwag client regenerated (`surchargeAmount` is additive, so non-breaking, see VERSIONING.md). The BDD feature `HeavyParcelSurcharge.feature` describes the same rule in business language.
+
+Design notes: `Surcharge` is a computed, get-only property, so EF Core does not map or store it (nothing to migrate); the surcharge is derived from the weight every time, so it can never disagree with it.
+
+## 9. Still open on purpose
+
+The surcharge is only reported (`surchargeAmount`); nothing charges or stores money yet. Billing needs a product decision (who pays, currency, tax), so it was not invented here.
