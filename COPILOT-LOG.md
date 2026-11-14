@@ -2,7 +2,7 @@
 
 ## Honest note about the tool
 
-The lab asks for **GitHub Copilot**. The drafts below were produced in this repository by **Claude Code** (an AI coding assistant), not by Copilot, and this log says so instead of presenting them as Copilot output. The process the lab wants is the same: prompt, draft, human review, proof that the tests can fail. The prompts are written so that they can be pasted into Copilot Chat unchanged. **Before the viva, repeat prompts 1 and 2 in Copilot, paste its raw answer under "Copilot raw output" in each section, and record your own keep / change / reject decisions.** Do not claim Copilot wrote these tests unless you did that.
+The lab asks for **GitHub Copilot**. The student has no Copilot access, so the AI-assisted step was done with **Claude Code** (an AI coding assistant) as a **declared substitute**. This is stated openly and the drafts are not presented as Copilot output: Copilot output cannot be produced or invented here. The lab process is followed in full with the substitute tool: saved prompt, AI draft, human review (keep / change / reject with reasons), and proof by deliberate breakage that the tests can fail. The prompts are tool-neutral, so they can be pasted into Copilot Chat later if the instructor requires Copilot specifically; the "Copilot raw output" placeholders below are for that case only. **Tell the instructor about the substitution before the viva.**
 
 Every AI-assisted file carries the comment `AI-ASSISTED: ...` on its first lines:
 `tests/ApexPost.UnitTests/Client/ApexApiClientTests.cs`, `.../Outbox/OutboxServiceMoqTests.cs`, `.../Api/ScanUploadServiceMoqTests.cs`, `tests/ApexPost.Specs/Features/ScanSync.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncSteps.cs`.
@@ -88,3 +88,21 @@ Real runs; raw output in `docs/evidence/`. Each mutation was applied with `sed`,
 | 3 | `OutboxService`: `success ? Synced : Failed` swapped | 3 Moq unit tests and the Reqnroll scenario "The outbox marks uploaded scans as synced and failed ones as failed" | same file |
 
 Each break was caught by at least two different test levels, which is what the pyramid is meant to give.
+
+---
+
+## Prompt 3: typed API client tests (fake HttpMessageHandler)
+
+**Prompt**
+
+> Write xUnit tests for `ApexApiClient.UploadScansAsync` using a fake `HttpMessageHandler` (no real network). Cover: 200 with JSON, route and camelCase body, special characters in the tracking number, empty body, malformed JSON, unknown JSON fields, 404 with ProblemDetails, 500 with plain text, a theory of error status codes, a 400 validation problem, HttpClient timeout, network failure and caller cancellation.
+
+**What the assistant produced:** `ApexApiClientTests` (14 methods, 19 cases) and `StubHttpMessageHandler`.
+
+**Kept:** the status-code theory (one method, six cases); the test that the tracking number is URL-escaped; the cancellation test where the handler waits on the caller token.
+
+**Changed:** the timeout test originally also expected a retry; retry lives in the Polly handler pipeline, not in `ApexApiClient`, so it now asserts that `TaskCanceledException` (with `TimeoutException` inside) propagates to the resilience layer.
+
+**Rejected:** a test with a real `localhost` server (breaks the no-network rule); asserting log output (couples the test to wording).
+
+**What the fake does not prove:** that the real Polly pipeline retries or opens the circuit; that is shown in the Week 4 runtime evidence, not in unit tests.
