@@ -20,11 +20,11 @@ Likelihood x cost of failure, highest first. Every row names the test level that
 
 ## 2. Test pyramid
 
-| Level | What runs there | Planned share | Actual (827 passing tests) | Speed |
+| Level | What runs there | Planned share | Actual (866 passing tests) | Speed |
 |---|---|---|---|---|
-| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **85 %** (703) | milliseconds |
-| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **13 %** (107) | tens of ms to seconds |
-| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | **2 %** (17) | seconds |
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **83 %** (718) | milliseconds |
+| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **13 %** (115) | tens of ms to seconds |
+| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | **4 %** (33) | seconds |
 
 Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where a failure points at one line. Wiring problems (auth, routing, serialisation, EF translation) can only be seen with real components, so they get fewer, broader tests. BDD scenarios are a thin top layer: they document what the business expects and are not a place to re-test every boundary.
 
@@ -34,6 +34,7 @@ Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where
 |---|---|---|
 | `ShipmentCreation.feature` | **API** (in-process `WebApplicationFactory`, SQLite, test auth) | The business promise is "POST creates a shipment, a duplicate gives 409, a bad weight gives 400". Status codes, validation and the unique key only exist when the real pipeline runs. |
 | `ScanSync.feature` | **Service** (`ScanUploadService` and `OutboxService` with in-memory fakes) | The promise is about counts (accepted / duplicates / rejected) and states (Pending to Synced). HTTP adds nothing here and would make the scenarios slower and more brittle. |
+| `HeavyParcelSurcharge.feature` | **API** | The surcharge is a business promise about what the customer sees: it must appear in the v2 response of a real POST and a later GET, so it is checked through the real pipeline (serialisation and contract included). The arithmetic itself is covered by unit tests. || `ShipmentLifecycle.feature` | **API** | The rules are about who may change the status and which HTTP answer a forbidden move gets (204 or 409), so roles, routing and the domain rule have to run together. |
 
 ## 3. Framework choice: xUnit (one framework across the solution)
 
@@ -190,5 +191,12 @@ How TDD, BDD, xUnit, Moq and Reqnroll combine (one framework, several techniques
 ![Testing strategy overview](docs/testing-strategy-diagram.svg)
 
 * **xUnit** is the single test framework and runner; **Reqnroll** only generates xUnit tests from Gherkin, so Test Explorer and `dotnet test` see everything.
-* **Moq** and the fake `HttpMessageHandler` isolate dependencies at the unit level.
+* **Moq** and the fake `HttpMessageHandler` isolate dependencies at the unit level. Mocks are `MockBehavior.Strict` where "nothing may be saved" matters, so an unexpected call fails the test by itself.
 * **TDD** is how unit-level rules are written (RED, GREEN, REFACTOR commits); **BDD** is how business behaviour is agreed and checked at API or service level.
+
+## 11. Completion round (what was added after the first review)
+
+* **TDD cycle 3:** the surcharge rule is now wired into the product: `TrackedShipment.Surcharge` and the additive v2 field `surchargeAmount` (RED, GREEN, REFACTOR commits; [TDD-LOG.md](TDD-LOG.md) section 9). The v2 contract was re-exported and the client regenerated; v1 is unchanged.
+* **BDD:** two more features at API level (`HeavyParcelSurcharge`, `ShipmentLifecycle`), 33 scenarios in total, all four features with a Background and a Scenario Outline.
+* **Mocking:** `ShipmentApiServiceMoqTests` covers duplicate tracking numbers (R2) and the status and delete rules with strict mocks; `SqliteModelGuardTests` makes the limits of the SQLite substitute explicit so they cannot drift unnoticed.
+* **Mutation proof 4:** changing the 30 kg threshold fails a unit, an integration and a BDD test (`docs/evidence/mutation-4-surcharge-threshold.txt`).
