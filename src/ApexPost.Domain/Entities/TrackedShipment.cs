@@ -91,8 +91,8 @@ public sealed class TrackedShipment
     /// </summary>
     public IReadOnlyCollection<TrackedShipmentScan> Scans => _scans.AsReadOnly();
 
-    /// <summary>Heavy parcel surcharge for this shipment (RED stub: always zero for now).</summary>
-    public decimal Surcharge => 0m;
+    /// <summary>Heavy parcel surcharge for this shipment (flat fee plus a rate per kg above 30 kg; zero up to 30 kg).</summary>
+    public decimal Surcharge => ApexPost.Domain.Pricing.HeavyParcelSurcharge.Calculate(WeightKg);
 
     // Private constructor for EF Core
     private TrackedShipment()
