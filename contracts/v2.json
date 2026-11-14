@@ -2134,6 +2134,11 @@
             "format": "double",
             "nullable": true
           },
+          "surchargeAmount": {
+            "type": "number",
+            "description": "Surcharge for heavy parcels (over 30 kg): flat fee plus a rate per kg above the threshold (see HeavyParcelSurcharge). Zero for parcels up to 30 kg. Added in v2 (additive, not breaking).",
+            "format": "double"
+          },
           "createdAtUtc": {
             "type": "string",
             "description": "UTC timestamp when the shipment was created.",
