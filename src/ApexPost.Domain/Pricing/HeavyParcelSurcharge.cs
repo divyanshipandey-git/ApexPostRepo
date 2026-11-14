@@ -10,6 +10,11 @@ public static class HeavyParcelSurcharge
             throw new ArgumentOutOfRangeException(nameof(weightKg));
         }
 
+        if (weightKg > 30)
+        {
+            return Math.Round(12.50m + (weightKg - 30m) * 0.75m, 2, MidpointRounding.AwayFromZero);
+        }
+
         return 0m;
     }
 }
