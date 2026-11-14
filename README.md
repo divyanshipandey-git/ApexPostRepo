@@ -66,7 +66,7 @@ dotnet run --project src/ApexPost.Api --launch-profile https   # terminal 1 (sec
 
 (`scripts/export-contracts.sh` and `scripts/generate-client.sh` do the same on bash.) The generated `src/ApexPost.Client/ApexPost.Client.cs` is committed and compiled into `ApexPost.Client`; `tools/ApexPost.Client.Consumer` makes real HTTP calls through that client.
 
-> **Note on the committed contracts.** The copies in this repository were produced offline from the controller metadata by a generator script because no database/Couchbase/NuGet access was available when they were prepared. Run the export script once on a development machine and commit the result so the files are byte-for-byte what your API serves.
+> **Contracts.** `contracts/v1.json` and `contracts/v2.json` were exported from the running API and the client was regenerated from `v2.json`. Re-run the export and generate scripts after every API change (the PowerShell script needs PowerShell 7; `curl` against `/openapi/{v}.json` is equivalent).
 
 ### API configuration and secrets (nothing secret is committed)
 `appsettings.json` contains no connection string, signing key or API key. Configure them with user-secrets:
@@ -199,5 +199,6 @@ Create short-lived feature branches from `main`, make small commits, run build/t
 The current implementation includes branch dashboards and repository-backed reports, staff administration, product catalogue and stock adjustments, shipping-label preview, staff cookie authentication, courier parcel-status integration, mixed counter sales, transaction-linked money orders and identity checks, authorized void/full-refund workflows, cached reflection validation, the C# 14 extension-member/`field` examples, and a `ValueTask` product cache. The label preview is not carrier-ready because shipments do not yet capture a recipient postal address; courier tracking and payment settlement remain simulations. See [docs/RUBRIC-CHECKLIST.md](docs/RUBRIC-CHECKLIST.md) for requirement-level evidence and remaining operational gaps.
 
 ### Courier client and OpenAPI version
+- Courier domain model and repository port: `src/ApexPost.Courier.Domain`; Couchbase Lite implementation: `src/ApexPost.Courier.Offline`.
 - The courier client is the .NET console app `src/ApexPost.Courier.Console` (stand-in for the MAUI app; see [SECURITY.md](SECURITY.md)). The Part A harness is `tools/ApexPost.Courier.Offline.Console`.
 - The built-in generator is configured to emit **OpenAPI 3.0** (`options.OpenApiVersion`) so NSwag can generate the client; `nswag run nswag.json` regenerates `src/ApexPost.Client` from `contracts/v2.json`, and `scripts/Export-Contracts.ps1` refreshes `contracts/` from the running API.

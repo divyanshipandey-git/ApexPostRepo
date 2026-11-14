@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ApexPost.Courier.Console.Models;
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 using ApexPost.Courier.Offline.Persistence;
 using Microsoft.Extensions.Logging;
 
@@ -115,7 +114,7 @@ public sealed class CourierDatabaseWrapper : ICourierDatabase
 
     public async Task<IReadOnlyList<LocalScanDocument>> GetPendingScansAsync()
     {
-        var scans = await _repository.GetBySyncStatusAsync(ApexPost.Courier.Offline.Domain.SyncStatus.Pending);
+        var scans = await _repository.GetBySyncStatusAsync(ApexPost.Courier.Domain.SyncStatus.Pending);
         return scans.Select(LocalScanDocument.FromOffline).ToList();
     }
 
@@ -130,7 +129,7 @@ public sealed class CourierDatabaseWrapper : ICourierDatabase
         var scan = await _repository.GetByIdAsync(scanId);
         if (scan != null)
         {
-            var updatedScan = new ApexPost.Courier.Offline.Domain.ShipmentScan
+            var updatedScan = new ApexPost.Courier.Domain.ShipmentScan
             {
                 Id = scan.Id,
                 TrackingNumber = scan.TrackingNumber,
@@ -139,7 +138,7 @@ public sealed class CourierDatabaseWrapper : ICourierDatabase
                 Location = scan.Location,
                 ScannedAtUtc = scan.ScannedAtUtc,
                 Notes = scan.Notes,
-                SyncStatus = ApexPost.Courier.Offline.Domain.SyncStatus.Synced
+                SyncStatus = ApexPost.Courier.Domain.SyncStatus.Synced
             };
             await _repository.UpdateAsync(updatedScan);
         }
@@ -150,7 +149,7 @@ public sealed class CourierDatabaseWrapper : ICourierDatabase
         var scan = await _repository.GetByIdAsync(scanId);
         if (scan != null)
         {
-            var updatedScan = new ApexPost.Courier.Offline.Domain.ShipmentScan
+            var updatedScan = new ApexPost.Courier.Domain.ShipmentScan
             {
                 Id = scan.Id,
                 TrackingNumber = scan.TrackingNumber,
@@ -159,7 +158,7 @@ public sealed class CourierDatabaseWrapper : ICourierDatabase
                 Location = scan.Location,
                 ScannedAtUtc = scan.ScannedAtUtc,
                 Notes = string.IsNullOrEmpty(scan.Notes) ? reason : $"{scan.Notes}; Sync failed: {reason}",
-                SyncStatus = ApexPost.Courier.Offline.Domain.SyncStatus.Failed
+                SyncStatus = ApexPost.Courier.Domain.SyncStatus.Failed
             };
             await _repository.UpdateAsync(updatedScan);
         }

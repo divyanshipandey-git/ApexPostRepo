@@ -12,14 +12,16 @@ using Microsoft.Extensions.Logging;
 //   1. start the API:  dotnet run --project src/ApexPost.Api       (Development; set the user-secrets first, see README)
 //   2. run this tool:  dotnet run --project tools/ApexPost.Client.Consumer
 //
-// Settings (appsettings / environment / command line): Api:BaseAddress, Api:CourierId.
+// Creating shipments is Admin-only (POST/PUT /shipments), scans are Courier-only, so the consumer uses two identities.
+// Settings (appsettings / environment / command line): Api:BaseAddress, Api:CourierId, Api:AdminId.
 
 var builder = Host.CreateApplicationBuilder(args);
 
 var baseAddress = new Uri(builder.Configuration["Api:BaseAddress"] ?? "https://localhost:54402/");
 var courierId = builder.Configuration["Api:CourierId"] ?? "COURIER-001";
+var adminId = builder.Configuration["Api:AdminId"] ?? "ADMIN-001";
 
-builder.Services.AddSingleton(new ConsumerOptions(baseAddress, courierId));
+builder.Services.AddSingleton(new ConsumerOptions(baseAddress, courierId, adminId));
 builder.Services.AddHttpClient(AccessTokenProvider.HttpClientName, client => client.BaseAddress = baseAddress);
 builder.Services.AddSingleton<AccessTokenProvider>();
 builder.Services.AddTransient<BearerTokenHandler>();
@@ -164,10 +166,10 @@ static List<ScanDocumentRequest> BuildScans(string courierId)
 }
 
 /// <summary>Settings of the consumer.</summary>
-internal sealed record ConsumerOptions(Uri BaseAddress, string CourierId);
+internal sealed record ConsumerOptions(Uri BaseAddress, string CourierId, string AdminId);
 
 /// <summary>
-/// Gets a JWT for the configured courier from the API's Development-only token endpoint and caches it.
+/// Gets a JWT from the API's Development-only token endpoint, one cached token per role.
 /// (A production app would sign in with its identity provider instead.)
 /// </summary>
 internal sealed class AccessTokenProvider(IHttpClientFactory httpClientFactory, ConsumerOptions options)
@@ -175,31 +177,27 @@ internal sealed class AccessTokenProvider(IHttpClientFactory httpClientFactory, 
     public const string HttpClientName = "dev-token";
 
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private string? _token;
+    private readonly Dictionary<string, string> _tokens = [];
 
-    public async Task<string> GetTokenAsync(CancellationToken cancellationToken)
+    public async Task<string> GetTokenAsync(string role, CancellationToken cancellationToken)
     {
-        if (_token is not null)
-        {
-            return _token;
-        }
-
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_token is null)
+            if (!_tokens.TryGetValue(role, out var token))
             {
+                var subject = role == "Admin" ? options.AdminId : options.CourierId;
                 var http = httpClientFactory.CreateClient(HttpClientName);
                 var response = await http.PostAsJsonAsync(
-                    "/dev/token", new { courierId = options.CourierId, role = "Courier" }, cancellationToken);
+                    "/dev/token", new { courierId = subject, role }, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var body = await response.Content.ReadFromJsonAsync<TokenBody>(cancellationToken)
                     ?? throw new InvalidOperationException("The token endpoint returned an empty body.");
-                _token = body.AccessToken;
+                token = _tokens[role] = body.AccessToken;
             }
 
-            return _token;
+            return token;
         }
         finally
         {
@@ -210,13 +208,26 @@ internal sealed class AccessTokenProvider(IHttpClientFactory httpClientFactory, 
     private sealed record TokenBody([property: JsonPropertyName("access_token")] string AccessToken);
 }
 
-/// <summary>Adds the Bearer token to every request of the generated client.</summary>
+/// <summary>
+/// Adds the Bearer token to every request of the generated client: Admin for creating, replacing or deleting
+/// shipments, Courier for everything else (reads, scans, status changes).
+/// </summary>
 internal sealed class BearerTokenHandler(AccessTokenProvider tokens) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var token = await tokens.GetTokenAsync(cancellationToken);
+        var token = await tokens.GetTokenAsync(RoleFor(request), cancellationToken);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         return await base.SendAsync(request, cancellationToken);
+    }
+
+    private static string RoleFor(HttpRequestMessage request)
+    {
+        var path = request.RequestUri?.AbsolutePath.TrimEnd('/') ?? string.Empty;
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // /api/v2/shipments or /api/v2/shipments/{trackingNumber}: nothing after the shipment itself.
+        var isShipmentResource = segments.Length is 3 or 4 && segments[2] == "shipments";
+        var isWrite = request.Method == HttpMethod.Post || request.Method == HttpMethod.Put || request.Method == HttpMethod.Delete;
+        return isShipmentResource && isWrite ? "Admin" : "Courier";
     }
 }

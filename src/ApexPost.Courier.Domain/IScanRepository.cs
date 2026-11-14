@@ -1,6 +1,6 @@
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 
-namespace ApexPost.Courier.Offline.Abstractions;
+namespace ApexPost.Courier.Domain;
 
 /// <summary>
 /// Repository interface for managing shipment scan documents.

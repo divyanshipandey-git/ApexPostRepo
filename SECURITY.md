@@ -58,8 +58,8 @@ Tokens issued by the development endpoint contain:
 | Policy | Required Role | Applied To |
 |--------|---------------|------------|
 | `CourierOnly` | Courier | Scan upload, Status PATCH |
-| `AdminOnly` | Admin | DELETE shipment |
-| `AuthenticatedUser` | Any authenticated | GET shipment, GET list, POST/PUT shipment |
+| `AdminOnly` | Admin | POST, PUT and DELETE shipment (v1 and v2) |
+| `AuthenticatedUser` | Any authenticated | GET shipment, GET list |
 
 ### Courier ID Enforcement
 For scan upload endpoints, the `courierId` claim in the JWT must match the `courierId` field in each scan being uploaded. A mismatch returns **403 Forbidden**.

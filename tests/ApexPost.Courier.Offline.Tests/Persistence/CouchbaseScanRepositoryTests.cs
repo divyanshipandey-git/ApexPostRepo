@@ -2,8 +2,7 @@ using System.Text.Json;
 using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 using ApexPost.Courier.Offline.Persistence;
 using ApexPost.Courier.Offline.Services;
 
