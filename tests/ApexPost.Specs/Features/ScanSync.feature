@@ -1,3 +1,4 @@
+# AI-ASSISTED: drafted with an AI assistant (another AI coding assistant), then reviewed; see COPILOT-LOG.md
 @service
 Feature: Scan synchronisation
   Couriers scan parcels where there is no network. When the phone is online again the scans are uploaded.

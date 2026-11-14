@@ -20,11 +20,11 @@ Likelihood x cost of failure, highest first. Every row names the test level that
 
 ## 2. Test pyramid
 
-| Level | What runs there | Approx. share of tests | Speed |
-|---|---|---|---|
-| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | milliseconds |
-| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | tens of ms to seconds |
-| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | seconds |
+| Level | What runs there | Planned share | Actual (827 passing tests) | Speed |
+|---|---|---|---|---|
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **85 %** (703) | milliseconds |
+| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **13 %** (107) | tens of ms to seconds |
+| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | **2 %** (17) | seconds |
 
 Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where a failure points at one line. Wiring problems (auth, routing, serialisation, EF translation) can only be seen with real components, so they get fewer, broader tests. BDD scenarios are a thin top layer: they document what the business expects and are not a place to re-test every boundary.
 
@@ -160,4 +160,25 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 
 ## 9. Reflection
 
-*(completed at the end of the week)*
+**What did the strategy catch?**
+
+* Two real defects in `TrackedShipment.Create`, found by the boundary tests before any BDD existed: weights from 0.01 to 0.09 kg were accepted although the rule says 0.1 kg, and a tracking number ending in a newline passed the `$` anchored regex. Both fixed (commit `e0f6a7d`).
+* A testability gap: `ScanUploadService` read the system clock, so the "5 minutes in the future" boundary could not be tested exactly. An optional `TimeProvider` fixed it without changing callers.
+* A mismatch worth knowing about, found while writing the API tests: the status DTO demands a reason for `Delivered`, the domain does not.
+* Deliberate breakage (COPILOT-LOG.md) showed that the important rules are guarded at two levels at once: disabling the duplicate-scan check fails 3 Moq tests and 2 BDD scenarios.
+
+**What would I change?**
+
+* Merge the overlapping Domain test classes (`MoneyTests` and `MoneyValueObjectTests`, and the same for Sku and Weight) once someone has the time to compare them line by line; I kept both because every case is distinct and green.
+* Run the SQL Server tests in CI against a container, so the 25 skipped tests are not only a local opt-in.
+* Add coverage reporting (`coverlet`) as evidence of blind spots. It was optional and was not done here, so no coverage number is claimed.
+* Move the SQLite customizer's knowledge (which SQL Server details are removed) into a short test that fails if a new SQL Server only mapping appears, instead of discovering it when schema creation breaks.
+* The DTO regex for the tracking number still uses `$`; the domain now rejects the trailing newline (HTTP 400), but the contract and generated client keep the old pattern. Changing it needs a contract re-export.
+
+**Which test type gave the most confidence per minute?**
+
+Parameterised unit tests with Moq. Each took a minute or two to write, ran in milliseconds and pointed at one line when they failed (the 6 x 6 transition matrix is 36 cases from one method). The API tests through `WebApplicationFactory` gave the most confidence **per test** (JWT validation, role policy, routing, validation, the exception handler and EF Core in one request), but cost the most setup time: making the SQL Server model run on SQLite took longer than all the endpoint tests together. BDD scenarios gave the least extra bug-finding but the best communication: a non-programmer can read `ScanSync.feature` and check that the rules are the agreed ones.
+
+**Honest limits**
+
+SQLite is not SQL Server (section 6), the Moq tests only prove sequencing, and the Copilot step needs to be repeated with Copilot itself (COPILOT-LOG.md explains why this log does not claim it).

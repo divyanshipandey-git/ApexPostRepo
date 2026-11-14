@@ -1,0 +1,13 @@
+## Mutation 1: remove the duplicate-scan check in ScanUploadService
+warning: in the working copy of 'src/ApexPost.Api/Services/ScanUploadService.cs', LF will be replaced by CRLF the next time Git touches it
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+--- UnitTests
+ApexPost.UnitTests.Api.ScanUploadServiceMoqTests.UploadScansAsync_ScanIdAlreadyStored_IsSkippedAndNothingIsSaved [FAIL]
+ApexPost.UnitTests.Api.ScanUploadServiceMoqTests.UploadScansAsync_MixedBatch_ReportsAcceptedDuplicateAndRejectedSeparately [FAIL]
+ApexPost.UnitTests.Api.ScanUploadServiceMoqTests.UploadScansAsync_SameScanIdTwiceInOneBatch_AcceptsOnceAndCountsOneDuplicate [FAIL]
+Failed!  - Failed:     3, Passed:   128, Skipped:     0, Total:   131, Duration: 321 ms - ApexPost.UnitTests.dll (net10.0)
+--- Specs
+A batch mixing new and already known scans is split correctly [FAIL]
+A retried upload does not create duplicates [FAIL]
+Failed!  - Failed:     2, Passed:    15, Skipped:     0, Total:    17, Duration: 4 s - ApexPost.Specs.dll (net10.0)
+restored: 0 modified files

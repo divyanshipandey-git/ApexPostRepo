@@ -13,6 +13,7 @@ using DtoScanType = ApexPost.Api.DTOs.ScanType;
 
 namespace ApexPost.UnitTests.Api;
 
+// AI-ASSISTED: drafted with an AI assistant (another AI coding assistant), then reviewed and changed by a human; see COPILOT-LOG.md.
 /// <summary>
 /// ScanUploadService (idempotent upload) with ITrackedShipmentRepository and IUnitOfWork mocked.
 /// The mock proves WHICH calls the service makes (save once / never). It does not prove that the real
