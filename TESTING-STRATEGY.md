@@ -119,12 +119,12 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 | `TransactionLineItemTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
 | `AddressTests` | 11 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
 | `BranchCodeTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `MoneyTests` | 12 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `MoneyValueObjectTests` | 12 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `SkuTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `SkuValueObjectTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `WeightTests` | 8 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
-| `WeightValueObjectTests` | 8 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `MoneyTests` | 24 | Modified | Merged with `MoneyValueObjectTests` (same class under test, every case distinct). The suite was run before and after: 330 passed both times, so no test was lost. Value-object invariants. |
+| `MoneyValueObjectTests` | 12 | Replaced | File removed; its 12 tests now live in `MoneyTests` (see row above). |
+| `SkuTests` | 18 | Modified | Merged with `SkuValueObjectTests` (same class under test, every case distinct). The suite was run before and after: 330 passed both times, so no test was lost. Value-object invariants. |
+| `SkuValueObjectTests` | 9 | Replaced | File removed; its 9 tests now live in `SkuTests` (see row above). |
+| `WeightTests` | 16 | Modified | Merged with `WeightValueObjectTests` (same class under test, every case distinct). The suite was run before and after: 330 passed both times, so no test was lost. Value-object invariants. |
+| `WeightValueObjectTests` | 8 | Replaced | File removed; its 8 tests now live in `WeightTests` (see row above). |
 | `SafeExceptionMiddlewareTests` | 6 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
 | `SqlRuntimeRegistrationTests` | 1 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
 | `ValidationActionFilterTests` | 3 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
@@ -136,7 +136,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 |---|---|---|---|
 | **Mocked repository** (`Mock<IShipmentRepository>`) | Service logic: "if it exists then 409", "save is called once", "nothing is saved on failure" | The service decides and sequences correctly given what the repository says | That the real query or unique index behaves that way; that the mock's `Returns` matches the real repository (a wrong setup passes happily) |
 | **SQLite in-memory** (real EF Core provider) | Repository queries, paging, filtering, ordering, uniqueness, change tracking | That LINQ translates to SQL and returns the right rows through the real `DbContext` | SQL Server specifics: `rowversion`, `datetime2`, collations, server-side defaults, locking, retry-on-failure, migrations. String comparison and case-sensitivity differ. |
-| **SQL Server / LocalDB** (existing opt-in tests) | Migrations, concurrency tokens, constraints | Behaviour on the production provider | Needs a SQL instance; slower; skipped by default so `dotnet test` works with no setup |
+| **SQL Server / LocalDB** (existing opt-in tests, plus `SqlServerTrackedShipmentTests` for the unique tracking number and `UniqueKeyConflictException` mapping) | Migrations, concurrency tokens, constraints, the real unique index | Behaviour on the production provider | Needs a SQL instance; slower; skipped by default so `dotnet test` works with no setup |
 | **Couchbase Lite temp folder** (existing) | SQL++ queries, indexes, outbox | Real embedded-engine behaviour | Sync Gateway behaviour (out of scope) |
 
 **Why `DbContext`/`DbSet` are not mocked for query logic:** a mocked `DbSet` runs LINQ-to-Objects, not LINQ-to-SQL. Queries that cannot be translated, that sort strings differently, that forget an `Include`, or that rely on a unique index all *pass* against a mock and *fail* in production. The test would only prove that C# can filter a list. Mocking `IQueryable` also couples the test to the exact call shape, so harmless refactors break it. A real (even if different) database provider is the smallest honest substitute.
@@ -170,9 +170,9 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 
 **What would I change?**
 
-* Merge the overlapping Domain test classes (`MoneyTests` and `MoneyValueObjectTests`, and the same for Sku and Weight) once someone has the time to compare them line by line; I kept both because every case is distinct and green.
-* Run the SQL Server tests in CI against a container, so the 25 skipped tests are not only a local opt-in.
-* Add coverage reporting (`coverlet`) as evidence of blind spots. It was optional and was not done here, so no coverage number is claimed.
+* The overlapping Domain test classes (Money, Sku, Weight) were merged in the completion round: 330 tests before and after, none lost (section 5).
+* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 893 passed, 0 skipped), so they are not only a local opt-in.
+* Coverage reporting was added in the completion round (section 12); the next step is a threshold-free trend in CI.
 * Move the SQLite customizer's knowledge (which SQL Server details are removed) into a short test that fails if a new SQL Server only mapping appears, instead of discovering it when schema creation breaks.
 * The DTO regex for the tracking number still uses `$`; the domain now rejects the trailing newline (HTTP 400), but the contract and generated client keep the old pattern. Changing it needs a contract re-export.
 
@@ -200,3 +200,28 @@ How TDD, BDD, xUnit, Moq and Reqnroll combine (one framework, several techniques
 * **BDD:** two more features at API level (`HeavyParcelSurcharge`, `ShipmentLifecycle`), 33 scenarios in total, all four features with a Background and a Scenario Outline.
 * **Mocking:** `ShipmentApiServiceMoqTests` covers duplicate tracking numbers (R2) and the status and delete rules with strict mocks; `SqliteModelGuardTests` makes the limits of the SQLite substitute explicit so they cannot drift unnoticed.
 * **Mutation proof 4:** changing the 30 kg threshold fails a unit, an integration and a BDD test (`docs/evidence/mutation-4-surcharge-threshold.txt`).
+
+## 12. Coverage: evidence, not a target
+
+Measured with `coverlet` over the default run (no SQL Server), generated code, EF migrations and the NSwag client excluded, results of all test projects merged by a small script (line coverage; the figures are indicative, not exact):
+
+| Assembly | Lines covered | Lines | Line coverage |
+|---|---:|---:|---:|
+| ApexPost.Api | 1310 | 3304 | 39.6 % |
+| ApexPost.Application | 1872 | 3678 | 50.9 % |
+| ApexPost.Courier.Console | 69 | 1264 | 5.5 % |
+| ApexPost.Courier.Domain | 48 | 48 | 100.0 % |
+| ApexPost.Courier.Offline | 214 | 494 | 43.3 % |
+| ApexPost.Domain | 1964 | 2829 | 69.4 % |
+| ApexPost.Infrastructure | 2375 | 5384 | 44.1 % |
+| ApexPost.Web | 1323 | 2294 | 57.7 % |
+| **All listed assemblies** | **9175** | **19295** | **47.6 %** |
+
+**Where the suite is blind (and why that is acceptable or planned):**
+
+* **`ApexPost.Courier.Console` (about 6 %):** only `ApexApiClient` and its models are tested. The menus, token storage (DPAPI), connectivity monitor and Polly pipeline setup are console and platform glue; their behaviour is shown by the Week 4 runtime evidence, not by unit tests. This is the largest honest gap.
+* **`ApexPost.Api` (about 40 %):** services and the pipeline are covered through `WebApplicationFactory`; the OpenAPI document transformers, Swagger setup and the Development-only token endpoint are not (they are Development tooling).
+* **Infrastructure (about 44 %) and Web controllers:** SQL Server specific paths (retry-on-failure, stored procedures, migrations) are only exercised when the opt-in SQL Server tests run; with `APEXPOST_SQL_TEST_CONNECTION` set, 893 tests pass with nothing skipped (`docs/evidence/test-run-with-sqlserver.txt`), which these default-run figures do not include.
+* **Domain (about 69 %):** the highest-risk rules (status machine, weight, tracking number, surcharge) are covered by name in the risk map; what is uncovered is mostly entities of the Week 2/3 counter workflows that this lab did not target.
+
+Coverage tells us where tests are missing; it does not tell us the tests are good (the deliberate-breakage proofs in COPILOT-LOG.md do that). No coverage number was used as a goal.

@@ -87,6 +87,7 @@ Real runs; raw output in `docs/evidence/`. Each mutation was applied with `sed`,
 | 2 | `TrackedShipment`: allowed transition `Delivered -> InTransit` | `UpdateStatus_Delivered_CannotMoveBackToInTransit` and the matrix case `(Delivered, InTransit, legal: False)` | [mutation-2-3-transition-and-outbox.txt](docs/evidence/mutation-2-3-transition-and-outbox.txt) |
 | 3 | `OutboxService`: `success ? Synced : Failed` swapped | 3 Moq unit tests and the Reqnroll scenario "The outbox marks uploaded scans as synced and failed ones as failed" | same file |
 | 4 | `HeavyParcelSurcharge`: threshold check `<=` changed to `<` (exactly 30 kg gets charged) | 2 unit tests, 1 API integration test and 1 Reqnroll scenario outline row (weight 30) | [mutation-4-surcharge-threshold.txt](docs/evidence/mutation-4-surcharge-threshold.txt) |
+| 5 | `ApexApiClient`: route `api/v2/...` changed to `api/v1/...` (an AI-assisted test class) | `UploadScansAsync_AnyCall_PostsToV2ScansRouteWithCamelCaseJson` | [mutation-5-client-route.txt](docs/evidence/mutation-5-client-route.txt) |
 
 Each break (mutations 1, 3 and 4 at three levels) was caught by at least two different test levels, which is what the pyramid is meant to give.
 
@@ -107,3 +108,22 @@ Each break (mutations 1, 3 and 4 at three levels) was caught by at least two dif
 **Rejected:** a test with a real `localhost` server (breaks the no-network rule); asserting log output (couples the test to wording).
 
 **What the fake does not prove:** that the real Polly pipeline retries or opens the circuit; that is shown in the Week 4 runtime evidence, not in unit tests.
+
+---
+
+## If your course requires GitHub Copilot itself (fill-in pack)
+
+No Copilot output is invented anywhere in this repository. If your instructor requires Copilot specifically, do this once; it takes about 20 minutes and every field below must be your own words.
+
+1. In VS Code with Copilot Chat, open the file named in each prompt above and paste the prompt **unchanged**.
+2. Paste Copilot's raw answer under "Copilot raw output" in that prompt's section.
+3. Write three short lists under it: **Kept**, **Changed**, **Rejected**, each with the reason (weak assertion, wrong expected value, wrong mock setup, missing edge case, copied the implementation, flaky time use).
+4. Save Copilot's tests in a **new** file next to the existing one (for example `ScanUploadServiceCopilotTests.cs`), put `// COPILOT-ASSISTED: drafted with GitHub Copilot, reviewed by <your name>` on the first line, and keep only the tests you accept.
+5. Do one more deliberate-breakage proof on one of those tests (break the production line, run the test, show the failure, restore with `git checkout -- <file>`) and add a row to the proof table above.
+6. Commit as `docs: add real Copilot drafts and review decisions`.
+
+Prompt 4 (optional extra, for the viva): *"Write a Reqnroll feature `ShipmentLifecycle.feature` for ApexPost shipments: a courier moves a parcel from Created to Delivered, a step cannot be skipped, a delivered parcel cannot move back (Scenario Outline), only Created parcels can be deleted. Use a Background and context-injected step definitions for an ASP.NET Core WebApplicationFactory API."*
+
+### Message to send to your instructor if you cannot use Copilot
+
+> I could not use GitHub Copilot (no access). I used another AI coding assistant (another AI coding assistant) for the AI-assisted drafting step and kept the same process: saved prompts, human review with keep/change/reject decisions, `AI-ASSISTED` markers, and five deliberate-breakage proofs (docs/evidence). It is stated openly in COPILOT-LOG.md. Is this accepted for the Copilot criterion, or should I repeat prompts 1 and 2 in Copilot?

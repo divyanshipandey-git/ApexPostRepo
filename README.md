@@ -51,13 +51,27 @@ In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To 
 | `ApexPost.IntegrationTests` (new) | SQLite repositories, API through `WebApplicationFactory` | 39 | 0 | 0 |
 | `ApexPost.Specs` (new) | Reqnroll BDD: 4 features, 25 API scenarios, 8 service scenarios | 33 | 0 | 0 |
 | `ApexPost.Domain.Tests` | unit | 330 | 0 | 0 |
-| `ApexPost.Application.Tests` | unit + file persistence + opt-in SQL Server | 168 | 20 | 0 |
+| `ApexPost.Application.Tests` | unit + file persistence + opt-in SQL Server | 168 | 22 | 0 |
 | `ApexPost.Api.Tests` | unit | 21 | 0 | 0 |
 | `ApexPost.Courier.Offline.Tests` | real Couchbase Lite on a temp folder | 53 | 0 | 0 |
 | `ApexPost.Web.IntegrationTests` | MVC pipeline + opt-in SQL Server | 76 | 5 | 0 |
-| **Total** | | **866** | **25** | **0** |
+| **Total** | | **866** | **27** | **0** |
 
-The 25 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above); everything else runs by default. Raw output: [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
+The 27 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above). With LocalDB enabled the whole solution gives **893 passed, 0 skipped, 0 failed** ([docs/evidence/test-run-with-sqlserver.txt](docs/evidence/test-run-with-sqlserver.txt)); the default run is [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
+
+### Code coverage (evidence, not a target)
+
+```powershell
+dotnet test ApexPost.sln --collect:"XPlat Code Coverage" --results-directory cov
+```
+
+`coverlet.collector` is referenced by the test projects. Line coverage of the production assemblies (generated code, EF migrations and the NSwag client excluded, results of all test projects merged) is in [docs/evidence/coverage-summary.md](docs/evidence/coverage-summary.md); read it together with section 12 of [TESTING-STRATEGY.md](TESTING-STRATEGY.md), which says where the suite is blind.
+
+### Continuous integration and branches
+
+* `.github/workflows/tests.yml` runs `dotnet test ApexPost.sln` on every push and pull request (Windows runner, no SQL Server, no secrets).
+* The default branch of this repository is **`master`** (the lab text says `main`). `week5-testing` was merged into it by pull request #12, and the completion work by #13; the `RED`/`GREEN`/`REFACTOR` commits are visible with `git log --grep="^RED\|^GREEN\|^REFACTOR"`.
+* A screenshot of the run is not stored in the repository; the raw runner output is (`docs/evidence/test-run*.txt`), and Test Explorer in Visual Studio shows the same tests.
 
 ### Test documents
 

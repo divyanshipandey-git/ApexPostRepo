@@ -1,0 +1,8 @@
+Passed!  - Failed:     0, Passed:   330, Skipped:     0, Total:   330, Duration: 234 ms - ApexPost.Domain.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    53, Skipped:     0, Total:    53, Duration: 1 s - ApexPost.Courier.Offline.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    21, Skipped:     0, Total:    21, Duration: 74 ms - ApexPost.Api.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   146, Skipped:     0, Total:   146, Duration: 521 ms - ApexPost.UnitTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    39, Skipped:     0, Total:    39, Duration: 6 s - ApexPost.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    33, Skipped:     0, Total:    33, Duration: 5 s - ApexPost.Specs.dll (net10.0)
+Passed!  - Failed:     0, Passed:   190, Skipped:     0, Total:   190, Duration: 22 s - ApexPost.Application.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    81, Skipped:     0, Total:    81, Duration: 59 s - ApexPost.Web.IntegrationTests.dll (net10.0)
