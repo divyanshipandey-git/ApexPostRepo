@@ -201,6 +201,36 @@ public sealed class ShipmentApiEndpointTests : IDisposable
         Assert.Equal(404, (await JsonOf(response)).GetProperty("status").GetInt32());
     }
 
+    [Theory]
+    [InlineData(2.5, 0.0)]
+    [InlineData(30.0, 0.0)]
+    [InlineData(40.0, 20.0)]
+    [InlineData(70.0, 42.5)]
+    public async Task PostShipment_V2_ReportsTheHeavyParcelSurcharge(double weight, double expectedSurcharge)
+    {
+        // Act
+        var response = await ClientFor(TestJwt.Admin()).PostAsJsonAsync("/api/v2/shipments", NewShipment(weight: weight));
+        var created = await JsonOf(response);
+        var fetched = await JsonOf(await ClientFor(TestJwt.Courier()).GetAsync($"/api/v2/shipments/{Tracking}"));
+
+        // Assert: the amount is on the create response and on the later GET.
+        Assert.Equal(expectedSurcharge, created.GetProperty("surchargeAmount").GetDouble());
+        Assert.Equal(expectedSurcharge, fetched.GetProperty("surchargeAmount").GetDouble());
+    }
+
+    [Fact]
+    public async Task GetShipment_V1_KeepsItsContractAndHasNoSurchargeField()
+    {
+        // Arrange
+        await ClientFor(TestJwt.Admin()).PostAsJsonAsync("/api/v1/shipments", NewShipment(weight: 40));
+
+        // Act
+        var v1 = await JsonOf(await ClientFor(TestJwt.Courier()).GetAsync($"/api/v1/shipments/{Tracking}"));
+
+        // Assert: v1 is frozen and deprecated; the new field is additive in v2 only.
+        Assert.False(v1.TryGetProperty("surchargeAmount", out _));
+    }
+
     [Fact]
     public async Task GetShipment_V1AndV2_ReturnDifferentShapesFromTheSameData()
     {

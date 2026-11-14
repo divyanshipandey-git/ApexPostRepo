@@ -91,6 +91,9 @@ public sealed class TrackedShipment
     /// </summary>
     public IReadOnlyCollection<TrackedShipmentScan> Scans => _scans.AsReadOnly();
 
+    /// <summary>Heavy parcel surcharge for this shipment (RED stub: always zero for now).</summary>
+    public decimal Surcharge => 0m;
+
     // Private constructor for EF Core
     private TrackedShipment()
     {
