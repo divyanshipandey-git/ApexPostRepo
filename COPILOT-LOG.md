@@ -86,8 +86,9 @@ Real runs; raw output in `docs/evidence/`. Each mutation was applied with `sed`,
 | 1 | `ScanUploadService`: `if (knownScanIds.Contains(...))` replaced by `if (false && ...)` (duplicate check disabled) | 3 Moq unit tests (`..._ScanIdAlreadyStored_...`, `..._SameScanIdTwiceInOneBatch_...`, `..._MixedBatch_...`) and 2 Reqnroll scenarios ("A retried upload does not create duplicates", "A batch mixing new and already known scans...") | [mutation-1-duplicate-check.txt](docs/evidence/mutation-1-duplicate-check.txt) |
 | 2 | `TrackedShipment`: allowed transition `Delivered -> InTransit` | `UpdateStatus_Delivered_CannotMoveBackToInTransit` and the matrix case `(Delivered, InTransit, legal: False)` | [mutation-2-3-transition-and-outbox.txt](docs/evidence/mutation-2-3-transition-and-outbox.txt) |
 | 3 | `OutboxService`: `success ? Synced : Failed` swapped | 3 Moq unit tests and the Reqnroll scenario "The outbox marks uploaded scans as synced and failed ones as failed" | same file |
+| 4 | `HeavyParcelSurcharge`: threshold check `<=` changed to `<` (exactly 30 kg gets charged) | 2 unit tests, 1 API integration test and 1 Reqnroll scenario outline row (weight 30) | [mutation-4-surcharge-threshold.txt](docs/evidence/mutation-4-surcharge-threshold.txt) |
 
-Each break was caught by at least two different test levels, which is what the pyramid is meant to give.
+Each break (mutations 1, 3 and 4 at three levels) was caught by at least two different test levels, which is what the pyramid is meant to give.
 
 ---
 

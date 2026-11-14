@@ -47,15 +47,15 @@ In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To 
 
 | Project | Level | Passed | Skipped | Failed |
 |---|---|---:|---:|---:|
-| `ApexPost.UnitTests` (new) | unit, Moq, fake `HttpMessageHandler`, TDD | 131 | 0 | 0 |
-| `ApexPost.IntegrationTests` (new) | SQLite repositories, API through `WebApplicationFactory` | 31 | 0 | 0 |
-| `ApexPost.Specs` (new) | Reqnroll BDD: 9 API scenarios, 8 service scenarios | 17 | 0 | 0 |
+| `ApexPost.UnitTests` (new) | unit, Moq, fake `HttpMessageHandler`, TDD | 146 | 0 | 0 |
+| `ApexPost.IntegrationTests` (new) | SQLite repositories, API through `WebApplicationFactory` | 39 | 0 | 0 |
+| `ApexPost.Specs` (new) | Reqnroll BDD: 4 features, 25 API scenarios, 8 service scenarios | 33 | 0 | 0 |
 | `ApexPost.Domain.Tests` | unit | 330 | 0 | 0 |
 | `ApexPost.Application.Tests` | unit + file persistence + opt-in SQL Server | 168 | 20 | 0 |
 | `ApexPost.Api.Tests` | unit | 21 | 0 | 0 |
 | `ApexPost.Courier.Offline.Tests` | real Couchbase Lite on a temp folder | 53 | 0 | 0 |
 | `ApexPost.Web.IntegrationTests` | MVC pipeline + opt-in SQL Server | 76 | 5 | 0 |
-| **Total** | | **827** | **25** | **0** |
+| **Total** | | **866** | **25** | **0** |
 
 The 25 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above); everything else runs by default. Raw output: [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
 
@@ -65,6 +65,7 @@ The 25 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TE
 * [docs/TESTING-DIAGRAMS.md](docs/TESTING-DIAGRAMS.md): diagrams of the strategy, TDD cycle, BDD flow and data-access choices (picture: [docs/testing-strategy-diagram.svg](docs/testing-strategy-diagram.svg)).
 * [TDD-LOG.md](TDD-LOG.md): the heavy parcel surcharge built test-first. `git log --grep="^RED\|^GREEN\|^REFACTOR"` shows the cycle.
 * [COPILOT-LOG.md](COPILOT-LOG.md): AI-assisted drafts, review decisions, and the three deliberate-breakage proofs (`docs/evidence/`).
+* [VIVA-NOTES.md](VIVA-NOTES.md): short, simple notes for the 5-minute viva.
 
 Notes: the API DTO rule for `PATCH .../status` is stricter than the domain rule (a `reason` is required for `Delivered` as well as `Failed`); the integration tests use a fake, test-only JWT signing key that exists only inside the test process.
 
