@@ -47,6 +47,12 @@ public sealed class V2ShipmentDetail
     public decimal? DeclaredValue { get; init; }
 
     /// <summary>
+    /// Surcharge for heavy parcels (over 30 kg): 12.50 plus 0.75 per kg above 30. Zero for lighter parcels. Added in v2 (additive, not breaking).
+    /// </summary>
+    [JsonPropertyName("surchargeAmount")]
+    public decimal SurchargeAmount { get; init; }
+
+    /// <summary>
     /// UTC timestamp when the shipment was created.
     /// </summary>
     [JsonPropertyName("createdAtUtc")]
