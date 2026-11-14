@@ -16,11 +16,11 @@ git log --oneline --grep="^RED\|^GREEN\|^REFACTOR"
 
 | Step | Commit | What the commit contains |
 |---|---|---|
-| **RED 1** | `0cce06a` | Tests for "no surcharge up to 30 kg" (incl. exactly 30) and "invalid weights throw". Production file is only a stub that throws `NotImplementedException`, so the solution builds and **7 tests fail**. |
-| **GREEN 1** | `7dbc8ff` | Minimal code: range check and `return 0m`. 7 tests pass. Deliberately no formula yet. |
-| **RED 2** | `4b1d9be` | Tests for the surcharge itself: 30.01 kg gives 12.51 (rounding), 31 gives 13.25, 40 gives 20.00, 70 gives 42.50, and "just over 30 is never cheaper than the flat fee". **5 tests fail**, 7 still pass. |
-| **GREEN 2** | `1dc08a3` | Smallest change that passes: `if (weight > 30) return Math.Round(12.50m + (weight - 30m) * 0.75m, 2, AwayFromZero)`. 12 tests pass. |
-| **REFACTOR** | `3248ee6` | Named constants (`ThresholdKg`, `FlatFee`, `RatePerKgOverThreshold`), the maximum weight now comes from `TrackedShipment.MaxWeightKg` instead of a second literal `70`, guard clause first, XML documentation, exception message and actual value. **Behaviour unchanged; the 12 tests stay green.** |
+| **RED 1** | `4ce93a9` | Tests for "no surcharge up to 30 kg" (incl. exactly 30) and "invalid weights throw". Production file is only a stub that throws `NotImplementedException`, so the solution builds and **7 tests fail**. |
+| **GREEN 1** | `92d2734` | Minimal code: range check and `return 0m`. 7 tests pass. Deliberately no formula yet. |
+| **RED 2** | `976f9ab` | Tests for the surcharge itself: 30.01 kg gives 12.51 (rounding), 31 gives 13.25, 40 gives 20.00, 70 gives 42.50, and "just over 30 is never cheaper than the flat fee". **5 tests fail**, 7 still pass. |
+| **GREEN 2** | `7875f99` | Smallest change that passes: `if (weight > 30) return Math.Round(12.50m + (weight - 30m) * 0.75m, 2, AwayFromZero)`. 12 tests pass. |
+| **REFACTOR** | `150fa37` | Named constants (`ThresholdKg`, `FlatFee`, `RatePerKgOverThreshold`), the maximum weight now comes from `TrackedShipment.MaxWeightKg` instead of a second literal `70`, guard clause first, XML documentation, exception message and actual value. **Behaviour unchanged; the 12 tests stay green.** |
 
 ## 3. The first failing test
 
@@ -55,7 +55,7 @@ GREEN 1 returned `0m` after the range check, which is the simplest thing that ma
 
 ## 7. Other defects found by tests (not TDD, but test-driven)
 
-Boundary tests of commit `4917031` failed on purpose-found gaps in `TrackedShipment.Create`, fixed in `e0f6a7d`:
+Boundary tests of commit `afa7099` failed on purpose-found gaps in `TrackedShipment.Create`, fixed in `e3d23eb`:
 
 1. weights 0.01 to 0.09 kg were accepted although the rule (and the error message) says the minimum is 0.1 kg;
 2. `"APX-20250101\n"` passed `^APX-\d{8}$` because .NET `$` also matches before a final newline; the domain now uses `\z`.
