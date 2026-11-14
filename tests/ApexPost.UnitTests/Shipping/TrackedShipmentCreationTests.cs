@@ -30,6 +30,7 @@ public sealed class TrackedShipmentCreationTests
     [InlineData("XPA-20250101")]     // wrong prefix
     [InlineData("APX-2025010A")]     // non digit
     [InlineData("APX-20250101\n")]   // trailing newline must not slip through $
+    [InlineData("  APX-20250101  ")] // padding is invalid input, not silently trimmed
     public void Create_InvalidTrackingNumberFormat_ThrowsArgumentException(string tracking)
     {
         Assert.Throws<ArgumentException>(() => Create(tracking: tracking));
