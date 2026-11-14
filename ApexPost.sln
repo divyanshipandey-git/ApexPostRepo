@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.UnitTests", "tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.IntegrationTests", "tests\ApexPost.IntegrationTests\ApexPost.IntegrationTests.csproj", "{866A1474-C08C-43FF-8745-3CBB01600496}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Specs", "tests\ApexPost.Specs\ApexPost.Specs.csproj", "{401C6B53-57FA-4F3A-B280-2BFEACE4D062}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -285,6 +287,18 @@ Global
 		{866A1474-C08C-43FF-8745-3CBB01600496}.Release|x64.Build.0 = Release|Any CPU
 		{866A1474-C08C-43FF-8745-3CBB01600496}.Release|x86.ActiveCfg = Release|Any CPU
 		{866A1474-C08C-43FF-8745-3CBB01600496}.Release|x86.Build.0 = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|x64.Build.0 = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Debug|x86.Build.0 = Debug|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|Any CPU.Build.0 = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|x64.ActiveCfg = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|x64.Build.0 = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|x86.ActiveCfg = Release|Any CPU
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -301,5 +315,6 @@ Global
 		{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{44468567-276B-4219-BC34-C30922F2A628} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{866A1474-C08C-43FF-8745-3CBB01600496} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{401C6B53-57FA-4F3A-B280-2BFEACE4D062} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
