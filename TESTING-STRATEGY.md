@@ -182,3 +182,13 @@ Parameterised unit tests with Moq. Each took a minute or two to write, ran in mi
 **Honest limits**
 
 SQLite is not SQL Server (section 6), the Moq tests only prove sequencing, and the Copilot step needs to be repeated with Copilot itself (COPILOT-LOG.md explains why this log does not claim it).
+
+## 10. Diagrams
+
+How TDD, BDD, xUnit, Moq and Reqnroll combine (one framework, several techniques). The full set (overview, TDD cycle, BDD flow, data-access decisions) is in [docs/TESTING-DIAGRAMS.md](docs/TESTING-DIAGRAMS.md); the overview as a picture:
+
+![Testing strategy overview](docs/testing-strategy-diagram.svg)
+
+* **xUnit** is the single test framework and runner; **Reqnroll** only generates xUnit tests from Gherkin, so Test Explorer and `dotnet test` see everything.
+* **Moq** and the fake `HttpMessageHandler` isolate dependencies at the unit level.
+* **TDD** is how unit-level rules are written (RED, GREEN, REFACTOR commits); **BDD** is how business behaviour is agreed and checked at API or service level.

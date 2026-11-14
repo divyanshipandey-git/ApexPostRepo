@@ -62,6 +62,7 @@ The 25 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TE
 ### Test documents
 
 * [TESTING-STRATEGY.md](TESTING-STRATEGY.md): risk map, pyramid, framework choice, review of every existing test class, data access strategy, what is not tested, reflection.
+* [docs/TESTING-DIAGRAMS.md](docs/TESTING-DIAGRAMS.md): diagrams of the strategy, TDD cycle, BDD flow and data-access choices (picture: [docs/testing-strategy-diagram.svg](docs/testing-strategy-diagram.svg)).
 * [TDD-LOG.md](TDD-LOG.md): the heavy parcel surcharge built test-first. `git log --grep="^RED\|^GREEN\|^REFACTOR"` shows the cycle.
 * [COPILOT-LOG.md](COPILOT-LOG.md): AI-assisted drafts, review decisions, and the three deliberate-breakage proofs (`docs/evidence/`).
 
