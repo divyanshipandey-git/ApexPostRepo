@@ -35,4 +35,28 @@ public sealed class HeavyParcelSurchargeTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => HeavyParcelSurcharge.Calculate(kg));
     }
+
+    [Theory]
+    [InlineData("30.01", "12.51")]  // 12.50 + 0.01 kg * 0.75 = 12.5075, rounded to cents
+    [InlineData("31", "13.25")]
+    [InlineData("40", "20.00")]
+    [InlineData("70", "42.50")]     // the heaviest accepted parcel
+    public void Calculate_OverThirtyKg_IsFlatFeePlusRatePerKgAboveThirty(string weight, string expected)
+    {
+        // Arrange
+        var kg = decimal.Parse(weight, System.Globalization.CultureInfo.InvariantCulture);
+        var expectedSurcharge = decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture);
+
+        // Act
+        var surcharge = HeavyParcelSurcharge.Calculate(kg);
+
+        // Assert
+        Assert.Equal(expectedSurcharge, surcharge);
+    }
+
+    [Fact]
+    public void Calculate_JustOverThirtyKg_IsNeverCheaperThanTheFlatFee()
+    {
+        Assert.True(HeavyParcelSurcharge.Calculate(30.001m) >= 12.50m);
+    }
 }
