@@ -70,7 +70,7 @@ Every AI-assisted file carries the comment `AI-ASSISTED: ...` on its first lines
 | # | Draft | Problem found by review or by running it | Decision |
 |---|---|---|---|
 | 1 | `TrackedShipmentCreationTests`: `"  APX-20250101  "` listed as a **valid** tracking number | The expectation copied what the implementation does (`Trim()`), but the rule says the number must match `^APX-\d{8}$`; padded input is invalid input | **Changed:** moved to the invalid list. A test that only repeats the implementation proves nothing. |
-| 2 | Same class: weights 0.01 to 0.09 expected to be rejected | The implementation accepted them (a real defect) | **Kept the test**, fixed production (`e0f6a7d`). |
+| 2 | Same class: weights 0.01 to 0.09 expected to be rejected | The implementation accepted them (a real defect) | **Kept the test**, fixed production (`e3d23eb`). |
 | 3 | `PatchStatus_LegalThenIllegalTransition` sent Delivered without a `reason`, expected 409 | API answered 400: the DTO requires a reason for Delivered, before the transition rule is reached | **Changed the payload** (wrong input, not wrong behaviour); noted in README that the DTO rule is stricter than the domain rule. |
 | 4 | `TestJwt.Create(expires: past)` | `notBefore` was after `expires`, so the helper threw instead of making an expired token | **Fixed the helper** (notBefore = expiry minus 2 h). |
 | 5 | Client test "timeout": considered asserting a retry happens | Retry is not in `ApexApiClient`; it is in the handler pipeline (Polly), outside this class | **Rejected** that assertion; the test asserts the client lets `TaskCanceledException` propagate so the resilience layer can act. |

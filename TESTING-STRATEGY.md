@@ -162,7 +162,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 
 **What did the strategy catch?**
 
-* Two real defects in `TrackedShipment.Create`, found by the boundary tests before any BDD existed: weights from 0.01 to 0.09 kg were accepted although the rule says 0.1 kg, and a tracking number ending in a newline passed the `$` anchored regex. Both fixed (commit `e0f6a7d`).
+* Two real defects in `TrackedShipment.Create`, found by the boundary tests before any BDD existed: weights from 0.01 to 0.09 kg were accepted although the rule says 0.1 kg, and a tracking number ending in a newline passed the `$` anchored regex. Both fixed (commit `e3d23eb`).
 * A testability gap: `ScanUploadService` read the system clock, so the "5 minutes in the future" boundary could not be tested exactly. An optional `TimeProvider` fixed it without changing callers.
 * A mismatch worth knowing about, found while writing the API tests: the status DTO demands a reason for `Delivered`, the domain does not.
 * Deliberate breakage (COPILOT-LOG.md) showed that the important rules are guarded at two levels at once: disabling the duplicate-scan check fails 3 Moq tests and 2 BDD scenarios.
