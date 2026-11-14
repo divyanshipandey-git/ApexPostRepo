@@ -10,7 +10,7 @@ ApexPost is a parcel-tracking system: a SQL Server API, an offline courier store
 - **Integration tests, about 13 %** (115): real components. Example: the real API with real JWT login, and real EF Core on in-memory SQLite.
 - **BDD, about 4 %** (33 scenarios): business language, checks what the customer sees.
 - Why this shape: rules are cheap to test at the bottom; wiring (login, routes, database) can only be tested with real parts, so fewer but bigger tests.
-- Result: **866 tests pass, 0 fail**, 25 skipped (they need SQL Server).
+- Result: **866 tests pass, 0 fail**, 27 skipped by default (they need SQL Server; with LocalDB enabled all 893 pass).
 
 ## 2. Why xUnit (30 seconds)
 - All the earlier tests already used xUnit, so no rewrite.
@@ -59,3 +59,10 @@ Add coverage reports, run the SQL Server tests in CI, and merge two duplicated D
 - **Which test type gave the most value per minute?** Parameterised unit tests with Moq.
 - **How do I run everything?** `dotnet test ApexPost.sln`, no setup.
 - **Where is the strategy?** `TESTING-STRATEGY.md` (written first), diagrams in `docs/TESTING-DIAGRAMS.md`.
+
+## Extra facts for the viva (one line each)
+- **Coverage:** about 48 % of lines overall; Domain about 69 %. It is evidence of where tests are missing (console glue, Swagger setup), not a goal.
+- **SQL Server:** the unique-tracking-number test runs on real SQL Server (LocalDB) when `APEXPOST_SQL_TEST_CONNECTION` is set; then 893 tests pass with none skipped.
+- **Cleanup:** I merged three duplicated Domain test files (330 tests before and after, none lost) and recorded it in the review table.
+- **CI:** `.github/workflows/tests.yml` runs `dotnet test` on every push.
+- **Default branch is `master`** (the lab text says `main`).

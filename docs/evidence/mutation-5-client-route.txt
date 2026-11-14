@@ -1,0 +1,5 @@
+## Mutation 5: ApexApiClient posts to the wrong API version (api/v2 becomes api/v1) - AI-assisted test class
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+ApexPost.UnitTests.Client.ApexApiClientTests.UploadScansAsync_AnyCall_PostsToV2ScansRouteWithCamelCaseJson [FAIL]
+Failed!  - Failed:     1, Passed:    18, Skipped:     0, Total:    19, Duration: 217 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
