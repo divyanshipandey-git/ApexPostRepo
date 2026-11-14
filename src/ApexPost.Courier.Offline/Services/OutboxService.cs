@@ -1,5 +1,4 @@
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 using Microsoft.Extensions.Logging;
 
 namespace ApexPost.Courier.Offline.Services;

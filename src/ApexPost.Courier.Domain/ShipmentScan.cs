@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ApexPost.Courier.Offline.Domain;
+namespace ApexPost.Courier.Domain;
 
 /// <summary>
 /// Represents the type of scan performed on a shipment.

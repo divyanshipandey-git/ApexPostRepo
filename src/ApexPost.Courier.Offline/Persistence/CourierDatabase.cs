@@ -124,23 +124,13 @@ public sealed class CourierDatabase : IDisposable
     /// </summary>
     private void CreateIndexes()
     {
-        try
-        {
-            // Index on trackingNumber for GetByTrackingNumberAsync queries
-            DefaultCollection.CreateIndex("idx_trackingNumber", IndexBuilder.ValueIndex(ValueIndexItem.Property("trackingNumber")));
+        // CreateIndex is idempotent in Couchbase Lite (an identical existing index is a no-op), so any exception here is a
+        // real failure (corrupt or locked database) and propagates instead of being logged and ignored.
+        DefaultCollection.CreateIndex("idx_trackingNumber", IndexBuilder.ValueIndex(ValueIndexItem.Property("trackingNumber")));
+        DefaultCollection.CreateIndex("idx_syncStatus", IndexBuilder.ValueIndex(ValueIndexItem.Property("syncStatus")));
+        DefaultCollection.CreateIndex("idx_courierId", IndexBuilder.ValueIndex(ValueIndexItem.Property("courierId")));
 
-            // Index on syncStatus for GetBySyncStatusAsync queries
-            DefaultCollection.CreateIndex("idx_syncStatus", IndexBuilder.ValueIndex(ValueIndexItem.Property("syncStatus")));
-
-            // Index on courierId for the per-courier scan count query
-            DefaultCollection.CreateIndex("idx_courierId", IndexBuilder.ValueIndex(ValueIndexItem.Property("courierId")));
-
-            _logger?.LogDebug("Value indexes created for trackingNumber, syncStatus and courierId");
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogWarning(ex, "Failed to create indexes (may already exist)");
-        }
+        _logger?.LogDebug("Value indexes ensured for trackingNumber, syncStatus and courierId");
     }
 
     /// <summary>

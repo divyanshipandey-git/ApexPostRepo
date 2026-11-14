@@ -8,7 +8,7 @@ using ApexPost.Courier.Console.Services;
 using ApexPost.Courier.Console.Handlers;
 using ApexPost.Courier.Console.UI;
 using ApexPost.Courier.Offline.Persistence;
-using ApexPost.Courier.Offline.Abstractions;
+using ApexPost.Courier.Domain;
 
 namespace ApexPost.Courier.Console;
 

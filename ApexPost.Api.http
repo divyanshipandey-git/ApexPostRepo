@@ -18,14 +18,14 @@ Content-Type: application/json
   "role": "Courier"
 }
 
-### Get an admin token
-# POST {{devTokenUrl}}
-# Content-Type: application/json
-#
-# {
-#   "courierId": "ADMIN-001",
-#   "role": "Admin"
-# }
+### Get an admin token (needed for POST, PUT and DELETE of shipments)
+POST {{devTokenUrl}}
+Content-Type: application/json
+
+{
+  "courierId": "ADMIN-001",
+  "role": "Admin"
+}
 
 ### ============================================================================
 ### VARIABLES - Set after getting token
@@ -39,9 +39,9 @@ Content-Type: application/json
 ### SHIPMENT ENDPOINTS (v2 - requires Bearer token)
 ### ============================================================================
 
-### Create shipment (AuthenticatedUser)
+### Create shipment (AdminOnly - needs the admin token; a courier token gets 403)
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -65,9 +65,9 @@ Authorization: Bearer {{courierToken}}
 GET {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
 Authorization: Bearer {{courierToken}}
 
-### Update shipment (AuthenticatedUser)
+### Update shipment (AdminOnly - needs the admin token; a courier token gets 403)
 PUT {{baseUrl}}/api/{{apiVersion}}/shipments/APX-20241109
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -255,7 +255,7 @@ Content-Type: application/json
 
 ### Invalid tracking number format
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -269,7 +269,7 @@ Content-Type: application/json
 
 ### Weight out of range
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -283,7 +283,7 @@ Content-Type: application/json
 
 ### Missing required fields
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -315,7 +315,7 @@ Content-Type: application/json
 
 ### Duplicate tracking number
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -359,7 +359,7 @@ X-Api-Key: {{partnerApiKey}}
 
 ### Wrong content type
 POST {{baseUrl}}/api/{{apiVersion}}/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: text/plain
 
 This is not JSON
@@ -414,7 +414,7 @@ Authorization: Bearer {{courierToken}}
 
 ### v1 POST create - success (201 + Location)
 POST {{baseUrl}}/api/v1/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -428,7 +428,7 @@ Content-Type: application/json
 
 ### v1 POST create - failure (400: bad tracking number and weight)
 POST {{baseUrl}}/api/v1/shipments
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "trackingNumber": "BAD", "weightKg": 500 }
@@ -443,7 +443,7 @@ Authorization: Bearer {{courierToken}}
 
 ### v1 PUT - success (200, only while status is Created)
 PUT {{baseUrl}}/api/v1/shipments/APX-20241110
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -456,7 +456,7 @@ Content-Type: application/json
 
 ### v1 PUT - failure (404)
 PUT {{baseUrl}}/api/v1/shipments/APX-99999999
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -520,7 +520,7 @@ Content-Type: application/json
 
 ### v2 PUT - failure (404 unknown tracking number)
 PUT {{baseUrl}}/api/v2/shipments/APX-99999999
-Authorization: Bearer {{courierToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "weightKg": 3.0, "recipientName": "Jane Doe", "recipientPhone": "+15551234567", "recipientAddress": "123 Main St", "recipientCity": "Springfield" }

@@ -104,7 +104,7 @@ namespace ApexPost.Client
         System.Threading.Tasks.Task<V2PagedResponseOfV2ShipmentSummary> GetShipmentsAsync(int? page, int? pageSize, ShipmentStatus? status, string? city, string? courierId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, System.Threading.CancellationToken cancellationToken);
 
         /// <summary>
-        /// Create a shipment (v2).
+        /// Create a shipment (v2). Requires the Admin role.
         /// </summary>
         /// <param name="body">Cancellation token.</param>
         /// <returns>Created</returns>
@@ -113,7 +113,7 @@ namespace ApexPost.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Create a shipment (v2).
+        /// Create a shipment (v2). Requires the Admin role.
         /// </summary>
         /// <param name="body">Cancellation token.</param>
         /// <returns>Created</returns>
@@ -138,7 +138,7 @@ namespace ApexPost.Client
         System.Threading.Tasks.Task<V2ShipmentDetail> GetShipmentAsync(string trackingNumber, System.Threading.CancellationToken cancellationToken);
 
         /// <summary>
-        /// Update the editable details of a shipment (v2). Only allowed while the status is Created.
+        /// Update the editable details of a shipment (v2). Only allowed while the status is Created. Requires the Admin role.
         /// </summary>
         /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
         /// <param name="body">Cancellation token.</param>
@@ -148,7 +148,7 @@ namespace ApexPost.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Update the editable details of a shipment (v2). Only allowed while the status is Created.
+        /// Update the editable details of a shipment (v2). Only allowed while the status is Created. Requires the Admin role.
         /// </summary>
         /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
         /// <param name="body">Cancellation token.</param>
@@ -852,7 +852,7 @@ namespace ApexPost.Client
         }
 
         /// <summary>
-        /// Create a shipment (v2).
+        /// Create a shipment (v2). Requires the Admin role.
         /// </summary>
         /// <param name="body">Cancellation token.</param>
         /// <returns>Created</returns>
@@ -864,7 +864,7 @@ namespace ApexPost.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Create a shipment (v2).
+        /// Create a shipment (v2). Requires the Admin role.
         /// </summary>
         /// <param name="body">Cancellation token.</param>
         /// <returns>Created</returns>
@@ -1145,7 +1145,7 @@ namespace ApexPost.Client
         }
 
         /// <summary>
-        /// Update the editable details of a shipment (v2). Only allowed while the status is Created.
+        /// Update the editable details of a shipment (v2). Only allowed while the status is Created. Requires the Admin role.
         /// </summary>
         /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
         /// <param name="body">Cancellation token.</param>
@@ -1158,7 +1158,7 @@ namespace ApexPost.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Update the editable details of a shipment (v2). Only allowed while the status is Created.
+        /// Update the editable details of a shipment (v2). Only allowed while the status is Created. Requires the Admin role.
         /// </summary>
         /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
         /// <param name="body">Cancellation token.</param>

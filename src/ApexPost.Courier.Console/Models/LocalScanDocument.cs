@@ -123,7 +123,7 @@ public sealed class LocalScanDocument
     /// <summary>
     /// Creates from offline domain model.
     /// </summary>
-    public static LocalScanDocument FromOffline(ApexPost.Courier.Offline.Domain.ShipmentScan scan)
+    public static LocalScanDocument FromOffline(ApexPost.Courier.Domain.ShipmentScan scan)
     {
         return new LocalScanDocument
         {
@@ -141,18 +141,18 @@ public sealed class LocalScanDocument
     /// <summary>
     /// Converts to offline domain model.
     /// </summary>
-    public ApexPost.Courier.Offline.Domain.ShipmentScan ToOffline()
+    public ApexPost.Courier.Domain.ShipmentScan ToOffline()
     {
-        return new ApexPost.Courier.Offline.Domain.ShipmentScan
+        return new ApexPost.Courier.Domain.ShipmentScan
         {
             Id = ScanId,
             TrackingNumber = TrackingNumber,
-            ScanType = (ApexPost.Courier.Offline.Domain.ScanType)ScanType,
+            ScanType = (ApexPost.Courier.Domain.ScanType)ScanType,
             CourierId = CourierId,
             Location = Location,
             ScannedAtUtc = ScannedAtUtc,
             Notes = Notes,
-            SyncStatus = (ApexPost.Courier.Offline.Domain.SyncStatus)SyncStatus
+            SyncStatus = (ApexPost.Courier.Domain.SyncStatus)SyncStatus
         };
     }
 }

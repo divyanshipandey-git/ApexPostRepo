@@ -92,10 +92,11 @@ public sealed class ShipmentsController : ControllerBase
 
     // ---------------------------------------------------------------- create
 
-    /// <summary>Create a shipment (v1).</summary>
+    /// <summary>Create a shipment (v1). Requires the Admin role.</summary>
     /// <param name="request">The shipment to create. The tracking number must be unique and match APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost(Name = nameof(CreateShipmentV1))]
+    [Authorize(Policy = "AdminOnly")]
     [EndpointSummary("Create a shipment (v1)")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType<ShipmentDetail>(StatusCodes.Status201Created)]
@@ -108,10 +109,11 @@ public sealed class ShipmentsController : ControllerBase
         return CreatedAtAction(nameof(GetShipmentV1), new { version = "1", trackingNumber = created.TrackingNumber }, created);
     }
 
-    /// <summary>Create a shipment (v2).</summary>
+    /// <summary>Create a shipment (v2). Requires the Admin role.</summary>
     /// <param name="request">The shipment to create. The tracking number must be unique and match APX-NNNNNNNN.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost(Name = nameof(CreateShipmentV2))]
+    [Authorize(Policy = "AdminOnly")]
     [EndpointSummary("Create a shipment (v2)")]
     [MapToApiVersion("2.0")]
     [ProducesResponseType<V2ShipmentDetail>(StatusCodes.Status201Created)]
@@ -126,11 +128,12 @@ public sealed class ShipmentsController : ControllerBase
 
     // ---------------------------------------------------------------- update
 
-    /// <summary>Update the editable details of a shipment (v1). Only allowed while the status is Created.</summary>
+    /// <summary>Update the editable details of a shipment (v1). Only allowed while the status is Created. Requires the Admin role.</summary>
     /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">The fields to change.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPut(TrackingNumberRoute, Name = nameof(UpdateShipmentV1))]
+    [Authorize(Policy = "AdminOnly")]
     [EndpointSummary("Replace shipment details (v1)")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType<ShipmentDetail>(StatusCodes.Status200OK)]
@@ -141,11 +144,12 @@ public sealed class ShipmentsController : ControllerBase
         string trackingNumber, [FromBody] UpdateShipmentRequest request, CancellationToken cancellationToken)
         => await _shipments.UpdateShipmentAsync(trackingNumber, request, cancellationToken);
 
-    /// <summary>Update the editable details of a shipment (v2). Only allowed while the status is Created.</summary>
+    /// <summary>Update the editable details of a shipment (v2). Only allowed while the status is Created. Requires the Admin role.</summary>
     /// <param name="trackingNumber">Tracking number in format APX-NNNNNNNN.</param>
     /// <param name="request">The fields to change.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPut(TrackingNumberRoute, Name = nameof(UpdateShipmentV2))]
+    [Authorize(Policy = "AdminOnly")]
     [EndpointSummary("Replace shipment details (v2)")]
     [MapToApiVersion("2.0")]
     [ProducesResponseType<V2ShipmentDetail>(StatusCodes.Status200OK)]
