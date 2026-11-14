@@ -11,7 +11,7 @@ namespace ApexPost.IntegrationTests.TestSupport;
 /// parts, keeping tables, keys, relationships, indexes, lengths and nullability, so repository queries still run
 /// through the real EF Core pipeline. What SQLite therefore does NOT prove is listed in TESTING-STRATEGY.md section 6.
 /// </summary>
-internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : ModelCustomizer(dependencies)
+public sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : ModelCustomizer(dependencies)
 {
     public override void Customize(ModelBuilder modelBuilder, DbContext context)
     {
