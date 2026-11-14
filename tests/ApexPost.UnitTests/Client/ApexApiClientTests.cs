@@ -7,6 +7,7 @@ using Xunit;
 
 namespace ApexPost.UnitTests.Client;
 
+// AI-ASSISTED: drafted with an AI assistant (Claude Code), then reviewed and changed by a human; see COPILOT-LOG.md.
 /// <summary>
 /// The Week 4 Part D typed client, driven through a fake HttpMessageHandler (no real network).
 /// </summary>

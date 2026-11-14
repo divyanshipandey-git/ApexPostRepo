@@ -14,6 +14,7 @@ using DeviceScanType = ApexPost.Courier.Domain.ScanType;
 
 namespace ApexPost.Specs.StepDefinitions;
 
+// AI-ASSISTED: drafted with an AI assistant (Claude Code), then reviewed and changed by a human; see COPILOT-LOG.md.
 /// <summary>Steps of ScanSync.feature. Runs at SERVICE level: real services and repositories, no HTTP.</summary>
 [Binding]
 public sealed class ScanSyncSteps(ServiceScenarioContext context)

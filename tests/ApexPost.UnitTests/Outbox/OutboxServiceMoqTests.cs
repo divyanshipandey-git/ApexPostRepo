@@ -5,6 +5,7 @@ using Xunit;
 
 namespace ApexPost.UnitTests.Outbox;
 
+// AI-ASSISTED: drafted with an AI assistant (Claude Code), then reviewed and changed by a human; see COPILOT-LOG.md.
 /// <summary>
 /// OutboxService in isolation: IScanRepository and IShipmentUploader are Moq mocks.
 /// What these tests do NOT prove: that the real Couchbase repository returns Pending/Failed scans
