@@ -30,15 +30,15 @@ public class ReportingServiceTests
         // Arrange
         var reportData = new ReportDailyBranchSales(
             "BR001",
-            DateOnly.FromDateTime(DateTime.Today),
+            new DateOnly(2025, 3, 10),
             10,
             1000m,
             500m);
-        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(DateOnly.FromDateTime(DateTime.Today), "BR001", default))
+        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(new DateOnly(2025, 3, 10), "BR001", default))
             .ReturnsAsync(new[] { reportData });
 
         // Act
-        var result = await _service.GetDailyBranchSalesAsync("BR001", DateOnly.FromDateTime(DateTime.Today));
+        var result = await _service.GetDailyBranchSalesAsync("BR001", new DateOnly(2025, 3, 10));
 
         // Assert
         Assert.NotNull(result);
@@ -53,11 +53,11 @@ public class ReportingServiceTests
     public async Task GetDailyBranchSalesAsync_NoData_ReturnsEmptyReport()
     {
         // Arrange
-        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(DateOnly.FromDateTime(DateTime.Today), "BR001", default))
+        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(new DateOnly(2025, 3, 10), "BR001", default))
             .ReturnsAsync(Array.Empty<ReportDailyBranchSales>());
 
         // Act
-        var result = await _service.GetDailyBranchSalesAsync("BR001", DateOnly.FromDateTime(DateTime.Today));
+        var result = await _service.GetDailyBranchSalesAsync("BR001", new DateOnly(2025, 3, 10));
 
         // Assert
         Assert.NotNull(result);
@@ -73,7 +73,7 @@ public class ReportingServiceTests
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _service.GetDailyBranchSalesAsync("", DateOnly.FromDateTime(DateTime.Today)));
+            _service.GetDailyBranchSalesAsync("", new DateOnly(2025, 3, 10)));
     }
 
     [Fact]
@@ -82,15 +82,15 @@ public class ReportingServiceTests
         // Arrange
         var reportData = new ReportDailyBranchSales(
             "BR001",
-            DateOnly.FromDateTime(DateTime.Today),
+            new DateOnly(2025, 3, 10),
             5,
             500m,
             250m);
-        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(DateOnly.FromDateTime(DateTime.Today), "BR001", default))
+        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(new DateOnly(2025, 3, 10), "BR001", default))
             .ReturnsAsync(new[] { reportData });
 
         // Act
-        var result = await _service.GetDailyBranchSalesAsync("  br001  ", DateOnly.FromDateTime(DateTime.Today));
+        var result = await _service.GetDailyBranchSalesAsync("  br001  ", new DateOnly(2025, 3, 10));
 
         // Assert
         Assert.Equal("BR001", result.BranchCode);
@@ -102,14 +102,14 @@ public class ReportingServiceTests
         // Arrange
         var reports = new[]
         {
-            new ReportDailyBranchSales("BR001", DateOnly.FromDateTime(DateTime.Today), 10, 1000m, 500m),
-            new ReportDailyBranchSales("BR002", DateOnly.FromDateTime(DateTime.Today), 5, 500m, 250m)
+            new ReportDailyBranchSales("BR001", new DateOnly(2025, 3, 10), 10, 1000m, 500m),
+            new ReportDailyBranchSales("BR002", new DateOnly(2025, 3, 10), 5, 500m, 250m)
         };
-        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(DateOnly.FromDateTime(DateTime.Today), null, default))
+        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(new DateOnly(2025, 3, 10), null, default))
             .ReturnsAsync(reports);
 
         // Act
-        var result = await _service.GetDailyBranchSalesReportsAsync(DateOnly.FromDateTime(DateTime.Today));
+        var result = await _service.GetDailyBranchSalesReportsAsync(new DateOnly(2025, 3, 10));
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -123,14 +123,14 @@ public class ReportingServiceTests
         // Arrange
         var reports = new[]
         {
-            new ReportDailyBranchSales("BR001", DateOnly.FromDateTime(DateTime.Today), 10, 1000m, 500m),
-            new ReportDailyBranchSales("BR002", DateOnly.FromDateTime(DateTime.Today), 5, 500m, 250m)
+            new ReportDailyBranchSales("BR001", new DateOnly(2025, 3, 10), 10, 1000m, 500m),
+            new ReportDailyBranchSales("BR002", new DateOnly(2025, 3, 10), 5, 500m, 250m)
         };
-        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(DateOnly.FromDateTime(DateTime.Today), "BR001", default))
+        _mockDataSource.Setup(d => d.GetDailyBranchSalesAsync(new DateOnly(2025, 3, 10), "BR001", default))
             .ReturnsAsync(new[] { reports[0] });
 
         // Act
-        var result = await _service.GetDailyBranchSalesReportsAsync(DateOnly.FromDateTime(DateTime.Today), "BR001");
+        var result = await _service.GetDailyBranchSalesReportsAsync(new DateOnly(2025, 3, 10), "BR001");
 
         // Assert
         Assert.Single(result);
