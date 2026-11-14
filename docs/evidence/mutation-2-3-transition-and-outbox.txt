@@ -1,0 +1,19 @@
+## Mutation 2: allow Delivered to move back to InTransit (TrackedShipment transition table)
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+--- UnitTests
+ApexPost.UnitTests.Shipping.ShipmentStatusTransitionTests.UpdateStatus_FromEveryStateToEveryState_FollowsTheTransitionTable(from: Delivered, to: InTransit, legal: False) [FAIL]
+ApexPost.UnitTests.Shipping.ShipmentStatusTransitionTests.UpdateStatus_Delivered_CannotMoveBackToInTransit [FAIL]
+Failed!  - Failed:     2, Passed:   129, Skipped:     0, Total:   131, Duration: 441 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 3: OutboxService marks a successful upload as Failed
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+--- UnitTests
+ApexPost.UnitTests.Outbox.OutboxServiceMoqTests.ProcessPendingAsync_UploadReturnsFalse_MarksScanFailed [FAIL]
+ApexPost.UnitTests.Outbox.OutboxServiceMoqTests.ProcessPendingAsync_UploadSucceeds_MarksScanSyncedAndSavesIt [FAIL]
+ApexPost.UnitTests.Outbox.OutboxServiceMoqTests.ProcessPendingAsync_UploaderThrows_MarksFailedAndContinuesWithNextScan [FAIL]
+Failed!  - Failed:     3, Passed:   128, Skipped:     0, Total:   131, Duration: 461 ms - ApexPost.UnitTests.dll (net10.0)
+--- Specs
+The outbox marks uploaded scans as synced and failed ones as failed [FAIL]
+Failed!  - Failed:     1, Passed:    16, Skipped:     0, Total:    17, Duration: 4 s - ApexPost.Specs.dll (net10.0)
+restored: 0 modified files

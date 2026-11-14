@@ -8,6 +8,12 @@ namespace ApexPost.Domain.Entities;
 /// </summary>
 public sealed class TrackedShipment
 {
+    /// <summary>Smallest accepted parcel weight in kilograms.</summary>
+    public const decimal MinWeightKg = 0.1m;
+
+    /// <summary>Largest accepted parcel weight in kilograms.</summary>
+    public const decimal MaxWeightKg = 70m;
+
     private readonly List<TrackedShipmentScan> _scans = [];
 
     /// <summary>
@@ -108,12 +114,12 @@ public sealed class TrackedShipment
         DateTimeOffset? createdAtUtc = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
-        if (!System.Text.RegularExpressions.Regex.IsMatch(trackingNumber, @"^APX-\d{8}$"))
+        if (!System.Text.RegularExpressions.Regex.IsMatch(trackingNumber, @"^APX-\d{8}\z"))
         {
             throw new ArgumentException("Tracking number must match format APX-NNNNNNNN", nameof(trackingNumber));
         }
 
-        if (weightKg <= 0 || weightKg > 70)
+        if (weightKg < MinWeightKg || weightKg > MaxWeightKg)
         {
             throw new ArgumentOutOfRangeException(nameof(weightKg), "Weight must be between 0.1 and 70 kg");
         }
@@ -165,7 +171,7 @@ public sealed class TrackedShipment
 
         if (weightKg.HasValue)
         {
-            if (weightKg.Value <= 0 || weightKg.Value > 70)
+            if (weightKg.Value < MinWeightKg || weightKg.Value > MaxWeightKg)
             {
                 throw new ArgumentOutOfRangeException(nameof(weightKg), "Weight must be between 0.1 and 70 kg");
             }

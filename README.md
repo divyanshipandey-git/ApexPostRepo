@@ -24,7 +24,6 @@ $env:APEXPOST_SQL_TEST_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Database=Apex
 dotnet test ApexPost.sln --no-restore
 ```
 
-Latest verification on the targeted remediation branch: `dotnet build ApexPost.sln --configuration Release` succeeded with 0 warnings and 0 errors. The full SQL-enabled Release suite passed 409 tests: 112 Domain, 216 Application, and 81 Web integration; 0 failed and 0 skipped. The SQL integration fixtures applied migrations to isolated `ApexPost_SqlIT_*` catalogs and cleaned them up. See the [Week 3 complete documentation](docs/WEEK3-COMPLETE-DOCUMENTATION.md) for scope, evidence, and limitations.
 
 Run the web application:
 
@@ -33,6 +32,41 @@ dotnet run --project src/ApexPost.Web
 ```
 
 The Web application uses SQL Server as its only runtime business-data source.
+
+## Running the tests
+
+One command, no manual setup (no SQL Server, no network, no secrets needed):
+
+```powershell
+dotnet test ApexPost.sln
+```
+
+In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To run one project: `dotnet test tests/ApexPost.UnitTests`; one class or test: `dotnet test --filter "FullyQualifiedName~HeavyParcelSurchargeTests"`.
+
+### Last full run
+
+| Project | Level | Passed | Skipped | Failed |
+|---|---|---:|---:|---:|
+| `ApexPost.UnitTests` (new) | unit, Moq, fake `HttpMessageHandler`, TDD | 131 | 0 | 0 |
+| `ApexPost.IntegrationTests` (new) | SQLite repositories, API through `WebApplicationFactory` | 31 | 0 | 0 |
+| `ApexPost.Specs` (new) | Reqnroll BDD: 9 API scenarios, 8 service scenarios | 17 | 0 | 0 |
+| `ApexPost.Domain.Tests` | unit | 330 | 0 | 0 |
+| `ApexPost.Application.Tests` | unit + file persistence + opt-in SQL Server | 168 | 20 | 0 |
+| `ApexPost.Api.Tests` | unit | 21 | 0 | 0 |
+| `ApexPost.Courier.Offline.Tests` | real Couchbase Lite on a temp folder | 53 | 0 | 0 |
+| `ApexPost.Web.IntegrationTests` | MVC pipeline + opt-in SQL Server | 76 | 5 | 0 |
+| **Total** | | **827** | **25** | **0** |
+
+The 25 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above); everything else runs by default. Raw output: [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
+
+### Test documents
+
+* [TESTING-STRATEGY.md](TESTING-STRATEGY.md): risk map, pyramid, framework choice, review of every existing test class, data access strategy, what is not tested, reflection.
+* [docs/TESTING-DIAGRAMS.md](docs/TESTING-DIAGRAMS.md): diagrams of the strategy, TDD cycle, BDD flow and data-access choices (picture: [docs/testing-strategy-diagram.svg](docs/testing-strategy-diagram.svg)).
+* [TDD-LOG.md](TDD-LOG.md): the heavy parcel surcharge built test-first. `git log --grep="^RED\|^GREEN\|^REFACTOR"` shows the cycle.
+* [COPILOT-LOG.md](COPILOT-LOG.md): AI-assisted drafts, review decisions, and the three deliberate-breakage proofs (`docs/evidence/`).
+
+Notes: the API DTO rule for `PATCH .../status` is stricter than the domain rule (a `reason` is required for `Delivered` as well as `Failed`); the integration tests use a fake, test-only JWT signing key that exists only inside the test process.
 
 ## API Documentation: OpenAPI vs Swagger UI
 
