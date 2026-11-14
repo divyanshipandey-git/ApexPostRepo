@@ -33,15 +33,19 @@ public sealed class ScanUploadService : IScanUploadService
     private readonly ITrackedShipmentRepository _shipmentRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ScanUploadService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public ScanUploadService(
         ITrackedShipmentRepository shipmentRepository,
         IUnitOfWork unitOfWork,
-        ILogger<ScanUploadService> logger)
+        ILogger<ScanUploadService> logger,
+        TimeProvider? timeProvider = null)
     {
         _shipmentRepository = shipmentRepository ?? throw new ArgumentNullException(nameof(shipmentRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        // Injected so tests can freeze the clock; production uses the system clock.
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ScanUploadResponse> UploadScansAsync(string trackingNumber, string? callerCourierId, ScanUploadRequest request, CancellationToken cancellationToken = default)
@@ -85,7 +89,7 @@ public sealed class ScanUploadService : IScanUploadService
                 continue;
             }
 
-            var (isValid, errorMessage) = ValidateScanBusinessRules(scanRequest, shipment);
+            var (isValid, errorMessage) = ValidateScanBusinessRules(scanRequest, shipment, _timeProvider.GetUtcNow());
             if (!isValid)
             {
                 response.Rejected++;
@@ -142,10 +146,10 @@ public sealed class ScanUploadService : IScanUploadService
         return response;
     }
 
-    private static (bool IsValid, string? ErrorMessage) ValidateScanBusinessRules(ScanDocumentRequest scanRequest, TrackedShipment shipment)
+    private static (bool IsValid, string? ErrorMessage) ValidateScanBusinessRules(ScanDocumentRequest scanRequest, TrackedShipment shipment, DateTimeOffset utcNow)
     {
         // Scan time cannot be in the future (5 minutes of clock skew allowed)
-        if (scanRequest.ScannedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
+        if (scanRequest.ScannedAtUtc > utcNow.AddMinutes(5))
         {
             return (false, "Scan time cannot be in the future");
         }

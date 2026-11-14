@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Api.Tests", "tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.Courier.Domain", "src\ApexPost.Courier.Domain\ApexPost.Courier.Domain.csproj", "{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexPost.UnitTests", "tests\ApexPost.UnitTests\ApexPost.UnitTests.csproj", "{44468567-276B-4219-BC34-C30922F2A628}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -257,6 +259,18 @@ Global
 		{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE}.Release|x64.Build.0 = Release|Any CPU
 		{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE}.Release|x86.ActiveCfg = Release|Any CPU
 		{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE}.Release|x86.Build.0 = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|x64.Build.0 = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Debug|x86.Build.0 = Debug|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|x64.ActiveCfg = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|x64.Build.0 = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|x86.ActiveCfg = Release|Any CPU
+		{44468567-276B-4219-BC34-C30922F2A628}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -271,5 +285,6 @@ Global
 		{380033DA-E612-4080-A637-811901575FB7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{884E44DD-0A4B-464A-A1B4-5FC20A35E7B9} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{966EAD51-1EB0-43F7-8DDB-76CEFC159BBE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{44468567-276B-4219-BC34-C30922F2A628} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
