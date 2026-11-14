@@ -1,3 +1,4 @@
+using ApexPost.Domain.Pricing;
 using ApexPost.Domain.ValueObjects;
 using System.Text.Json.Serialization;
 
@@ -90,6 +91,9 @@ public sealed class TrackedShipment
     /// Gets the collection of scans for this shipment.
     /// </summary>
     public IReadOnlyCollection<TrackedShipmentScan> Scans => _scans.AsReadOnly();
+
+    /// <summary>Heavy parcel surcharge for this shipment (flat fee plus a rate per kg above 30 kg; zero up to 30 kg).</summary>
+    public decimal Surcharge => HeavyParcelSurcharge.Calculate(WeightKg);
 
     // Private constructor for EF Core
     private TrackedShipment()

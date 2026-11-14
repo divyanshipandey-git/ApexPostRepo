@@ -48,6 +48,7 @@ This document describes the versioning strategy for the ApexPost Logistics API.
 | Add new endpoint | Non-breaking | Adding `/api/v2/reports` |
 | Add optional parameter | Non-breaking | Adding `sortBy` query param |
 | Add new response field | Non-breaking | Adding `latestScan` summary |
+| Add `surchargeAmount` to the v2 shipment detail (heavy parcel rule, Week 5) | Non-breaking | v1 contract is unchanged; v2 clients that ignore unknown fields keep working |
 
 ## Deprecation Process
 

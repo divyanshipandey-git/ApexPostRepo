@@ -1,0 +1,12 @@
+## Mutation 4: heavy parcel threshold changed so exactly 30 kg is charged (<= becomes <)
+--- UnitTests
+ApexPost.UnitTests.Shipping.TrackedShipmentSurchargeTests.Surcharge_DependsOnTheShipmentWeight(weight: "30", expected: "0") [FAIL]
+ApexPost.UnitTests.Pricing.HeavyParcelSurchargeTests.Calculate_AtOrBelowThirtyKg_IsZero(weight: "30") [FAIL]
+Failed!  - Failed:     2, Passed:   144, Skipped:     0, Total:   146, Duration: 393 ms - ApexPost.UnitTests.dll (net10.0)
+--- IntegrationTests
+ApexPost.IntegrationTests.Api.ShipmentApiEndpointTests.PostShipment_V2_ReportsTheHeavyParcelSurcharge(weight: 30, expectedSurcharge: 0) [FAIL]
+Failed!  - Failed:     1, Passed:    38, Skipped:     0, Total:    39, Duration: 6 s - ApexPost.IntegrationTests.dll (net10.0)
+--- Specs
+The surcharge depends on the weight(weight: "30", surcharge: "0", __pickleIndex: "2", exampleTags: []) [FAIL]
+Failed!  - Failed:     1, Passed:    32, Skipped:     0, Total:    33, Duration: 4 s - ApexPost.Specs.dll (net10.0)
+restored: 0 modified files

@@ -2492,6 +2492,12 @@ namespace ApexPost.Client
         public double? DeclaredValue { get; set; } = default!;
 
         /// <summary>
+        /// Surcharge for heavy parcels (over 30 kg): flat fee plus a rate per kg above the threshold (see HeavyParcelSurcharge). Zero for parcels up to 30 kg. Added in v2 (additive, not breaking).
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("surchargeAmount")]
+        public double SurchargeAmount { get; set; } = default!;
+
+        /// <summary>
         /// UTC timestamp when the shipment was created.
         /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]

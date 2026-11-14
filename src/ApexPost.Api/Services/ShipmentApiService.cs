@@ -428,6 +428,7 @@ public sealed class ShipmentApiService : IShipmentApiService
             },
             SpecialInstructions = shipment.SpecialInstructions,
             DeclaredValue = shipment.DeclaredValue,
+            SurchargeAmount = shipment.Surcharge,
             CreatedAtUtc = shipment.CreatedAtUtc,
             UpdatedAtUtc = shipment.UpdatedAtUtc,
             LatestScan = latestScan is null
