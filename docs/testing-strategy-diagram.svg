@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="960" height="600" fill="#ffffff"/>
+  <text x="480" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2937">ApexPost testing strategy: techniques and tools by level</text>
+
+  <!-- Risk bar -->
+  <rect x="40" y="52" width="880" height="50" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="480" y="73" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">Risk map decides the level</text>
+  <text x="480" y="92" text-anchor="middle" font-size="12" fill="#92400e">status transitions · duplicate tracking numbers · scan de-duplication · JWT roles · client retry · outbox · validation · queries · surcharge</text>
+
+  <!-- BDD layer -->
+  <rect x="300" y="122" width="360" height="118" rx="8" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="480" y="146" text-anchor="middle" font-size="15" font-weight="700" fill="#4c1d95">BDD / acceptance · ~2 % · 17 scenarios</text>
+  <text x="480" y="168" text-anchor="middle" font-size="12" fill="#4c1d95">Gherkin features: Background, Scenario Outline</text>
+  <text x="480" y="187" text-anchor="middle" font-size="12" fill="#4c1d95">Reqnroll → generated xUnit tests</text>
+  <text x="480" y="206" text-anchor="middle" font-size="12" fill="#4c1d95">bindings · context injection · hooks</text>
+  <text x="480" y="226" text-anchor="middle" font-size="11" fill="#6d28d9">ShipmentCreation = API level · ScanSync = service level</text>
+
+  <!-- Integration layer -->
+  <rect x="170" y="258" width="620" height="130" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="480" y="282" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">Integration · ~13 % · 107 tests</text>
+  <rect x="190" y="298" width="185" height="76" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="282" y="320" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">WebApplicationFactory</text>
+  <text x="282" y="340" text-anchor="middle" font-size="11" fill="#1e3a8a">real API pipeline</text>
+  <text x="282" y="357" text-anchor="middle" font-size="11" fill="#1e3a8a">real JWT validation</text>
+  <rect x="388" y="298" width="185" height="76" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="480" y="320" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">EF Core + SQLite</text>
+  <text x="480" y="340" text-anchor="middle" font-size="11" fill="#1e3a8a">in-memory, per test</text>
+  <text x="480" y="357" text-anchor="middle" font-size="11" fill="#1e3a8a">real repositories</text>
+  <rect x="586" y="298" width="185" height="76" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="678" y="320" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">Couchbase Lite</text>
+  <text x="678" y="340" text-anchor="middle" font-size="11" fill="#1e3a8a">temp folder, real engine</text>
+  <text x="678" y="357" text-anchor="middle" font-size="11" fill="#1e3a8a">SQL++ and outbox</text>
+
+  <!-- Unit layer -->
+  <rect x="40" y="406" width="880" height="150" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="480" y="430" text-anchor="middle" font-size="15" font-weight="700" fill="#14532d">Unit · ~85 % · 703 tests · built test-first (TDD: RED → GREEN → REFACTOR)</text>
+  <rect x="60" y="446" width="200" height="96" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="160" y="470" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">xUnit</text>
+  <text x="160" y="490" text-anchor="middle" font-size="11" fill="#14532d">Fact · Theory · InlineData</text>
+  <text x="160" y="507" text-anchor="middle" font-size="11" fill="#14532d">MemberData (6×6 matrix)</text>
+  <text x="160" y="524" text-anchor="middle" font-size="11" fill="#14532d">AAA, Method_Scenario_Result</text>
+  <rect x="274" y="446" width="200" height="96" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="374" y="470" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">Moq</text>
+  <text x="374" y="490" text-anchor="middle" font-size="11" fill="#14532d">Setup · ReturnsAsync</text>
+  <text x="374" y="507" text-anchor="middle" font-size="11" fill="#14532d">Verify · Times · It.Is</text>
+  <text x="374" y="524" text-anchor="middle" font-size="11" fill="#14532d">IScanRepository, IUnitOfWork…</text>
+  <rect x="488" y="446" width="200" height="96" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="588" y="470" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">Fake HttpMessageHandler</text>
+  <text x="588" y="490" text-anchor="middle" font-size="11" fill="#14532d">200 · 404 · 500</text>
+  <text x="588" y="507" text-anchor="middle" font-size="11" fill="#14532d">timeout · cancellation</text>
+  <text x="588" y="524" text-anchor="middle" font-size="11" fill="#14532d">ProblemDetails, no network</text>
+  <rect x="702" y="446" width="200" height="96" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="802" y="470" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">Deterministic time</text>
+  <text x="802" y="490" text-anchor="middle" font-size="11" fill="#14532d">TimeProvider injected</text>
+  <text x="802" y="507" text-anchor="middle" font-size="11" fill="#14532d">ManualTimeProvider</text>
+  <text x="802" y="524" text-anchor="middle" font-size="11" fill="#14532d">no DateTime.Now</text>
+
+  <text x="480" y="582" text-anchor="middle" font-size="12" fill="#4b5563">One framework everywhere: xUnit. Reqnroll generates xUnit tests; integration tests are xUnit tests with real components.</text>
+</svg>
