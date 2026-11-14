@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ApexPost.Courier.Domain\ApexPost.Courier.Domain.csproj" />
     <ProjectReference Include="..\ApexPost.Domain\ApexPost.Domain.csproj" />
   </ItemGroup>
 

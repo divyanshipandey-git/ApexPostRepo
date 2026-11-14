@@ -1,8 +1,7 @@
 using Xunit;
 using FluentAssertions;
 using Moq;
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 using ApexPost.Courier.Offline.Services;
 
 namespace ApexPost.Courier.Offline.Tests.Services;

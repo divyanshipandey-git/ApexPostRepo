@@ -7,7 +7,7 @@ namespace ApexPost.Api.Filters;
 
 /// <summary>
 /// Requires a valid <c>X-Api-Key</c> header. Used by the partner endpoints, which are not JWT protected.
-/// Failures are returned as RFC 9457 problem details. The key is compared in constant time.
+/// Failures are returned as RFC 9457 problem details. Keys are compared as SHA-256 digests in constant time (hides both content and length).
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
@@ -26,7 +26,7 @@ public sealed class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFil
             .Append(configuration["ApiKeys:Partner"])
             .Append(Environment.GetEnvironmentVariable("APEXPOST_PARTNER_API_KEY"))
             .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => Encoding.UTF8.GetBytes(k!))
+            .Select(k => SHA256.HashData(Encoding.UTF8.GetBytes(k!)))
             .ToList();
 
         if (expectedKeys.Count == 0)
@@ -45,7 +45,8 @@ public sealed class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFil
             return Task.CompletedTask;
         }
 
-        var provided = Encoding.UTF8.GetBytes(providedKey.ToString());
+        // Both sides are hashed first so the comparison is over fixed-length digests: the key length is not leaked either.
+        var provided = SHA256.HashData(Encoding.UTF8.GetBytes(providedKey.ToString()));
         var matched = false;
         foreach (var expected in expectedKeys)
         {

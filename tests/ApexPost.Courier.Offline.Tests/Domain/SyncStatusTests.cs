@@ -1,5 +1,5 @@
 using System;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 using Xunit;
 
 namespace ApexPost.Courier.Offline.Tests.Domain;
