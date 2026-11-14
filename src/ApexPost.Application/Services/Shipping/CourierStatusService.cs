@@ -54,6 +54,7 @@ public sealed class CourierStatusService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        var startedAt = _timeProvider.GetTimestamp();
         using var timeoutSource = new CancellationTokenSource(_lookupTimeout, _timeProvider);
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
@@ -66,6 +67,13 @@ public sealed class CourierStatusService
             if (_simulatedLookupDelay > TimeSpan.Zero)
             {
                 await Task.Delay(_simulatedLookupDelay, _timeProvider, linkedSource.Token);
+            }
+
+            // The deadline is also checked against elapsed time: when the machine is heavily loaded the timer callback that
+            // cancels the token can run late, and the lookup must still be reported as timed out (504), not as a normal result.
+            if (!cancellationToken.IsCancellationRequested && _timeProvider.GetElapsedTime(startedAt) >= _lookupTimeout)
+            {
+                return new CourierStatusUpdateResult(CourierStatusUpdateStatus.TimedOut);
             }
 
             var shipment = await _shipmentRepository.GetByIdAsync(shipmentId, linkedSource.Token);

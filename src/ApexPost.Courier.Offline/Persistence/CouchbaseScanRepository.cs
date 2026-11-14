@@ -3,8 +3,7 @@ using System.Text.Json.Serialization;
 using Couchbase.Lite;
 using Couchbase.Lite.Query;
 using Microsoft.Extensions.Logging;
-using ApexPost.Courier.Offline.Abstractions;
-using ApexPost.Courier.Offline.Domain;
+using ApexPost.Courier.Domain;
 
 namespace ApexPost.Courier.Offline.Persistence;
 
