@@ -1,0 +1,163 @@
+# ApexPost Testing Strategy (Week 5)
+
+This document was written **before** the new Week 5 tests (see the first commit of branch `week5-testing`). It states what is tested, at which level, with which tools, and why. Numbers in the pyramid are a plan; the final results are in [README.md](README.md#running-the-tests) and the reflection at the end.
+
+## 1. Risk map
+
+Likelihood x cost of failure, highest first. Every row names the test level that guards it.
+
+| # | Risk | Why it matters | Likelihood | Cost | Guarded by |
+|---|---|---|---|---|---|
+| R1 | **Shipment status transitions** (Created, PickedUp, InTransit, OutForDelivery, Delivered/Failed; no way back) | A wrong transition corrupts tracking history that customers see. | High (many branches) | High | Unit (parameterised matrix), BDD |
+| R2 | **Duplicate tracking numbers** | Two parcels with one number are mis-delivered. | Medium | High | Unit (service, Moq), BDD, API integration (409) |
+| R3 | **Scan de-duplication / idempotent upload** | The courier app retries uploads; a bug double-counts or loses scans. | High (retries are normal) | High | Unit (Moq `Verify`), BDD (ScanSync), integration (SQLite) |
+| R4 | **JWT role rules** (Courier vs Admin, `courierId` claim) | A courier creating shipments or uploading under another id is a security hole. | Medium | Very high | Unit (policy guard), API integration (401/403/2xx with test auth) |
+| R5 | **Client retry / error handling** (timeouts, 5xx, ProblemDetails, cancellation) | The field app lives on bad networks; wrong handling loses scans or hides errors. | High | High | Unit (fake `HttpMessageHandler`) |
+| R6 | **Outbox state machine** (Pending to Synced / Failed, batches) | A scan stuck in Pending, or marked Synced without an upload, is silent data loss. | Medium | Very high | Unit (Moq `IShipmentUploader`), existing Couchbase tests |
+| R7 | **Input validation** (tracking format, weight 0.1-70 kg, phone, future scan time, Delivered needs a signature) | Bad data enters the database. | High | Medium | Unit (`[Theory]` boundaries), BDD (Scenario Outline) |
+| R8 | **Repository query correctness** (filters, paging, ordering, unique index) | LINQ that compiles can still return wrong rows. | Medium | High | Integration (real EF Core on SQLite) |
+| R9 | **Heavy-parcel surcharge** (new, built with TDD) | Billing rule: a wrong threshold under- or over-charges. | Medium | Medium | Unit (TDD) |
+
+## 2. Test pyramid
+
+| Level | What runs there | Approx. share of tests | Speed |
+|---|---|---|---|
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | milliseconds |
+| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | tens of ms to seconds |
+| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | seconds |
+
+Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where a failure points at one line. Wiring problems (auth, routing, serialisation, EF translation) can only be seen with real components, so they get fewer, broader tests. BDD scenarios are a thin top layer: they document what the business expects and are not a place to re-test every boundary.
+
+### Level of each feature file
+
+| Feature | Level | Why |
+|---|---|---|
+| `ShipmentCreation.feature` | **API** (in-process `WebApplicationFactory`, SQLite, test auth) | The business promise is "POST creates a shipment, a duplicate gives 409, a bad weight gives 400". Status codes, validation and the unique key only exist when the real pipeline runs. |
+| `ScanSync.feature` | **Service** (`ScanUploadService` and `OutboxService` with in-memory fakes) | The promise is about counts (accepted / duplicates / rejected) and states (Pending to Synced). HTTP adds nothing here and would make the scenarios slower and more brittle. |
+
+## 3. Framework choice: xUnit (one framework across the solution)
+
+* **Consistency:** all five existing test projects already use xUnit 2.x; switching would cost rewrites with no gain.
+* **Isolation:** xUnit creates a **new class instance per test**, so fields are never shared by accident. This directly supports the "no shared mutable state, no test-order dependence" constraint. NUnit reuses one instance per fixture by default.
+* **Setup / teardown:** constructor plus `IDisposable` / `IAsyncLifetime` instead of `[SetUp]`/`[TearDown]`; expensive things (SQLite connection, web host) use `IClassFixture` explicitly.
+* **Parameterised tests:** `[Theory]` with `[InlineData]` / `[MemberData]` covers the tracking-number, weight and transition matrices.
+* **Reqnroll:** `Reqnroll.xUnit` is a first-class integration with context injection.
+* **Tooling:** `Microsoft.AspNetCore.Mvc.Testing`, Moq and Test Explorer all work with xUnit without extra adapters.
+* **Mocking library:** Moq 4.20.72 (the SponsorLink telemetry of 4.20.0 was removed in later 4.20.x releases; pinned above that).
+
+No second framework is used.
+
+## 4. Test project structure
+
+| Project | Role | Notes |
+|---|---|---|
+| `tests/ApexPost.UnitTests` (**new**) | Moq-based unit tests, HTTP-handler tests, the TDD feature | No I/O, no network, no database. |
+| `tests/ApexPost.IntegrationTests` (**new**) | SQLite repository tests, `WebApplicationFactory` API tests | In-memory SQLite, test JWT, no secrets. |
+| `tests/ApexPost.Specs` (**new**) | Reqnroll features and bindings | Context injection, hooks. |
+| `ApexPost.Domain.Tests`, `ApexPost.Application.Tests`, `ApexPost.Api.Tests`, `ApexPost.Courier.Offline.Tests`, `ApexPost.Web.IntegrationTests` (existing) | Kept as the documented equivalent of the unit/integration split for their layers | Moving ~70 files only to rename folders adds risk and no evidence of quality; the table below records each decision. |
+
+## 5. Existing tests review
+
+Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` methods in the class. Nothing was deleted; where two classes overlap, the overlap is recorded rather than hidden.
+
+| Test class (file) | Tests | Decision | Reason |
+|---|---|---|---|
+| `RequestValidationTests` | 5 | Kept | Parameterised DTO validation (tracking number, weight, phone, custom rule). |
+| `ScanUploadServiceTests` | 9 | Kept | Covers scan de-duplication and the courierId rule with hand-written fakes. Moq-based interaction checks (Verify Times) are added in ApexPost.UnitTests. |
+| `ShipmentAuthorizationTests` | 3 | Kept | Added in the Week 4 review: reflection guard that write endpoints keep [Authorize(Policy=AdminOnly)]. Complemented by a real HTTP 403 test in ApexPost.IntegrationTests. |
+| `DemoDataProvisionerTests` | 4 | Kept | Seeding is deterministic and used for demos; low risk, cheap. |
+| `InfrastructureDependencyInjectionTests` | 4 | Kept | Guards the composition root (wrong lifetime or missing registration fails at startup, not in a unit test). |
+| `JsonAuditLogTests` | 2 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonCounterTransactionRepositoryTests` | 4 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonFileStoreCrudTests` | 4 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonFileStoreDuplicateKeyTests` | 3 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonFileStoreTests` | 7 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonInventoryRepositoryTests` | 11 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonMoneyOrderRepositoryTests` | 3 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonPersistenceOptionsTests` | 7 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `JsonShipmentRepositoryTests` | 5 | Kept | Fast file-system tests with an isolated temp directory per test; still the fallback persistence layer. |
+| `SqlPersistenceTests` | 4 | Kept (opt-in) | Real SQL Server behaviour (constraints, concurrency, migrations) that SQLite cannot prove. Skipped unless a LocalDB/SQL connection is configured, so the default run needs no setup. |
+| `SqlServerIntegrationTests` | 1 | Kept (opt-in) | Real SQL Server behaviour (constraints, concurrency, migrations) that SQLite cannot prove. Skipped unless a LocalDB/SQL connection is configured, so the default run needs no setup. |
+| `BranchServiceTests` | 10 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `InventoryServiceTests` | 8 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `MoneyOrderServiceTests` | 9 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `SimulatedNotificationServiceTests` | 10 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `ProductCatalogServiceTests` | 5 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `ProductPriceRevisionServiceTests` | 3 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `ReportingServiceTests` | 7 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `CourierStatusServiceTimeoutTests` | 2 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `ShippingServiceTests` | 10 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `StaffServiceTests` | 12 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `TransactionVoidServiceTests` | 16 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `AttributeObjectValidatorTests` | 2 | Kept | Pure validation logic, boundary cases. |
+| `ScanTypeTests` | 11 | Kept | Real Couchbase Lite in a temp folder (no mocks): proves SQL++, indexes and outbox against the real engine. |
+| `ShipmentScanTests` | 10 | Kept | Real Couchbase Lite in a temp folder (no mocks): proves SQL++, indexes and outbox against the real engine. |
+| `SyncStatusTests` | 9 | Kept | Real Couchbase Lite in a temp folder (no mocks): proves SQL++, indexes and outbox against the real engine. |
+| `CouchbaseScanRepositoryTests` | 13 | Kept | Real Couchbase Lite in a temp folder (no mocks): proves SQL++, indexes and outbox against the real engine. |
+| `OutboxServiceTests` | 2 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `BranchTests` | 6 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `CounterTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `CounterTransactionEntityTests` | 19 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `CounterTransactionTests` | 17 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `IdentityVerificationEntityTests` | 9 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `IdentityVerificationTests` | 4 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `InventoryStockTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `MoneyOrderEntityTests` | 16 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `MoneyOrderPolicyEntityTests` | 13 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `MoneyOrderPolicyTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `MoneyOrderTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ProductTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ShipmentEntityTests` | 14 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ShipmentTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ShippingPricingRuleEntityTests` | 14 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ShippingPricingRuleTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `StaffTests` | 6 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `TaxRateEntityTests` | 10 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `TaxRateTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `TransactionLineItemEntityTests` | 14 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `TransactionLineItemTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `AddressTests` | 11 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `BranchCodeTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `MoneyTests` | 12 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `MoneyValueObjectTests` | 12 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `SkuTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `SkuValueObjectTests` | 9 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `WeightTests` | 8 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `WeightValueObjectTests` | 8 | Kept | Value-object invariants (Money, Sku, Weight, BranchCode). Money/Sku/Weight exist in two files with different test names; not merged because every case is distinct and green. Merge candidate. |
+| `SafeExceptionMiddlewareTests` | 6 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
+| `SqlRuntimeRegistrationTests` | 1 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
+| `ValidationActionFilterTests` | 3 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
+| `WebApplicationIntegrationTests` | 58 | Kept | MVC web app pipeline (middleware, filters, security headers). Different host than the API, so not replaced by the new API integration tests. |
+
+## 6. Data access strategy
+
+| Approach | Used for | What it **proves** | What it does **not** prove |
+|---|---|---|---|
+| **Mocked repository** (`Mock<IShipmentRepository>`) | Service logic: "if it exists then 409", "save is called once", "nothing is saved on failure" | The service decides and sequences correctly given what the repository says | That the real query or unique index behaves that way; that the mock's `Returns` matches the real repository (a wrong setup passes happily) |
+| **SQLite in-memory** (real EF Core provider) | Repository queries, paging, filtering, ordering, uniqueness, change tracking | That LINQ translates to SQL and returns the right rows through the real `DbContext` | SQL Server specifics: `rowversion`, `datetime2`, collations, server-side defaults, locking, retry-on-failure, migrations. String comparison and case-sensitivity differ. |
+| **SQL Server / LocalDB** (existing opt-in tests) | Migrations, concurrency tokens, constraints | Behaviour on the production provider | Needs a SQL instance; slower; skipped by default so `dotnet test` works with no setup |
+| **Couchbase Lite temp folder** (existing) | SQL++ queries, indexes, outbox | Real embedded-engine behaviour | Sync Gateway behaviour (out of scope) |
+
+**Why `DbContext`/`DbSet` are not mocked for query logic:** a mocked `DbSet` runs LINQ-to-Objects, not LINQ-to-SQL. Queries that cannot be translated, that sort strings differently, that forget an `Include`, or that rely on a unique index all *pass* against a mock and *fail* in production. The test would only prove that C# can filter a list. Mocking `IQueryable` also couples the test to the exact call shape, so harmless refactors break it. A real (even if different) database provider is the smallest honest substitute.
+
+## 7. What is not tested, and why
+
+* **MAUI / UI / browser / navigation:** explicitly out of scope; the courier client is a console app anyway.
+* **Third-party internals** (EF Core, Polly, Couchbase Lite, ASP.NET Core): we test our use of them, not their code.
+* **Generated code** (`ApexPost.Client.cs` from NSwag, EF migration designer files): regenerated from the contracts, which are the source of truth.
+* **Real network, e-mail, production databases:** forbidden by the constraints; HTTP is faked at the `HttpMessageHandler`.
+* **Performance and load:** a different kind of test with different tooling; SQL performance plans live in `docs/performance-plans`.
+* **Trivial members** (auto-properties, DTO getters): no logic, no risk.
+* **Code coverage as a goal:** coverage is reported only as evidence of where we are blind.
+
+## 8. Rules every new test follows
+
+* AAA with `// Arrange`, `// Act`, `// Assert` comments; names are `Method_Scenario_ExpectedResult`.
+* Deterministic: time comes from `FakeTimeProvider` or fixed `DateTimeOffset` values, never `DateTime.Now`; every test builds its own data; SQLite databases are per test; no static state.
+* Fictional data only (`APX-20250101`, `COURIER-001`, `Jane Example`, `+15550100`).
+* No secrets: the test JWT key is a clearly fake constant used only by the in-memory test host; no connection strings.
+* Run everything with `dotnet test ApexPost.sln` (no manual setup).
+
+## 9. Reflection
+
+*(completed at the end of the week)*
