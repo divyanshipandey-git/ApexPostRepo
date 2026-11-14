@@ -111,8 +111,8 @@ public class ShipmentEntityTests
     [Fact]
     public void Constructor_NonUtcCreatedAtUtc_ShouldReject()
     {
-        // Act & Assert - passing a local time (offset not zero)
-        var localTime = DateTimeOffset.Now;
+        // Act & Assert - a timestamp with a non-zero offset (fixed +05:30, so the result does not depend on the machine time zone)
+        var localTime = new DateTimeOffset(2025, 3, 10, 8, 0, 0, TimeSpan.FromHours(5.5));
         Assert.Throws<ArgumentException>(() => new Shipment(
             "SHP-001", "Parcel", new Weight(1m), new Dimensions(10, 10, 10),
             "US-DOMESTIC", ShippingServiceLevel.Standard,
@@ -171,8 +171,8 @@ public class ShipmentEntityTests
             "SHP-001", "Parcel", new Weight(1m), new Dimensions(10, 10, 10),
             "US-DOMESTIC", ShippingServiceLevel.Standard);
 
-        // Act & Assert - passing a local time (offset not zero)
-        var localTime = DateTimeOffset.Now;
+        // Act & Assert - a timestamp with a non-zero offset (fixed +05:30, so the result does not depend on the machine time zone)
+        var localTime = new DateTimeOffset(2025, 3, 10, 8, 0, 0, TimeSpan.FromHours(5.5));
         Assert.Throws<ArgumentException>(() => shipment.RecordCourierStatus(
             "Delivered", localTime));
     }

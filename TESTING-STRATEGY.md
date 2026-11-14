@@ -85,7 +85,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 | `SimulatedNotificationServiceTests` | 10 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
 | `ProductCatalogServiceTests` | 5 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
 | `ProductPriceRevisionServiceTests` | 3 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
-| `ReportingServiceTests` | 7 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
+| `ReportingServiceTests` | 7 | Modified | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. Changed after the first CI run: it used the local clock or time zone (`DateTimeOffset.Now`, `DateTime.Today`), which made two tests fail on the UTC build server; now fixed dates and offsets. |
 | `CourierStatusServiceTimeoutTests` | 2 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
 | `ShippingServiceTests` | 10 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
 | `StaffServiceTests` | 12 | Kept | Application-service unit tests with fakes; business rules at the right level. New Moq-based interaction tests are added in ApexPost.UnitTests, not duplicated here. |
@@ -108,7 +108,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 | `MoneyOrderPolicyTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
 | `MoneyOrderTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
 | `ProductTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
-| `ShipmentEntityTests` | 14 | Kept | Domain invariants: cheapest and highest-value tests. |
+| `ShipmentEntityTests` | 14 | Modified | Domain invariants: cheapest and highest-value tests. Changed after the first CI run: it used the local clock or time zone (`DateTimeOffset.Now`, `DateTime.Today`), which made two tests fail on the UTC build server; now fixed dates and offsets. |
 | `ShipmentTests` | 5 | Kept | Domain invariants: cheapest and highest-value tests. |
 | `ShippingPricingRuleEntityTests` | 14 | Kept | Domain invariants: cheapest and highest-value tests. |
 | `ShippingPricingRuleTests` | 7 | Kept | Domain invariants: cheapest and highest-value tests. |
@@ -225,3 +225,7 @@ Measured with `coverlet` over the default run (no SQL Server), generated code, E
 * **Domain (about 69 %):** the highest-risk rules (status machine, weight, tracking number, surcharge) are covered by name in the risk map; what is uncovered is mostly entities of the Week 2/3 counter workflows that this lab did not target.
 
 Coverage tells us where tests are missing; it does not tell us the tests are good (the deliberate-breakage proofs in COPILOT-LOG.md do that). No coverage number was used as a goal.
+
+## 13. What the first CI run caught
+
+The new GitHub Actions run (UTC build server) failed two Domain tests that pass on a developer machine: `Constructor_NonUtcCreatedAtUtc_ShouldReject` and `RecordCourierStatus_NonUtcTimestamp_ShouldReject` built their "non-UTC" value from `DateTimeOffset.Now`, which has offset zero on a UTC machine, so no exception was thrown. This is exactly the determinism rule of the lab (no reliance on the clock or machine settings). Both now use a fixed `+05:30` offset, and `ReportingServiceTests` no longer uses `DateTime.Today`. Lesson: a local green run is not proof of determinism; a second environment is.
