@@ -20,9 +20,9 @@ Likelihood x cost of failure, highest first. Every row names the test level that
 
 ## 2. Test pyramid
 
-| Level | What runs there | Planned share | Actual (896 passing tests) | Speed |
+| Level | What runs there | Planned share | Actual (912 passing tests) | Speed |
 |---|---|---|---|---|
-| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **83 %** (744) | milliseconds |
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **83 %** (760) | milliseconds |
 | **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **13 %** (115) | tens of ms to seconds |
 | **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | **4 %** (37) | seconds |
 
@@ -171,7 +171,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 **What would I change?**
 
 * The overlapping Domain test classes (Money, Sku, Weight) were merged in the completion round: 330 tests before and after, none lost (section 5).
-* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 923 passed, 0 skipped), so they are not only a local opt-in.
+* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 939 passed, 0 skipped), so they are not only a local opt-in.
 * Coverage reporting was added in the completion round (section 12); the next step is a threshold-free trend in CI.
 * Move the SQLite customizer's knowledge (which SQL Server details are removed) into a short test that fails if a new SQL Server only mapping appears, instead of discovering it when schema creation breaks.
 * The DTO regex for the tracking number still uses `$`; the domain now rejects the trailing newline (HTTP 400), but the contract and generated client keep the old pattern. Changing it needs a contract re-export.
@@ -221,7 +221,7 @@ Measured with `coverlet` over the default run (no SQL Server), generated code, E
 
 * **`ApexPost.Courier.Console` (about 6 %):** only `ApexApiClient` and its models are tested. The menus, token storage (DPAPI), connectivity monitor and Polly pipeline setup are console and platform glue; their behaviour is shown by the Week 4 runtime evidence, not by unit tests. This is the largest honest gap.
 * **`ApexPost.Api` (about 40 %):** services and the pipeline are covered through `WebApplicationFactory`; the OpenAPI document transformers, Swagger setup and the Development-only token endpoint are not (they are Development tooling).
-* **Infrastructure (about 44 %) and Web controllers:** SQL Server specific paths (retry-on-failure, stored procedures, migrations) are only exercised when the opt-in SQL Server tests run; with `APEXPOST_SQL_TEST_CONNECTION` set, 923 tests pass with nothing skipped (`docs/evidence/test-run-with-sqlserver.txt`), which these default-run figures do not include.
+* **Infrastructure (about 44 %) and Web controllers:** SQL Server specific paths (retry-on-failure, stored procedures, migrations) are only exercised when the opt-in SQL Server tests run; with `APEXPOST_SQL_TEST_CONNECTION` set, 939 tests pass with nothing skipped (`docs/evidence/test-run-with-sqlserver.txt`), which these default-run figures do not include.
 * **Domain (about 69 %):** the highest-risk rules (status machine, weight, tracking number, surcharge) are covered by name in the risk map; what is uncovered is mostly entities of the Week 2/3 counter workflows that this lab did not target.
 
 Coverage tells us where tests are missing; it does not tell us the tests are good (the deliberate-breakage proofs in COPILOT-LOG.md do that). No coverage number was used as a goal.

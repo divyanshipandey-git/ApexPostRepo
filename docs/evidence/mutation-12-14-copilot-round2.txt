@@ -1,0 +1,16 @@
+## Mutation 12: SyncService batch size off by one (Chunk(batchSize) becomes Chunk(batchSize + 1)) - Copilot-drafted SyncServiceCopilotTests
+ApexPost.UnitTests.Client.SyncServiceCopilotTests.SyncPendingScansAsync_FortyFivePendingScansInThreeBatches_UsesThreeUploadsAndMarksAllSynced [FAIL]
+Failed!  - Failed:     1, Passed:     6, Skipped:     0, Total:     7, Duration: 199 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 13: partner API key check accepts any non-empty key - Copilot-drafted ApiKeyAuthorizeAttributeCopilotTests
+ApexPost.UnitTests.Api.ApiKeyAuthorizeAttributeCopilotTests.OnAuthorizationAsync_KeyIsPrefixOrLongerVersion_Returns401Unauthorized(providedKey: "test-key-123-extra") [FAIL]
+ApexPost.UnitTests.Api.ApiKeyAuthorizeAttributeCopilotTests.OnAuthorizationAsync_KeyIsPrefixOrLongerVersion_Returns401Unauthorized(providedKey: "test-key-12") [FAIL]
+ApexPost.UnitTests.Api.ApiKeyAuthorizeAttributeCopilotTests.OnAuthorizationAsync_WrongKey_Returns401Unauthorized [FAIL]
+Failed!  - Failed:     3, Passed:     6, Skipped:     0, Total:     9, Duration: 93 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 14: the 401 fix undone (Error state overwritten by Idle again) - Copilot-drafted 401 test
+ApexPost.UnitTests.Client.SyncServiceCopilotTests.SyncPendingScansAsync_Unauthorized401_ClearsTokenAndReturnsError [FAIL]
+Failed!  - Failed:     1, Passed:     0, Skipped:     0, Total:     1, Duration: 162 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files

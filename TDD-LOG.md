@@ -77,3 +77,7 @@ Design notes: `Surcharge` is a computed, get-only property, so EF Core does not 
 ## 9. Still open on purpose
 
 The surcharge is only reported (`surchargeAmount`); nothing charges or stores money yet. Billing needs a product decision (who pays, currency, tax), so it was not invented here.
+
+## 10. A second red-green cycle that came from a Copilot test
+
+The Copilot-drafted test `SyncServiceCopilotTests.SyncPendingScansAsync_Unauthorized401_ClearsTokenAndReturnsError` failed against the existing code: after a 401 the service reported `Idle` instead of `Error`, because the state set in the 401 handler was overwritten by `SetStatus(SyncState.Idle)` at the end of the method. The test was committed as a `RED:` commit and the one-line fix (`authenticationFailed ? Error : Idle`) as a `GREEN:` commit; the test was not weakened. See COPILOT-LOG.md, prompt 4.

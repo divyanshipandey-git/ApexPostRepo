@@ -6,11 +6,11 @@ Say it in your own words. Short, simple, true.
 ApexPost is a parcel-tracking system: a SQL Server API, an offline courier store (Couchbase Lite) and a courier client. Week 5 asks: **how do we know it is safe to change?** My answer is a deliberate test strategy, not just many tests.
 
 ## 1. My test pyramid (1 minute)
-- **Unit tests, about 83 %** (744): fast, test one rule. Example: the status matrix (Delivered can never go back).
+- **Unit tests, about 83 %** (760): fast, test one rule. Example: the status matrix (Delivered can never go back).
 - **Integration tests, about 13 %** (115): real components. Example: the real API with real JWT login, and real EF Core on in-memory SQLite.
 - **BDD, about 4 %** (37 scenarios): business language, checks what the customer sees.
 - Why this shape: rules are cheap to test at the bottom; wiring (login, routes, database) can only be tested with real parts, so fewer but bigger tests.
-- Result: **896 tests pass, 0 fail**, 27 skipped by default (they need SQL Server); with LocalDB enabled **923 pass, 0 skipped**.
+- Result: **912 tests pass, 0 fail**, 27 skipped by default (they need SQL Server); with LocalDB enabled **939 pass, 0 skipped**.
 
 ## 2. Why xUnit (30 seconds)
 - All the earlier tests already used xUnit, so no rewrite.
@@ -68,7 +68,7 @@ Add coverage reports, run the SQL Server tests in CI, and merge two duplicated D
 
 ## Extra facts for the viva (one line each)
 - **Coverage:** about 48 % of lines overall; Domain about 69 %. It is evidence of where tests are missing (console glue, Swagger setup), not a goal.
-- **SQL Server:** the unique-tracking-number test runs on real SQL Server (LocalDB) when `APEXPOST_SQL_TEST_CONNECTION` is set; then 923 tests pass with none skipped.
+- **SQL Server:** the unique-tracking-number test runs on real SQL Server (LocalDB) when `APEXPOST_SQL_TEST_CONNECTION` is set; then 939 tests pass with none skipped.
 - **Cleanup:** I merged three duplicated Domain test files (330 tests before and after, none lost) and recorded it in the review table.
 - **CI:** `.github/workflows/tests.yml` runs `dotnet test` on every push.
 - **Default branch is `master`** (the lab text says `main`).

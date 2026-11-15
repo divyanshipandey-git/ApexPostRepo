@@ -1,4 +1,4 @@
-// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 5 in COPILOT-LOG.md), then reviewed by the student.
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 5 in COPILOT-LOG.md), then reviewed and changed by the student.
 
 using System.Collections.Generic;
 using ApexPost.Api.Filters;
@@ -13,15 +13,25 @@ using Xunit;
 
 namespace ApexPost.UnitTests.Api;
 
-public class ApiKeyAuthorizeAttributeCopilotTests
+// Reviewed: the attribute reads the process-wide variable APEXPOST_PARTNER_API_KEY. Copilot cleared it inside every test
+// and restored it in only one, so a test could leave the variable changed and the result depended on the machine.
+// Now one constructor clears it for every test and Dispose restores the original; the collection stops xUnit from running
+// other classes that touch it at the same time.
+[Collection("Partner API key environment variable")]
+public sealed class ApiKeyAuthorizeAttributeCopilotTests : IDisposable
 {
     private const string TestKey = "test-key-123";
+    private const string EnvironmentVariableName = "APEXPOST_PARTNER_API_KEY";
+    private readonly string? _originalEnvironmentValue = Environment.GetEnvironmentVariable(EnvironmentVariableName);
+
+    public ApiKeyAuthorizeAttributeCopilotTests() => Environment.SetEnvironmentVariable(EnvironmentVariableName, null);
+
+    public void Dispose() => Environment.SetEnvironmentVariable(EnvironmentVariableName, _originalEnvironmentValue);
 
     [Fact]
     public async Task OnAuthorizationAsync_NoKeyConfiguredOnServer_Returns500ProblemDetails()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>())
             .Build();
@@ -42,7 +52,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_MissingHeader_Returns401Unauthorized()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -66,7 +75,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_EmptyHeader_Returns401Unauthorized()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -90,7 +98,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_WrongKey_Returns401Unauthorized()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -114,7 +121,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_PartnerApiKeyConfigured_AcceptsKeyAndLeavesResultNull()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -134,7 +140,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_PartnerApiKeysSectionConfigured_AcceptsKeyAndLeavesResultNull()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -156,7 +161,6 @@ public class ApiKeyAuthorizeAttributeCopilotTests
     public async Task OnAuthorizationAsync_KeyIsPrefixOrLongerVersion_Returns401Unauthorized(string providedKey)
     {
         // Arrange
-        Environment.SetEnvironmentVariable("APEXPOST_PARTNER_API_KEY", null);
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {

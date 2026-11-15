@@ -7,7 +7,7 @@ Have open: `TESTING-STRATEGY.md`, the GitHub commit list (RED / GREEN / REFACTOR
 ## The 5-minute script (about 500 words, 4 to 4.5 minutes spoken; the rest is pauses and showing the screen)
 
 **1. Pyramid and why (1 minute 15)**
-"ApexPost tracks parcels. Before changing it, the lead wanted proof it is safe, so I made a test strategy first. I listed nine risks, for example status transitions, duplicate tracking numbers, duplicate scans, JWT roles and the client retrying on a bad network. Then I chose a level for each. About 83 percent are unit tests because rules are cheap to test and a failure points at one line. About 13 percent are integration tests with real parts: the real API with real login, and real database code on SQLite. About 4 percent are BDD scenarios in business language. The whole suite is 896 passing tests, and 923 when I switch on SQL Server."
+"ApexPost tracks parcels. Before changing it, the lead wanted proof it is safe, so I made a test strategy first. I listed nine risks, for example status transitions, duplicate tracking numbers, duplicate scans, JWT roles and the client retrying on a bad network. Then I chose a level for each. About 83 percent are unit tests because rules are cheap to test and a failure points at one line. About 13 percent are integration tests with real parts: the real API with real login, and real database code on SQLite. About 4 percent are BDD scenarios in business language. The whole suite is 912 passing tests, and 939 when I switch on SQL Server."
 
 **2. Framework (45 seconds)**
 "I used xUnit everywhere. The old tests already used it, so there was no rewrite. xUnit makes a new object for every test, so tests cannot share data by accident, which is my determinism rule. Theory and InlineData give me parameterised tests like the six by six status table. Reqnroll, which runs my BDD, generates xUnit tests, so Test Explorer and dotnet test see everything. One framework, several techniques: TDD, BDD and mocking."
@@ -26,12 +26,13 @@ Have open: `TESTING-STRATEGY.md`, the GitHub commit list (RED / GREEN / REFACTOR
 | Question | Answer |
 |---|---|
 | Why not mock `DbContext`? | The mock runs LINQ on objects, not SQL, so it passes where real SQL fails: false confidence. |
-| What does SQLite not prove? | SQL Server details: rowversion, datetime2, locking, error codes. I keep opt-in SQL Server tests for those; with LocalDB all 923 pass. |
+| What does SQLite not prove? | SQL Server details: rowversion, datetime2, locking, error codes. I keep opt-in SQL Server tests for those; with LocalDB all 939 pass. |
 | TDD vs BDD? | TDD is how I write a rule (test first, developer level). BDD describes behaviour in business words that a non-programmer can check. |
 | Why is BDD only 4 percent? | It is the slowest and most brittle layer; it documents behaviour, it does not re-test every boundary. |
 | What did your tests catch? | Weights from 0.01 to 0.09 kg were accepted; a tracking number ending in a newline passed; the clock could not be tested; two tests failed on the UTC build server because they used the local time zone. |
 | Which test gave the most value per minute? | Parameterised unit tests with Moq. |
 | Did Copilot write everything? | No. Copilot drafted three files; I changed or extended each one. another AI coding assistant made earlier drafts. Both are logged. |
+| Did a Copilot test find anything? | Yes. Its 401 test for the sync service failed: after an authentication failure the service reported Idle instead of Error, because the last line overwrote the state. I kept the test, committed it red, fixed the production code, and the test went green. |
 | What would you change? | Add SQL Server to CI, raise coverage of the console app (about 6 percent now), and keep coverage as evidence, not a goal. |
 | How do you run it? | `dotnet test ApexPost.sln`, no setup. |
 | Show a test failing. | Change `<=` to `<` in `HeavyParcelSurcharge`, run the surcharge tests, see them fail, then `git checkout -- <file>`. |

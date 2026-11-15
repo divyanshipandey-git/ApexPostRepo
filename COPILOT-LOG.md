@@ -272,7 +272,7 @@ All three files carry `COPILOT-ASSISTED`; the another AI coding assistant drafts
 
 # Copilot round 2: areas no earlier draft covers (prompts 4 and 5)
 
-Why this round exists: Copilot prompts 1 and 3 targeted code that I had already drafted tests for, and Copilot saw those drafts, so the results overlapped. Prompts 4 and 5 target code that has **no tests at all yet** (`SyncService`, `ApiKeyAuthorizeAttribute`) and tell Copilot **not to read the existing tests**, so the output is independent work. Status: **prompts written, output not yet added**; nothing below is claimed until the files exist and are reviewed.
+Why this round exists: Copilot prompts 1 and 3 targeted code that I had already drafted tests for, and Copilot saw those drafts, so the results overlapped. Prompts 4 and 5 target code that has **no tests at all yet** (`SyncService`, `ApiKeyAuthorizeAttribute`) and tell Copilot **not to read the existing tests**, so the output is independent work. Status: **both prompts were run in Copilot and are reviewed below.**
 
 ## Prompt 4: SyncService (batches of 20, Synced/Failed, circuit)
 
@@ -309,3 +309,69 @@ Write xUnit tests for ApiKeyAuthorizeAttribute (namespace ApexPost.UnitTests.Api
 * **Both:** copied production logic in the expected values (for example computing the expected batch count with the same formula the service uses) proves nothing.
 
 After the files exist: run `dotnet test`, do one breakage proof per file (for example change the batch size constant, or compare the key with `==` on a shortened key), add the Kept / Changed / Rejected tables here, and commit.
+
+---
+
+## Prompt 4 (Copilot, round 2): SyncServiceCopilotTests
+
+**Copilot raw output (as received, before review):** a new file `tests/ApexPost.UnitTests/Client/SyncServiceCopilotTests.cs` with 5 tests: 45 scans uploaded in batches of 20, 20 and 5 and all marked Synced; a batch with one rejection marks only that scan Failed; a 409 defers the batch; a 401 clears the token and returns an error; a cancelled token throws. It compiled. **4 passed and 1 failed on the first run.**
+
+**The failing test found a real production bug.** `SyncPendingScansAsync_Unauthorized401_ClearsTokenAndReturnsError` expected `SyncState.Error` after a 401 but got `Idle`. The 401 handler in `SyncService` does set `Error`, but the last line of the method resets the state with `SetStatus(SyncState.Idle)`, so the Error state could never be seen; the Sync Status screen even has a colour for `Error`, so it was meant to be visible. I did not weaken the test: I committed it as a red commit and fixed production in a green commit (`RED:` / `GREEN:` in the log: the final state is `Error` after an authentication failure, otherwise `Idle`). This is a second TDD-style cycle that came from a Copilot test.
+
+**Kept**
+
+* The batch test: it checks the call pattern (twice with 20 scans, once with 5) and that all 45 scans are marked Synced, so a batch-size bug is caught.
+* The 409 test with `Times.Never` on both Mark calls: it proves "deferred" means the scans stay pending.
+* The 401 test (see above) and the cancellation test with `Times.Never` on the API and database calls.
+
+**Changed (added in review)**
+
+| Gap in Copilot's draft | My change |
+|---|---|
+| The prompt asked for a 500 case and an empty queue; Copilot skipped both | Added `ServerError500_CountsScansAsFailedAndNeverMarksThemSynced` and `NoPendingScans_NeverCallsTheApi` |
+| Marker did not name the prompt | Marker names prompt 4 and says "reviewed and extended" |
+
+**Rejected / not done:** no `Task.Delay` or `Thread.Sleep` were used (checked, nothing to reject); the circuit-breaker timing path (`CircuitBreakerResetTimeout`) is not tested here because it depends on `DateTimeOffset.UtcNow` inside the service; it needs a `TimeProvider` first, listed as a future testability change.
+
+**What the mocks do not prove:** they prove which calls `SyncService` makes; they do not prove that the real Couchbase Lite database changes the stored status (the Courier.Offline tests cover that) or that the real API accepts a batch of 20.
+
+## Prompt 5 (Copilot, round 2): ApiKeyAuthorizeAttributeCopilotTests
+
+**Copilot raw output (as received, before review):** a new file with 9 test cases: no key configured gives a 500 problem; missing header, empty header and wrong key each give 401 with the exact title and detail; `PartnerApiKey` and `PartnerApiKeys:SomePartner` are accepted and leave `Result` null; a prefix of the key and a longer key are rejected (`[Theory]`); the environment-variable key is accepted. It compiled and all 9 passed on the first run.
+
+**Kept:** the exact-assertion style (status, `ProblemDetails.Title` and `Detail`, not just "a result exists"); the prefix / longer-key theory, which is the case a naive string comparison gets wrong; `Assert.Null(filterContext.Result)` for accepted keys; fake keys only.
+
+**Changed**
+
+| Copilot draft | Problem | My change |
+|---|---|---|
+| `Environment.SetEnvironmentVariable(..., null)` repeated in six tests, restored in only one | Shared mutable process state (determinism rule): a test could leave the variable changed, and the result depended on the machine | One constructor clears the variable, `Dispose` restores the original, and the class is in a named collection so xUnit does not run classes that touch it in parallel |
+| Marker said only "reviewed by the student" | Not accurate after my changes | Marker says "reviewed and changed" |
+
+**Rejected / not covered:** a test that the comparison is constant-time: it cannot be observed from a unit test, so it is stated as not tested (the SHA-256 comparison is documented in SECURITY.md).
+
+**What the tests do not prove:** the attribute is only the filter; they do not prove that the real controller carries it (the API endpoint tests with a partner key cover the wiring).
+
+### Proof that the round 2 tests can fail
+
+Raw output: [mutation-12-14-copilot-round2.txt](docs/evidence/mutation-12-14-copilot-round2.txt).
+
+| # | Production change (deliberately wrong) | Copilot test that failed |
+|---|---|---|
+| 12 | `SyncService`: `Chunk(batchSize)` changed to `Chunk(batchSize + 1)` | `FortyFivePendingScansInThreeBatches_UsesThreeUploadsAndMarksAllSynced` |
+| 13 | `ApiKeyAuthorizeAttribute`: any non-empty key accepted | the wrong-key test and both prefix / longer-key cases |
+| 14 | the 401 fix undone (Idle overwrites Error) | `Unauthorized401_ClearsTokenAndReturnsError` |
+
+All production files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+## Updated summary of the real Copilot work
+
+| Prompt | File | Result |
+|---|---|---|
+| 1 service unit tests | `ScanUploadServiceCopilotTests.cs` | 3 changes, 1 added theory, proofs 8 and 9 |
+| 2 Gherkin feature + steps | `ScanSyncCopilot.feature`, `ScanSyncCopilotSteps.cs` | excluded-from-build problem fixed, magic words removed, proofs 6 and 7 |
+| 3 HTTP client tests | `ApexApiClientCopilotTests.cs` | request check and status theory added, proofs 10 and 11 |
+| 4 SyncService | `SyncServiceCopilotTests.cs` | **found a production bug** (fixed), 2 tests added, proofs 12 and 14 |
+| 5 ApiKeyAuthorizeAttribute | `ApiKeyAuthorizeAttributeCopilotTests.cs` | shared environment state fixed, proof 13 |
+
+Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my another AI coding assistant drafts.

@@ -47,7 +47,7 @@ In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To 
 
 | Project | Level | Passed | Skipped | Failed |
 |---|---|---:|---:|---:|
-| `ApexPost.UnitTests` (new) | unit, Moq, fake `HttpMessageHandler`, TDD | 172 | 0 | 0 |
+| `ApexPost.UnitTests` (new) | unit, Moq, fake `HttpMessageHandler`, TDD | 188 | 0 | 0 |
 | `ApexPost.IntegrationTests` (new) | SQLite repositories, API through `WebApplicationFactory` | 39 | 0 | 0 |
 | `ApexPost.Specs` (new) | Reqnroll BDD: 5 features, 25 API scenarios, 12 service scenarios (incl. the Copilot-drafted feature) | 37 | 0 | 0 |
 | `ApexPost.Domain.Tests` | unit | 330 | 0 | 0 |
@@ -55,9 +55,9 @@ In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To 
 | `ApexPost.Api.Tests` | unit | 21 | 0 | 0 |
 | `ApexPost.Courier.Offline.Tests` | real Couchbase Lite on a temp folder | 53 | 0 | 0 |
 | `ApexPost.Web.IntegrationTests` | MVC pipeline + opt-in SQL Server | 76 | 5 | 0 |
-| **Total** | | **896** | **27** | **0** |
+| **Total** | | **912** | **27** | **0** |
 
-The 27 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above). With LocalDB enabled the whole solution gives **923 passed, 0 skipped, 0 failed** ([docs/evidence/test-run-with-sqlserver.txt](docs/evidence/test-run-with-sqlserver.txt)); the default run is [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
+The 27 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above). With LocalDB enabled the whole solution gives **939 passed, 0 skipped, 0 failed** ([docs/evidence/test-run-with-sqlserver.txt](docs/evidence/test-run-with-sqlserver.txt)); the default run is [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
 
 ### Code coverage (evidence, not a target)
 

@@ -1,4 +1,4 @@
-// COPILOT-ASSISTED: drafted with GitHub Copilot for the courier sync workflow, then reviewed by the student.
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 4 in COPILOT-LOG.md), then reviewed and extended by the student.
 using System.Net;
 using ApexPost.Courier.Console.Models;
 using ApexPost.Courier.Console.Services;
@@ -192,6 +192,45 @@ public sealed class SyncServiceCopilotTests
         Assert.Equal("Authentication failed - please log in again", result.ErrorMessage);
         Assert.Equal(SyncState.Error, sut.CurrentStatus);
         tokenStorage.Verify(t => t.ClearTokenAsync(), Times.Once);
+    }
+
+    // Added in review: Copilot did not draft the 500 case or the empty queue that the prompt asked for.
+    [Fact]
+    public async Task SyncPendingScansAsync_ServerError500_CountsScansAsFailedAndNeverMarksThemSynced()
+    {
+        // Arrange
+        var pending = new[] { NewScan("scan::001"), NewScan("scan::002") };
+        var apiClient = new Mock<IApexApiClient>();
+        apiClient.Setup(a => a.UploadScansAsync("APX-20250101", It.IsAny<ScanUploadRequestDto>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiException("Server error", 500, "boom", null));
+        var database = new Mock<ICourierDatabase>();
+        database.Setup(d => d.GetPendingScansAsync()).ReturnsAsync(pending);
+        var sut = CreateSut(apiClient, database);
+
+        // Act
+        var result = await sut.SyncPendingScansAsync();
+
+        // Assert
+        Assert.Equal(2, result.ScansFailed);
+        Assert.Equal(0, result.ScansSynced);
+        database.Verify(d => d.MarkScanSyncedAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SyncPendingScansAsync_NoPendingScans_NeverCallsTheApi()
+    {
+        // Arrange
+        var apiClient = new Mock<IApexApiClient>();
+        var database = new Mock<ICourierDatabase>();
+        database.Setup(d => d.GetPendingScansAsync()).ReturnsAsync(Array.Empty<LocalScanDocument>());
+        var sut = CreateSut(apiClient, database);
+
+        // Act
+        var result = await sut.SyncPendingScansAsync();
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        apiClient.Verify(a => a.UploadScansAsync(It.IsAny<string>(), It.IsAny<ScanUploadRequestDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
