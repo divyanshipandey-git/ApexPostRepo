@@ -267,3 +267,45 @@ Both files were restored with `git checkout -- <file>` and `git status` was clea
 | 3 HTTP client tests | `ApexApiClientCopilotTests.cs` | 12 cases | 2 additions (request check, status theory), proofs 10 and 11 |
 
 All three files carry `COPILOT-ASSISTED`; the another AI coding assistant drafts earlier in this log remain, declared as such.
+
+---
+
+# Copilot round 2: areas no earlier draft covers (prompts 4 and 5)
+
+Why this round exists: Copilot prompts 1 and 3 targeted code that I had already drafted tests for, and Copilot saw those drafts, so the results overlapped. Prompts 4 and 5 target code that has **no tests at all yet** (`SyncService`, `ApiKeyAuthorizeAttribute`) and tell Copilot **not to read the existing tests**, so the output is independent work. Status: **prompts written, output not yet added**; nothing below is claimed until the files exist and are reviewed.
+
+## Prompt 4: SyncService (batches of 20, Synced/Failed, circuit)
+
+Attach: `src/ApexPost.Courier.Console/Services/SyncService.cs`, `src/ApexPost.Courier.Console/Services/ApexApiClient.cs`, `src/ApexPost.Courier.Console/Services/ResilienceStateTracker.cs`. Do NOT attach any file from `tests/`.
+
+```text
+Create a NEW file tests/ApexPost.UnitTests/Client/SyncServiceCopilotTests.cs. Do not edit or delete any existing file, and do not read or copy any file under tests/ (write the tests from the production code only).
+
+The first line of the file must be exactly:
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 4 in COPILOT-LOG.md), then reviewed by the student.
+
+Write xUnit tests with Moq for SyncService (namespace ApexPost.UnitTests.Client, class SyncServiceCopilotTests). Mock IApexApiClient, ICourierDatabase, IResilienceStateTracker and ITokenStorage; build SyncOptions through Options.Create. Cover: 45 pending scans of one shipment are uploaded in batches of 20 (Verify UploadScansAsync is called 3 times with 20, 20 and 5 scans); a batch that the API accepts marks its scans Synced; an ApiException with status 500 marks the scans Failed; a 409 leaves the scans pending (deferred); an ApiException with status 401 is handled without throwing out of SyncPendingScansAsync; when there are no pending scans UploadScansAsync is never called; cancellation is honoured. Use Arrange/Act/Assert comments, Method_Scenario_ExpectedResult names, Setup/ReturnsAsync, It.Is/It.IsAny and Verify with Times. No real network, no Thread.Sleep, no DateTime.Now. After creating the file, run dotnet test tests/ApexPost.UnitTests and fix compile errors in YOUR new file only.
+```
+
+## Prompt 5: ApiKeyAuthorizeAttribute (partner API key, security rule)
+
+Attach: `src/ApexPost.Api/Filters/ApiKeyAuthorizeAttribute.cs`. Do NOT attach any file from `tests/`.
+
+```text
+Create a NEW file tests/ApexPost.UnitTests/Api/ApiKeyAuthorizeAttributeCopilotTests.cs. Do not edit or delete any existing file, and do not read or copy any file under tests/.
+
+The first line of the file must be exactly:
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 5 in COPILOT-LOG.md), then reviewed by the student.
+
+Write xUnit tests for ApiKeyAuthorizeAttribute (namespace ApexPost.UnitTests.Api, class ApiKeyAuthorizeAttributeCopilotTests). Build a DefaultHttpContext whose RequestServices contains an IConfiguration created with ConfigurationBuilder().AddInMemoryCollection(...), and an AuthorizationFilterContext around it. Cover: no key configured on the server gives a 500 problem result; missing X-Api-Key header gives 401; empty header gives 401; wrong key gives 401; the key configured as PartnerApiKey is accepted (context.Result stays null); a key configured under PartnerApiKeys:SomePartner is accepted; a key that is a prefix of the real key, and a longer key that starts with the real key, are both rejected. The attribute also reads the environment variable APEXPOST_PARTNER_API_KEY: make the tests deterministic, so no test may depend on or leave behind that variable. Use only obviously fake keys such as "test-key-123". Use Arrange/Act/Assert comments and Method_Scenario_ExpectedResult names. After creating the file, run dotnet test tests/ApexPost.UnitTests and fix compile errors in YOUR new file only.
+```
+
+## What to look for when you review (these are the likely weak points, so the review is real)
+
+* **Prompt 5, shared state:** the attribute reads the process-wide environment variable `APEXPOST_PARTNER_API_KEY`. If Copilot sets it with `Environment.SetEnvironmentVariable` and does not restore it, tests can affect each other when xUnit runs them in parallel (determinism rule). Decide: keep, wrap in a collection with `DisableParallelization`, or change.
+* **Prompt 5, weak assertions:** "returns 401" must also check the problem title or status, not only that `Result` is not null; and a "valid key" test must assert `Result` is null.
+* **Prompt 4, loose mocks:** a mock that returns the default for everything can make "marks Failed" pass without proving anything. Check that each outcome is verified with `Verify(..., Times.Once)` on the exact update call.
+* **Prompt 4, hidden time dependence:** `SyncService` has circuit timers; any `Task.Delay` or `Thread.Sleep` in the draft is a flaky test (reject it).
+* **Both:** copied production logic in the expected values (for example computing the expected batch count with the same formula the service uses) proves nothing.
+
+After the files exist: run `dotnet test`, do one breakage proof per file (for example change the batch size constant, or compare the key with `==` on a shortened key), add the Kept / Changed / Rejected tables here, and commit.
