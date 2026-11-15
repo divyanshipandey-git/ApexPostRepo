@@ -2,7 +2,7 @@
 
 ## Honest note about the tool
 
-The lab asks for **GitHub Copilot**. The student has no Copilot access, so the AI-assisted step was done with **another AI coding assistant** (an AI coding assistant) as a **declared substitute**. This is stated openly and the drafts are not presented as Copilot output: Copilot output cannot be produced or invented here. The lab process is followed in full with the substitute tool: saved prompt, AI draft, human review (keep / change / reject with reasons), and proof by deliberate breakage that the tests can fail. The prompts are tool-neutral, so they can be pasted into Copilot Chat later if the instructor requires Copilot specifically; the "Copilot raw output" placeholders below are for that case only. **Tell the instructor about the substitution before the viva.**
+The lab asks for **GitHub Copilot**. The first drafts below were made with **another AI coding assistant** (an AI coding assistant) as a **declared substitute**. This is stated openly and the drafts are not presented as Copilot output: Copilot output cannot be produced or invented here. The lab process is followed in full with the substitute tool: saved prompt, AI draft, human review (keep / change / reject with reasons), and proof by deliberate breakage that the tests can fail. The prompts are tool-neutral, so they can be pasted into Copilot Chat later if the instructor requires Copilot specifically; the "Copilot raw output" placeholders below are for that case only. **Tell the instructor about the substitution before the viva.**
 
 Every AI-assisted file carries the comment `AI-ASSISTED: ...` on its first lines:
 `tests/ApexPost.UnitTests/Client/ApexApiClientTests.cs`, `.../Outbox/OutboxServiceMoqTests.cs`, `.../Api/ScanUploadServiceMoqTests.cs`, `tests/ApexPost.Specs/Features/ScanSync.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncSteps.cs`.
@@ -127,3 +127,57 @@ Prompt 4 (optional extra, for the viva): *"Write a Reqnroll feature `ShipmentLif
 ### Message to send to your instructor if you cannot use Copilot
 
 > I could not use GitHub Copilot (no access). I used another AI coding assistant (another AI coding assistant) for the AI-assisted drafting step and kept the same process: saved prompts, human review with keep/change/reject decisions, `AI-ASSISTED` markers, and five deliberate-breakage proofs (docs/evidence). It is stated openly in COPILOT-LOG.md. Is this accepted for the Copilot criterion, or should I repeat prompts 1 and 2 in Copilot?
+
+---
+
+# Real GitHub Copilot session (student ran the prompts)
+
+Status: **prompt 2 (Gherkin feature + step definitions) is done and reviewed below. The Copilot output for prompt 1 (service unit tests) and prompt 3 (HTTP client tests) has NOT been added to the repository yet**, so nothing is claimed for them. The earlier sections of this log are the another AI coding assistant drafts and stay as the declared substitute; this section is the Copilot one.
+
+Files from Copilot: `tests/ApexPost.Specs/Features/ScanSyncCopilot.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncCopilotSteps.cs` (both marked `COPILOT-ASSISTED`).
+
+## Prompt 2 (Copilot): ScanSyncCopilot.feature and steps
+
+**Prompt:** the one in the section "Prompt 2" of the pack (Reqnroll feature in business language, Background, Scenario Outline with Examples, constructor-injected `ServiceScenarioContext`, service level, no HTTP).
+
+**Copilot raw output (as received, before review):** a feature "Courier scan upload sync" with a Background (shipment ready, service clock, courier id) and 3 scenarios (offline scans uploaded, retried upload does not create duplicates, Scenario Outline for invalid scans with an Examples table), plus a `ScanSyncCopilotSteps` binding class using `ServiceScenarioContext` through its constructor. The Examples table used the magic words `empty` and `missing` in the signature column. The project file also contained `<ReqnrollFeatureFile Remove="Features\ScanSyncCopilot.feature" />`, which switched the feature off.
+
+**Kept**
+
+* The Background, the three scenarios and the business wording ("the upload accepts 2 scans", "the shipment stores 0 scans"): they read like the business rule and match the agreed behaviour.
+* Constructor injection of `ServiceScenarioContext` (no static fields) and the Arrange-in-`Given` / Act-in-`When` / Assert-in-`Then` split.
+* The `Then` steps assert `NotNull(LastUpload)` before reading it, so an upload that threw fails with a clear reason instead of a null reference.
+
+**Changed**
+
+| Copilot draft | Problem | My change |
+|---|---|---|
+| `Remove="Features\ScanSyncCopilot.feature"` in `ApexPost.Specs.csproj` | **The feature never ran**: a test that is not executed proves nothing, and the suite stayed green by ignoring it | Removed the exclusion; the feature now runs: 4 more scenario results, **37 Specs tests pass** |
+| Signature column `empty` / `missing` | Magic words that only work because the step file special-cases them; a reader cannot tell what they mean | Empty table cell, and the step now uses `string.IsNullOrWhiteSpace(signature)` |
+| Comment `AI-ASSISTED: drafted for the service-level ...` | Wrong marker and no tool named | `COPILOT-ASSISTED` marker on the feature and the steps class |
+| `Parse`, `NewScan` and `UploadAsync` copied from `ScanSyncSteps` | Duplicated helper code that can drift apart | Accepted for now (two small private helpers), listed as a refactoring candidate |
+
+**Rejected / missing (edge cases Copilot did not draft)**
+
+* a courier uploading another courier's scans (403 / `ForbiddenException`),
+* a mixed batch of new and already known scans,
+* the offline outbox (Pending to Synced / Failed).
+
+These stay covered by my `ScanSync.feature` (another AI coding assistant draft); I did not ask Copilot for them.
+
+**What the feature does not prove:** it runs at service level on SQLite, so HTTP status codes, JWT roles and SQL Server behaviour are not part of it (the API features and the opt-in SQL Server tests cover those).
+
+### Proof that Copilot's scenarios can fail (deliberate breakage, then restore)
+
+Raw output: [mutation-6-7-copilot-feature.txt](docs/evidence/mutation-6-7-copilot-feature.txt).
+
+| # | Production change (deliberately wrong) | Copilot scenario that failed |
+|---|---|---|
+| 6 | `ScanUploadService`: duplicate check disabled (`if (false && ...)`) | "A retried upload does not create duplicates" |
+| 7 | `ScanUploadService`: future-scan rule disabled | "Invalid scans are rejected with a reason", row Pickup / 30 minutes |
+
+Both files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+## Prompts 1 and 3 (Copilot): still to add
+
+When you have Copilot's answer for these, save it as `tests/ApexPost.UnitTests/Api/ScanUploadServiceCopilotTests.cs` (prompt 1) and `tests/ApexPost.UnitTests/Client/ApexApiClientCopilotTests.cs` (prompt 3), mark the files `// COPILOT-ASSISTED`, run `dotnet test`, and fill the same Kept / Changed / Rejected tables here. Without prompt 1 the rubric item "Copilot drafts unit tests for at least one service" is not met by Copilot itself.

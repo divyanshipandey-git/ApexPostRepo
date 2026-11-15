@@ -1,0 +1,9 @@
+## Mutation 6: duplicate-scan check disabled in ScanUploadService - proof on the COPILOT-drafted feature (Courier scan upload sync)
+A retried upload does not create duplicates [FAIL]
+Failed!  - Failed:     1, Passed:     3, Skipped:     0, Total:     4, Duration: 2 s - ApexPost.Specs.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 7: the future-scan rule removed (scan time check) - same feature
+Invalid scans are rejected with a reason(scanType: "Pickup", minutes: "30", signature: "", reason: "Scan time cannot be in the future", __pickleIndex: "2", exampleTags: []) [FAIL]
+Failed!  - Failed:     1, Passed:     3, Skipped:     0, Total:     4, Duration: 2 s - ApexPost.Specs.dll (net10.0)
+restored: 0 modified files
