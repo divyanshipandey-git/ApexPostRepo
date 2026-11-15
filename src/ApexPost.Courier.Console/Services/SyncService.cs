@@ -168,6 +168,7 @@ public sealed class SyncService : ISyncService, IDisposable
             int scansFailed = 0;
             int scansDeferred = 0;
             string? errorMessage = null;
+            var authenticationFailed = false;
             int totalProcessed = 0;
 
             foreach (var batch in batches)
@@ -217,6 +218,7 @@ public sealed class SyncService : ISyncService, IDisposable
                     _logger.LogWarning("Authentication failed during sync (401), clearing token");
                     await _tokenStorage.ClearTokenAsync();
                     SetStatus(SyncState.Error);
+                    authenticationFailed = true;
                     errorMessage = "Authentication failed - please log in again";
                     scansFailed += batch.Count;
                     _consecutiveFailures++;
@@ -306,7 +308,8 @@ public sealed class SyncService : ISyncService, IDisposable
                     scansSynced, scansSkipped, scansFailed, errorMessage);
             }
 
-            SetStatus(SyncState.Idle);
+            // A 401 must stay visible as Error (the Sync Status screen colours it); otherwise the service goes back to Idle.
+            SetStatus(authenticationFailed ? SyncState.Error : SyncState.Idle);
             return result;
         }
         finally
