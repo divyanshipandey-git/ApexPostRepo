@@ -4,7 +4,7 @@ Goal: 5 minutes, four topics the lab names. Speak slowly (about 130 words a minu
 
 Have open: `TESTING-STRATEGY.md`, the GitHub commit list (RED / GREEN / REFACTOR), `docs/evidence/`, a terminal in the project folder.
 
-## The 5-minute script (about 650 words)
+## The 5-minute script (about 500 words, 4 to 4.5 minutes spoken; the rest is pauses and showing the screen)
 
 **1. Pyramid and why (1 minute 15)**
 "ApexPost tracks parcels. Before changing it, the lead wanted proof it is safe, so I made a test strategy first. I listed nine risks, for example status transitions, duplicate tracking numbers, duplicate scans, JWT roles and the client retrying on a bad network. Then I chose a level for each. About 83 percent are unit tests because rules are cheap to test and a failure points at one line. About 13 percent are integration tests with real parts: the real API with real login, and real database code on SQLite. About 4 percent are BDD scenarios in business language. The whole suite is 896 passing tests, and 923 when I switch on SQL Server."
@@ -37,7 +37,7 @@ Have open: `TESTING-STRATEGY.md`, the GitHub commit list (RED / GREEN / REFACTOR
 | Show a test failing. | Change `<=` to `<` in `HeavyParcelSurcharge`, run the surcharge tests, see them fail, then `git checkout -- <file>`. |
 
 ## Rehearsal checklist
-- [ ] Read the script out loud once with a timer; it should land between 4:30 and 5:15.
+- [ ] Read the script out loud once with a timer; it should land between 4:00 and 5:00.
 - [ ] Rewrite two sentences in your own words.
 - [ ] Open `COPILOT-LOG.md` and read the Kept / Changed / Rejected tables once; pick the one rejected case you will tell.
 - [ ] Practise the live breakage demo once so the commands are not new on the day.
