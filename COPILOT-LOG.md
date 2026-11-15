@@ -178,6 +178,47 @@ Raw output: [mutation-6-7-copilot-feature.txt](docs/evidence/mutation-6-7-copilo
 
 Both files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
 
-## Prompts 1 and 3 (Copilot): still to add
+## Prompt 1 (Copilot): ScanUploadServiceCopilotTests
 
-When you have Copilot's answer for these, save it as `tests/ApexPost.UnitTests/Api/ScanUploadServiceCopilotTests.cs` (prompt 1) and `tests/ApexPost.UnitTests/Client/ApexApiClientCopilotTests.cs` (prompt 3), mark the files `// COPILOT-ASSISTED`, run `dotnet test`, and fill the same Kept / Changed / Rejected tables here. Without prompt 1 the rubric item "Copilot drafts unit tests for at least one service" is not met by Copilot itself.
+**Prompt:** the one in the section "Prompt 1" of the pack (xUnit + Moq tests for `ScanUploadService`, new file, no edits to existing files, `ManualTimeProvider`, AAA, `Method_Scenario_ExpectedResult`).
+
+**Copilot raw output (as received, before review):** a new file `tests/ApexPost.UnitTests/Api/ScanUploadServiceCopilotTests.cs` (marker line included) with 11 test cases: new scan accepted and saved once; stored scan id skipped and nothing saved; same id twice in one batch; mixed batch (new, duplicate, future); a `[Theory]` for the 4 / 5 / 6 minute future boundary; Delivered without signature rejected; scan of another courier gives `ForbiddenException`; unknown shipment gives `NotFoundException`; unique-key race gives `ConflictException`. It compiled and all 11 passed on the first run.
+
+**Kept**
+
+* The structure: constructor-set-up mocks, one `CreateSut()`, AAA comments, correct `Method_Scenario_ExpectedResult` names.
+* The boundary `[Theory]` (4 and 5 minutes allowed, 6 rejected) with the injected `ManualTimeProvider`: no `DateTime.Now`.
+* `Verify(..., Times.Never)` on `SaveChangesAsync` in the duplicate, Delivered, Forbidden and NotFound tests: these are what prove "nothing is saved".
+* The race test: a branch (`UniqueKeyConflictException` to `ConflictException`) that is easy to forget.
+
+**Changed**
+
+| Copilot draft | Problem | My change |
+|---|---|---|
+| Shipment created inline in the constructor `Setup` | No test could inspect what was really stored | Shipment kept in a field `_shipment` |
+| "Same scan id twice" asserted only the counts | A buggy service could report 1 accepted and still store two scans (weak assertion) | Added `Assert.Single(_shipment.Scans)` |
+| `Verify(UpdateAsync(It.IsAny<TrackedShipment>()))` | Passes for any shipment, so it would not notice updating the wrong one | Verify with the exact instance `_shipment` |
+
+**Rejected / missing (edge cases Copilot did not draft)**
+
+* A token without a `courierId` claim (null, empty, spaces): **added** a `[Theory]` with three cases that expects `ForbiddenException` and no save.
+* Not drafted and not added here: mapping of the scan type to the domain enum and the "clock moves" test; they exist in my `ScanUploadServiceMoqTests`.
+
+**Overlap to be honest about:** the cases in Copilot's file are nearly the same as in my another AI coding assistant draft `ScanUploadServiceMoqTests` (the prompt was derived from it). I kept both because the Copilot file is the lab deliverable; mine uses strict mocks and also covers the clock and enum mapping.
+
+**What the mock does not prove:** it proves the service skips a duplicate and never calls `SaveChangesAsync`; it does not prove that the real primary key on SQL Server or SQLite rejects a duplicate id. The SQLite repository tests, the API tests and the opt-in SQL Server test cover that.
+
+### Proof that Copilot's unit tests can fail
+
+Raw output: [mutation-8-9-copilot-unit-tests.txt](docs/evidence/mutation-8-9-copilot-unit-tests.txt).
+
+| # | Production change (deliberately wrong) | Copilot test that failed |
+|---|---|---|
+| 8 | `ScanUploadService`: future check `>` changed to `>=` | `UploadScansAsync_ScanTimeInTheFutureAtBoundaryMinutes_AppliesFiveMinuteSkew(minutesAhead: 5, accepted: True)` |
+| 9 | `ScanUploadService`: courier ownership check disabled | `UploadScansAsync_ScanOfAnotherCourier_ThrowsForbiddenException` |
+
+Both files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+## Prompt 3 (Copilot): still to add
+
+Save Copilot's answer as `tests/ApexPost.UnitTests/Client/ApexApiClientCopilotTests.cs` (marked `// COPILOT-ASSISTED`), run `dotnet test`, and fill the same Kept / Changed / Rejected table here.

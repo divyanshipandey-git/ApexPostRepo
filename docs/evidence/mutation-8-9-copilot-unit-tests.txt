@@ -1,0 +1,9 @@
+## Mutation 8: future-scan boundary moved (> becomes >=) - Copilot-drafted ScanUploadServiceCopilotTests
+ApexPost.UnitTests.Api.ScanUploadServiceCopilotTests.UploadScansAsync_ScanTimeInTheFutureAtBoundaryMinutes_AppliesFiveMinuteSkew(minutesAhead: 5, accepted: True) [FAIL]
+Failed!  - Failed:     1, Passed:    13, Skipped:     0, Total:    14, Duration: 226 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 9: courier ownership check removed (foreign scans no longer forbidden)
+ApexPost.UnitTests.Api.ScanUploadServiceCopilotTests.UploadScansAsync_ScanOfAnotherCourier_ThrowsForbiddenException [FAIL]
+Failed!  - Failed:     1, Passed:    13, Skipped:     0, Total:    14, Duration: 237 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
