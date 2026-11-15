@@ -57,7 +57,7 @@ In Visual Studio / VS Code every test shows up in **Test Explorer** (xUnit). To 
 | `ApexPost.Web.IntegrationTests` | MVC pipeline + opt-in SQL Server | 76 | 5 | 0 |
 | **Total** | | **896** | **27** | **0** |
 
-The 27 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above). With LocalDB enabled the whole solution gives **893 passed, 0 skipped, 0 failed** ([docs/evidence/test-run-with-sqlserver.txt](docs/evidence/test-run-with-sqlserver.txt)); the default run is [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
+The 27 skipped tests are the opt-in SQL Server tests (they need `APEXPOST_SQL_TEST_CONNECTION`, see above). With LocalDB enabled the whole solution gives **923 passed, 0 skipped, 0 failed** ([docs/evidence/test-run-with-sqlserver.txt](docs/evidence/test-run-with-sqlserver.txt)); the default run is [docs/evidence/test-run.txt](docs/evidence/test-run.txt).
 
 ### Code coverage (evidence, not a target)
 
@@ -71,7 +71,7 @@ dotnet test ApexPost.sln --collect:"XPlat Code Coverage" --results-directory cov
 
 * `.github/workflows/tests.yml` runs `dotnet test ApexPost.sln` on every push and pull request (Windows runner, no SQL Server, no secrets).
 * The default branch of this repository is **`master`** (the lab text says `main`). `week5-testing` was merged into it by pull request #12, and the completion work by #13; the `RED`/`GREEN`/`REFACTOR` commits are visible with `git log --grep="^RED\|^GREEN\|^REFACTOR"`.
-* A screenshot of the run is not stored in the repository; the raw runner output is (`docs/evidence/test-run*.txt`), and Test Explorer in Visual Studio shows the same tests.
+* Test run evidence: the raw runner output is `docs/evidence/test-run.txt`, and [docs/evidence/test-run-summary.svg](docs/evidence/test-run-summary.svg) is a picture rendered from that log (it is not a Visual Studio screenshot; Test Explorer shows the same tests). See also [SUBMISSION-NOTE.md](SUBMISSION-NOTE.md).
 
 ### Test documents
 

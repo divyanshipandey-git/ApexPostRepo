@@ -6,11 +6,11 @@ Say it in your own words. Short, simple, true.
 ApexPost is a parcel-tracking system: a SQL Server API, an offline courier store (Couchbase Lite) and a courier client. Week 5 asks: **how do we know it is safe to change?** My answer is a deliberate test strategy, not just many tests.
 
 ## 1. My test pyramid (1 minute)
-- **Unit tests, about 83 %** (718): fast, test one rule. Example: the status matrix (Delivered can never go back).
+- **Unit tests, about 83 %** (744): fast, test one rule. Example: the status matrix (Delivered can never go back).
 - **Integration tests, about 13 %** (115): real components. Example: the real API with real JWT login, and real EF Core on in-memory SQLite.
-- **BDD, about 4 %** (33 scenarios): business language, checks what the customer sees.
+- **BDD, about 4 %** (37 scenarios): business language, checks what the customer sees.
 - Why this shape: rules are cheap to test at the bottom; wiring (login, routes, database) can only be tested with real parts, so fewer but bigger tests.
-- Result: **866 tests pass, 0 fail**, 27 skipped by default (they need SQL Server; with LocalDB enabled all 893 pass).
+- Result: **896 tests pass, 0 fail**, 27 skipped by default (they need SQL Server); with LocalDB enabled **923 pass, 0 skipped**.
 
 ## 2. Why xUnit (30 seconds)
 - All the earlier tests already used xUnit, so no rewrite.
@@ -34,10 +34,16 @@ I mocked `ITrackedShipmentRepository` and `IUnitOfWork` to test `ScanUploadServi
 - Same idea: SQLite is not SQL Server (no rowversion, different dates), so I say so in the strategy and keep opt-in SQL Server tests.
 - I never mock `DbContext`/`DbSet` for queries: LINQ-to-Objects would pass where real SQL fails (false confidence).
 
-## 6. One AI test I rejected (30 seconds)
-The draft said a tracking number with spaces around it (`"  APX-20250101  "`) was **valid**, because the code calls `Trim()`. That test **copied the implementation**. The rule says the number must match `APX-` plus 8 digits, so I changed it to **invalid**.
-(Other real review fixes: a status test with the wrong expected code, and a timeout test that wrongly expected a retry.)
-**Be honest about the tool:** I had no GitHub Copilot, so I used another AI coding assistant and said so in `COPILOT-LOG.md`.
+## 6. One Copilot test I rejected (45 seconds)
+Pick ONE and tell it in your own words (details in `COPILOT-LOG.md`):
+- **The feature that never ran.** Copilot gave me a good `ScanSyncCopilot.feature`, but the project file excluded it from the build, so the suite was green while testing nothing. I removed the exclusion and 4 more scenarios now run. Lesson: a test that is not executed proves nothing.
+- **Magic words.** Copilot wrote `empty` and `missing` in the Examples table for "no signature". I rejected that and used an empty cell, because the meaning should be in the scenario, not hidden in the step code.
+- **No look at the request.** Copilot's six client tests checked responses only, so a client posting to the wrong route would still pass. I rejected that gap and added a test for the route and JSON names; changing `api/v2` to `api/v1` now fails it.
+- **Weak assertion.** For "same scan id twice" Copilot checked only the counts; I added a check that exactly one scan is stored.
+
+Be honest about overlap: Copilot saw my earlier drafts, so prompts 1 and 3 gave almost the same tests. I say that plainly and point to what I added in review.
+
+**Be honest about the tool:** GitHub Copilot drafted three files (service unit tests, the ScanSyncCopilot feature with steps, the HTTP client tests); another AI coding assistant made the earlier drafts. Both are logged in `COPILOT-LOG.md`, every Copilot file carries `COPILOT-ASSISTED`, and I changed or extended each one in review.
 
 ## 7. Proof the tests can fail (30 seconds)
 I broke the code on purpose and the tests failed, then I restored it:
@@ -62,7 +68,7 @@ Add coverage reports, run the SQL Server tests in CI, and merge two duplicated D
 
 ## Extra facts for the viva (one line each)
 - **Coverage:** about 48 % of lines overall; Domain about 69 %. It is evidence of where tests are missing (console glue, Swagger setup), not a goal.
-- **SQL Server:** the unique-tracking-number test runs on real SQL Server (LocalDB) when `APEXPOST_SQL_TEST_CONNECTION` is set; then 893 tests pass with none skipped.
+- **SQL Server:** the unique-tracking-number test runs on real SQL Server (LocalDB) when `APEXPOST_SQL_TEST_CONNECTION` is set; then 923 tests pass with none skipped.
 - **Cleanup:** I merged three duplicated Domain test files (330 tests before and after, none lost) and recorded it in the review table.
 - **CI:** `.github/workflows/tests.yml` runs `dotnet test` on every push.
 - **Default branch is `master`** (the lab text says `main`).
