@@ -132,7 +132,7 @@ Prompt 4 (optional extra, for the viva): *"Write a Reqnroll feature `ShipmentLif
 
 # Real GitHub Copilot session (student ran the prompts)
 
-Status: **prompt 2 (Gherkin feature + step definitions) is done and reviewed below. The Copilot output for prompt 1 (service unit tests) and prompt 3 (HTTP client tests) has NOT been added to the repository yet**, so nothing is claimed for them. The earlier sections of this log are the another AI coding assistant drafts and stay as the declared substitute; this section is the Copilot one.
+Status: **all three Copilot prompts are done and reviewed below** (prompt 1 service unit tests, prompt 2 Gherkin feature + steps, prompt 3 HTTP client tests). The earlier sections of this log are the another AI coding assistant drafts and stay as the declared substitute; this section is the Copilot one.
 
 Files from Copilot: `tests/ApexPost.Specs/Features/ScanSyncCopilot.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncCopilotSteps.cs` (both marked `COPILOT-ASSISTED`).
 
@@ -219,6 +219,51 @@ Raw output: [mutation-8-9-copilot-unit-tests.txt](docs/evidence/mutation-8-9-cop
 
 Both files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
 
-## Prompt 3 (Copilot): still to add
+## Prompt 3 (Copilot): ApexApiClientCopilotTests
 
-Save Copilot's answer as `tests/ApexPost.UnitTests/Client/ApexApiClientCopilotTests.cs` (marked `// COPILOT-ASSISTED`), run `dotnet test`, and fill the same Kept / Changed / Rejected table here.
+**Prompt:** the one in the section "Prompt 3" of the pack (xUnit tests for `ApexApiClient.UploadScansAsync` with the existing `StubHttpMessageHandler`: 200 JSON, 404 ProblemDetails, 500 plain text, timeout, cancellation, malformed JSON; new file; marker line).
+
+**Copilot raw output (as received, before review):** a new file `tests/ApexPost.UnitTests/Client/ApexApiClientCopilotTests.cs` with 6 tests (marker line included). It compiled and all 6 passed on the first run.
+
+**Kept**
+
+* One test per requested case, with Arrange/Act/Assert comments and clear `Method_Scenario_ExpectedResult` names.
+* The 404 test asserts four fields of the problem (`StatusCode`, title as message, `Detail`, `ProblemType`), not just "an exception was thrown".
+* The timeout test asserts that the `TimeoutException` inside the `TaskCanceledException` survives, and the cancellation test uses a handler that waits for the caller token: no real network, no sleeping.
+
+**Changed (added in review)**
+
+| Gap in Copilot's draft | Why it matters | My change |
+|---|---|---|
+| No test looked at the **request** | A client posting to the wrong route or with wrong JSON names would pass all six tests | Added `PostsToTheV2ScansRouteWithCamelCaseJson` (method, full URL, JSON property name) |
+| Only 404 and 500 were covered | The courier app also meets 400, 401, 403, 409 and 503 | Added a `[Theory]` with 5 status codes |
+
+**Rejected / not added**
+
+* Retry behaviour: it lives in the Polly handler pipeline, not in `ApexApiClient`; asserting it here would test the wrong class (same decision as in the another AI coding assistant draft).
+* Unknown JSON fields and a pure network failure (`HttpRequestException`): not drafted by Copilot and not added; they stay covered by my `ApexApiClientTests`.
+
+**Overlap to be honest about:** Copilot saw my `ApexApiClientTests.cs` in the same folder, and its six tests are almost line-for-line the same cases and data. They are valid and I kept them because the file is the lab deliverable, but they add no coverage beyond my draft; the two review additions above are what is new.
+
+**What the fake handler does not prove:** that the real Polly pipeline retries or opens the circuit, or that the real API returns these bodies. The API integration tests and the Week 4 runtime evidence cover that.
+
+### Proof that Copilot's client tests can fail
+
+Raw output: [mutation-10-11-copilot-client-tests.txt](docs/evidence/mutation-10-11-copilot-client-tests.txt).
+
+| # | Production change (deliberately wrong) | Test that failed |
+|---|---|---|
+| 10 | `ApexApiClient`: route `api/v2/...` changed to `api/v1/...` | `UploadScansAsync_AnyCall_PostsToTheV2ScansRouteWithCamelCaseJson` (my addition) |
+| 11 | `ApexApiClient`: ProblemDetails title ignored when building the exception | `UploadScansAsync_404WithProblemDetails_ThrowsApiExceptionWithProblemInfo` (Copilot's original test) |
+
+Both files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+## Summary of the real Copilot work
+
+| Prompt | Files | Tests | Review result |
+|---|---|---|---|
+| 1 service unit tests | `ScanUploadServiceCopilotTests.cs` | 14 cases | 3 changes, 1 added theory, proofs 8 and 9 |
+| 2 Gherkin feature + steps | `ScanSyncCopilot.feature`, `ScanSyncCopilotSteps.cs` | 4 scenarios | feature was excluded from the build and is now running, magic words removed, proofs 6 and 7 |
+| 3 HTTP client tests | `ApexApiClientCopilotTests.cs` | 12 cases | 2 additions (request check, status theory), proofs 10 and 11 |
+
+All three files carry `COPILOT-ASSISTED`; the another AI coding assistant drafts earlier in this log remain, declared as such.
