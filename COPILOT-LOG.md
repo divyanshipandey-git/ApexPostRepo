@@ -375,3 +375,59 @@ All production files were restored with `git checkout -- <file>` and `git status
 | 5 ApiKeyAuthorizeAttribute | `ApiKeyAuthorizeAttributeCopilotTests.cs` | shared environment state fixed, proof 13 |
 
 Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my earlier AI-assistant drafts.
+
+---
+
+# Copilot round 3 (to strengthen independence)
+
+Why: prompts 1 and 3 targeted code that already had other drafts in the same folder, so their results overlapped. Round 3 adds more Copilot work on code with **no tests yet**, and shows how to re-run prompts 1 and 3 so that Copilot cannot copy existing tests. Status: **prompts written; outputs not yet added**; nothing below is claimed until the files exist and are reviewed.
+
+## Prompt 6: ResilienceStateTracker (circuit state events)
+
+Attach: `src/ApexPost.Courier.Console/Services/ResilienceStateTracker.cs`. Do NOT attach anything from `tests/`.
+
+```text
+Create a NEW file tests/ApexPost.UnitTests/Client/ResilienceStateTrackerCopilotTests.cs. Do not edit or delete any existing file, and do not read or copy any file under tests/.
+
+The first line of the file must be exactly:
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 6 in COPILOT-LOG.md), then reviewed by the student.
+
+Write xUnit tests for ResilienceStateTracker (namespace ApexPost.UnitTests.Client, class ResilienceStateTrackerCopilotTests). Use NullLogger<ResilienceStateTracker>.Instance. Cover: a new tracker has IsCircuitOpen false; CircuitOpened sets IsCircuitOpen to true and raises CircuitStateChanged exactly once with true; CircuitClosed sets it back to false and raises the event once with false; CircuitHalfOpened does not change IsCircuitOpen and raises no event; opening twice raises the event twice; an event handler can be subscribed and unsubscribed. Use Arrange/Act/Assert comments and Method_Scenario_ExpectedResult names. After creating the file, run dotnet test tests/ApexPost.UnitTests and fix compile errors in YOUR new file only.
+```
+
+## Prompt 7: FileTokenStorage (token file, Windows data protection)
+
+Attach: `src/ApexPost.Courier.Console/Services/TokenStorage.cs` and `src/ApexPost.Courier.Console/Models/TokenData.cs`. Do NOT attach anything from `tests/`.
+
+```text
+Create a NEW file tests/ApexPost.UnitTests/Client/FileTokenStorageCopilotTests.cs. Do not edit or delete any existing file, and do not read or copy any file under tests/.
+
+The first line of the file must be exactly:
+// COPILOT-ASSISTED: drafted with GitHub Copilot (prompt 7 in COPILOT-LOG.md), then reviewed by the student.
+
+Write xUnit tests for FileTokenStorage (namespace ApexPost.UnitTests.Client, class FileTokenStorageCopilotTests). Each test must use its own temporary file path (Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")) passed through Options.Create(new TokenStorageOptions { FilePath = ... }), and the class must delete its temp files in Dispose. Cover: GetTokenAsync returns null when no file exists; a token stored with StoreTokenAsync is returned by GetTokenAsync with the same values; the file on disk does NOT contain the token text in clear; ClearTokenAsync removes the file and a later GetTokenAsync returns null; a corrupt or truncated file makes GetTokenAsync return null instead of throwing. Use only obviously fake token values such as "fake-token-for-tests", no real credentials. Use Arrange/Act/Assert comments and Method_Scenario_ExpectedResult names. After creating the file, run dotnet test tests/ApexPost.UnitTests and fix compile errors in YOUR new file only.
+```
+
+## Re-running prompts 1 and 3 without overlap (optional)
+
+Paste prompt 1 or prompt 3 again with this sentence added at the end, and a new file name (`ScanUploadServiceCopilotIndependentTests.cs`, `ApexApiClientCopilotIndependentTests.cs`):
+
+```text
+Do not open, read or copy any other file under tests/. Write the tests only from the production code I attached.
+```
+
+## After the files exist
+
+Run `dotnet test`, review each file the same way as before (weak assertions, shared state, missing cases, copied production logic), do one deliberate-breakage proof per file, add the Kept / Changed / Rejected tables above, and commit.
+
+---
+
+# In my own words (the student fills this in before the viva)
+
+Two or three sentences per item, in your own words. These are the answers the viva asks for.
+
+* **A Copilot test I rejected, and why:**
+* **A weak assertion I found and how I fixed it:**
+* **What Copilot got right without help:**
+* **What surprised me when I broke the code on purpose:**
+* **Why I kept the earlier drafts, and what is different about the Copilot files:**
