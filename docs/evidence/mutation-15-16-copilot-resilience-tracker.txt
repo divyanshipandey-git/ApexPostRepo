@@ -1,0 +1,13 @@
+## Mutation 15: CircuitOpened no longer raises CircuitStateChanged - Copilot-drafted ResilienceStateTrackerCopilotTests
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitStateChanged_WhenSubscribedAndUnsubscribed_EventsOnlyWhileSubscribed [FAIL]
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitClosed_AfterOpened_ResetsTheStateAndRaisesTrueThenFalseInOrder [FAIL]
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitOpened_WhenCalledTwice_RaisesEventTwice [FAIL]
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitOpened_WhenCalled_SetsCircuitOpenTrueAndRaisesEventOnce [FAIL]
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitOpened_WhenHandlerRuns_HandlerAlreadySeesTheNewState [FAIL]
+Failed!  - Failed:     5, Passed:     5, Skipped:     0, Total:    10, Duration: 95 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 16: CircuitClosed forgets to reset the open flag (_open = false removed) - shows which tests catch it
+ApexPost.UnitTests.Client.ResilienceStateTrackerCopilotTests.CircuitClosed_AfterOpened_ResetsTheStateAndRaisesTrueThenFalseInOrder [FAIL]
+Failed!  - Failed:     1, Passed:     9, Skipped:     0, Total:    10, Duration: 97 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files

@@ -373,6 +373,7 @@ All production files were restored with `git checkout -- <file>` and `git status
 | 3 HTTP client tests | `ApexApiClientCopilotTests.cs` | request check and status theory added, proofs 10 and 11 |
 | 4 SyncService | `SyncServiceCopilotTests.cs` | **found a production bug** (fixed), 2 tests added, proofs 12 and 14 |
 | 5 ApiKeyAuthorizeAttribute | `ApiKeyAuthorizeAttributeCopilotTests.cs` | shared environment state fixed, proof 13 |
+| 6 ResilienceStateTracker | `ResilienceStateTrackerCopilotTests.cs` | weak `CircuitClosed` test found (still passes when production is broken), 4 edge cases added, proofs 15 and 16 |
 
 Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my earlier AI-assistant drafts.
 
@@ -421,6 +422,39 @@ Do not open, read or copy any other file under tests/. Write the tests only from
 Run `dotnet test`, review each file the same way as before (weak assertions, shared state, missing cases, copied production logic), do one deliberate-breakage proof per file, add the Kept / Changed / Rejected tables above, and commit.
 
 ---
+## Prompt 6 (Copilot, round 3): ResilienceStateTrackerCopilotTests
+
+**Copilot raw output (as received, before review):** a new file `tests/ApexPost.UnitTests/Client/ResilienceStateTrackerCopilotTests.cs` with 6 tests: a new tracker is not open; `CircuitOpened` sets the flag and raises the event once with `true`; `CircuitClosed` sets the flag to false and raises the event once with `false`; `CircuitHalfOpened` changes nothing and raises no event; opening twice raises the event twice; subscribing and unsubscribing a handler. It compiled and all 6 passed on the first run.
+
+**Kept:** the AAA structure and clear names; the "event raised exactly once with the right value" checks; the unsubscribe test (an easy case to forget); `NullLogger` instead of a mock logger.
+
+**Changed**
+
+| Copilot draft | Problem | My change |
+|---|---|---|
+| The `CircuitClosed` test started from a tracker that was never opened | **Weak test:** the flag is already false at the start, so the test passes even if `CircuitClosed` forgets to reset it (proved by mutation 16 below) | Added `CircuitClosed_AfterOpened_...`: open, then close, and assert the flag and the event order `[true, false]` |
+| `Assert.True(value)` written inside two event handlers | A failed assertion would be thrown from the Act line and hide which step failed | The handlers only collect values; the assertions run after Act |
+| `CircuitHalfOpened` tested only from the closed state | The real case is half-open after the circuit opened | Added `CircuitHalfOpened_AfterOpened_KeepsTheCircuitOpen...` |
+
+**Added (edge cases Copilot did not draft):** the handler already sees the new state when it runs (`IsCircuitOpen` is set before the event is raised); `CircuitOpened` with a null reason and no subscribers does not throw.
+
+**Rejected / not covered:** thread-safety of the `volatile` flag: it cannot be shown reliably in a unit test, so it is stated as not tested.
+
+**What the tests do not prove:** they test the tracker alone; they do not prove that the Polly pipeline calls these methods at the right moments (that is the Week 4 runtime evidence).
+
+### Proof (deliberate breakage, then restore)
+
+Raw output: [mutation-15-16-copilot-resilience-tracker.txt](docs/evidence/mutation-15-16-copilot-resilience-tracker.txt).
+
+| # | Production change (deliberately wrong) | Result |
+|---|---|---|
+| 15 | `CircuitOpened` no longer raises `CircuitStateChanged` | 5 tests failed, including Copilot's own `CircuitOpened_WhenCalled_SetsCircuitOpenTrueAndRaisesEventOnce` |
+| 16 | `CircuitClosed` forgets to reset the open flag | **Copilot's 6 original tests all still passed**; only my added test failed. This is the proof that the original `CircuitClosed` test was weak. |
+
+Both production files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+---
+
 
 # In my own words (the student fills this in before the viva)
 
