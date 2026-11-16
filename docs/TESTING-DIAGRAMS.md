@@ -8,18 +8,18 @@ How the testing techniques and tools fit together. The diagrams are Mermaid, so 
 flowchart TB
     R["Risk map (9 risks)<br/>status transitions, duplicate tracking numbers, scan de-duplication,<br/>JWT roles, client retry, outbox, validation, queries, surcharge"]
 
-    subgraph BDD["BDD / acceptance: about 4 percent (37 scenarios)"]
+    subgraph BDD["BDD / acceptance: about 7 percent (71 scenarios)"]
         direction LR
         F["Gherkin .feature files<br/>Background, Scenario Outline"] --> RQ["Reqnroll<br/>generates xUnit tests<br/>step bindings, context injection, hooks"]
     end
 
-    subgraph INT["Integration: about 13 percent (115 tests)"]
+    subgraph INT["Integration: about 12 percent (115 tests)"]
         direction LR
         WAF["WebApplicationFactory<br/>real API pipeline + real JWT validation"] --- SQ["EF Core on in-memory SQLite<br/>real repositories"]
         CB["Couchbase Lite temp folder<br/>real SQL++ and outbox"]
     end
 
-    subgraph UNIT["Unit: about 83 percent (779 tests), driven by TDD"]
+    subgraph UNIT["Unit: about 81 percent (779 tests), driven by TDD"]
         direction LR
         X["xUnit<br/>Fact, Theory, InlineData, MemberData"] --- M["Moq<br/>Setup, Returns, Verify, Times, It.Is"]
         M --- H["Fake HttpMessageHandler<br/>ApexApiClient: 200, 404, 500, timeout, cancel"]

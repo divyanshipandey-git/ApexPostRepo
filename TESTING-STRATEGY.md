@@ -20,11 +20,11 @@ Likelihood x cost of failure, highest first. Every row names the test level that
 
 ## 2. Test pyramid
 
-| Level | What runs there | Planned share | Actual (931 passing tests) | Speed |
+| Level | What runs there | Planned share | Actual (965 passing tests) | Speed |
 |---|---|---|---|---|
-| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **83 %** (779) | milliseconds |
-| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **13 %** (115) | tens of ms to seconds |
-| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync) and **API level** (ShipmentCreation) | **~4 %** | **4 %** (37) | seconds |
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **81 %** (779) | milliseconds |
+| **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **12 %** (115) | tens of ms to seconds |
+| **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync, MoneyOrders, Inventory, StaffSignIn) and **API level** (ShipmentCreation, HeavyParcelSurcharge, ShipmentLifecycle) | **~4 %** | **7 %** (71) | seconds |
 
 Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where a failure points at one line. Wiring problems (auth, routing, serialisation, EF translation) can only be seen with real components, so they get fewer, broader tests. BDD scenarios are a thin top layer: they document what the business expects and are not a place to re-test every boundary.
 
@@ -32,6 +32,9 @@ Rationale: rules (R1, R7, R9) are pure logic, so they belong at the bottom where
 
 | Feature | Level | Why |
 |---|---|---|
+| `MoneyOrders.feature` | **Service** (`MoneyOrderService` and `MoneyOrderPolicy`, in-memory store) | The promise is about the verification limit: up to 1000 rupees an order is inserted, above it only with a verified identity, and a refused order leaves nothing stored. These are decisions of the service, so HTTP and a database would only add noise. |
+| `Inventory.feature` | **Service** (`InventoryService`, in-memory stock store, recording notifications) | The promise is about quantities: lookups, additions and removals, never below zero, and a low-stock alert at 5 or fewer. The stock rules live in the service. |
+| `StaffSignIn.feature` | **Service** (`StaffAuthenticationService` with the real PBKDF2 hasher) | The promise is about credentials: the right email and password get in, everything else is refused the same way, and passwords are stored only as salted hashes. The real hasher is used so the check is the real one. |
 | `ShipmentCreation.feature` | **API** (in-process `WebApplicationFactory`, SQLite, test auth) | The business promise is "POST creates a shipment, a duplicate gives 409, a bad weight gives 400". Status codes, validation and the unique key only exist when the real pipeline runs. |
 | `ScanSync.feature` | **Service** (`ScanUploadService` and `OutboxService` with in-memory fakes) | The promise is about counts (accepted / duplicates / rejected) and states (Pending to Synced). HTTP adds nothing here and would make the scenarios slower and more brittle. |
 | `HeavyParcelSurcharge.feature` | **API** | The surcharge is a business promise about what the customer sees: it must appear in the v2 response of a real POST and a later GET, so it is checked through the real pipeline (serialisation and contract included). The arithmetic itself is covered by unit tests. || `ShipmentLifecycle.feature` | **API** | The rules are about who may change the status and which HTTP answer a forbidden move gets (204 or 409), so roles, routing and the domain rule have to run together. |
@@ -171,7 +174,7 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 **What would I change?**
 
 * The overlapping Domain test classes (Money, Sku, Weight) were merged in the completion round: 330 tests before and after, none lost (section 5).
-* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 958 passed, 0 skipped), so they are not only a local opt-in.
+* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 992 passed, 0 skipped), so they are not only a local opt-in.
 * Coverage reporting was added in the completion round (section 12); the next step is a threshold-free trend in CI.
 * Move the SQLite customizer's knowledge (which SQL Server details are removed) into a short test that fails if a new SQL Server only mapping appears, instead of discovering it when schema creation breaks.
 * The DTO regex for the tracking number still uses `$`; the domain now rejects the trailing newline (HTTP 400), but the contract and generated client keep the old pattern. Changing it needs a contract re-export.

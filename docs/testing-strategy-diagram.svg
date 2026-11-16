@@ -73,7 +73,7 @@
   <text x="500" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">TEST STRATEGY</text>
   <text x="404" y="112" font-size="12" fill="#1f2937">written first, before the tests</text>
   <text x="404" y="130" font-size="12" fill="#1f2937">cheapest level that catches</text>
-  <text x="404" y="146" font-size="12" fill="#1f2937">each risk. Pyramid 83 / 13 / 4</text>
+  <text x="404" y="146" font-size="12" fill="#1f2937">each risk. Pyramid 81 / 12 / 7</text>
   <text x="404" y="160" font-size="11" fill="#6b7280">file: TESTING-STRATEGY.md</text>
 
   <!-- APP -->
@@ -89,7 +89,7 @@
   <!-- UNIT -->
   <rect x="30" y="240" width="300" height="110" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
   <rect x="30" y="240" width="300" height="28" rx="6" fill="#16a34a"/>
-  <text x="180" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">UNIT TESTS · 779 · 83 %</text>
+  <text x="180" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">UNIT TESTS · 779 · 81 %</text>
   <text x="44" y="286" font-size="12" font-weight="700" fill="#14532d">Is each rule right?</text>
   <text x="44" y="304" font-size="12" fill="#14532d">xUnit: Fact, Theory, InlineData</text>
   <text x="44" y="320" font-size="12" fill="#14532d">fast, one class, fakes for the rest</text>
@@ -98,7 +98,7 @@
   <!-- INTEGRATION -->
   <rect x="370" y="240" width="260" height="110" rx="6" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
   <rect x="370" y="240" width="260" height="28" rx="6" fill="#2563eb"/>
-  <text x="500" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">INTEGRATION · 115 · 13 %</text>
+  <text x="500" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">INTEGRATION · 115 · 12 %</text>
   <text x="384" y="286" font-size="12" font-weight="700" fill="#1e3a8a">Do the parts work together?</text>
   <text x="384" y="304" font-size="12" fill="#1e3a8a">real API + JWT, EF Core on SQLite</text>
   <text x="384" y="320" font-size="12" fill="#1e3a8a">no fakes, a few seconds</text>
@@ -107,7 +107,7 @@
   <!-- BDD -->
   <rect x="670" y="240" width="300" height="110" rx="6" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
   <rect x="670" y="240" width="300" height="28" rx="6" fill="#7c3aed"/>
-  <text x="820" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">BDD SPECS · 37 · 4 %</text>
+  <text x="820" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">BDD SPECS · 71 · 7 %</text>
   <text x="684" y="286" font-size="12" font-weight="700" fill="#4c1d95">What does the customer see?</text>
   <text x="684" y="304" font-size="12" fill="#4c1d95">Reqnroll: Given / When / Then</text>
   <text x="684" y="320" font-size="12" fill="#4c1d95">plain English, slowest, so fewest</text>
@@ -142,7 +142,7 @@
   <rect x="30" y="572" width="940" height="56" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
   <rect x="30" y="572" width="940" height="26" rx="6" fill="#14532d"/>
   <text x="500" y="590" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">GITHUB ACTIONS (CI) · runs dotnet test on every push</text>
-  <text x="500" y="619" text-anchor="middle" font-size="13" fill="#14532d">931 passed · 0 failed · red = stop and fix · green = safe to merge  (27 SQL Server tests skipped unless LocalDB is on; then 958 pass)</text>
+  <text x="500" y="619" text-anchor="middle" font-size="13" fill="#14532d">965 passed · 0 failed · red = stop and fix · green = safe to merge  (27 SQL Server tests skipped unless LocalDB is on; then 992 pass)</text>
 
   <text x="500" y="660" text-anchor="middle" font-size="13" fill="#374151">Read it as: Risks → Strategy → 3 levels → CI. TDD, Mocking and Copilot are helpers for the levels, not extra levels.</text>
   <text x="500" y="678" text-anchor="middle" font-size="11" fill="#6b7280">Proof the tests can fail: code was broken on purpose, tests went red, code restored, tests green (18 proofs in docs/evidence).</text>
@@ -184,7 +184,7 @@
   <rect x="30" y="964" width="940" height="26" fill="#86efac"/>
   <text x="44" y="982" font-size="12" font-weight="700" fill="#14532d">Unit subtotal</text>
   <text x="590" y="982" font-size="13" font-weight="700" fill="#14532d">779</text>
-  <text x="690" y="982" font-size="12" font-weight="700" fill="#14532d">about 83 %</text>
+  <text x="690" y="982" font-size="12" font-weight="700" fill="#14532d">about 81 %</text>
 
   <rect x="30" y="990" width="940" height="24" fill="#dbeafe"/>
   <text x="44" y="1007" font-size="12" fill="#1e3a8a">ApexPost.IntegrationTests</text>
@@ -199,16 +199,16 @@
   <rect x="30" y="1038" width="940" height="26" fill="#93c5fd"/>
   <text x="44" y="1056" font-size="12" font-weight="700" fill="#1e3a8a">Integration subtotal</text>
   <text x="590" y="1056" font-size="13" font-weight="700" fill="#1e3a8a">115</text>
-  <text x="690" y="1056" font-size="12" font-weight="700" fill="#1e3a8a">about 13 %</text>
+  <text x="690" y="1056" font-size="12" font-weight="700" fill="#1e3a8a">about 12 %</text>
 
   <rect x="30" y="1064" width="940" height="26" fill="#ede9fe"/>
-  <text x="44" y="1082" font-size="12" fill="#4c1d95">ApexPost.Specs (5 .feature files)</text>
+  <text x="44" y="1082" font-size="12" fill="#4c1d95">ApexPost.Specs (8 .feature files)</text>
   <text x="440" y="1082" font-size="12" fill="#4c1d95">BDD</text>
-  <text x="590" y="1082" font-size="13" font-weight="700" fill="#4c1d95">37</text>
-  <text x="690" y="1082" font-size="12" fill="#4c1d95">Reqnroll on xUnit, about 4 %</text>
+  <text x="590" y="1082" font-size="13" font-weight="700" fill="#4c1d95">71</text>
+  <text x="690" y="1082" font-size="12" fill="#4c1d95">Reqnroll on xUnit, about 7 %</text>
 
   <rect x="30" y="1090" width="940" height="30" fill="#1f2937"/>
   <text x="44" y="1110" font-size="13" font-weight="700" fill="#ffffff">TOTAL (8 projects)</text>
-  <text x="590" y="1110" font-size="14" font-weight="700" fill="#ffffff">931</text>
+  <text x="590" y="1110" font-size="14" font-weight="700" fill="#ffffff">965</text>
   <text x="690" y="1110" font-size="12" font-weight="700" fill="#ffffff">passed · 0 failed · 27 skipped</text>
 </svg>
