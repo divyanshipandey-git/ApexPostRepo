@@ -374,6 +374,7 @@ All production files were restored with `git checkout -- <file>` and `git status
 | 4 SyncService | `SyncServiceCopilotTests.cs` | **found a production bug** (fixed), 2 tests added, proofs 12 and 14 |
 | 5 ApiKeyAuthorizeAttribute | `ApiKeyAuthorizeAttributeCopilotTests.cs` | shared environment state fixed, proof 13 |
 | 6 ResilienceStateTracker | `ResilienceStateTrackerCopilotTests.cs` | weak `CircuitClosed` test found (still passes when production is broken), 4 edge cases added, proofs 15 and 16 |
+| 7 FileTokenStorage | `FileTokenStorageCopilotTests.cs` | the "not in clear text" test the prompt asked for was missing (all 4 original tests pass on plain-text storage), 5 tests added, proofs 17 and 18 |
 
 Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my earlier AI-assistant drafts.
 
@@ -450,6 +451,39 @@ Raw output: [mutation-15-16-copilot-resilience-tracker.txt](docs/evidence/mutati
 |---|---|---|
 | 15 | `CircuitOpened` no longer raises `CircuitStateChanged` | 5 tests failed, including Copilot's own `CircuitOpened_WhenCalled_SetsCircuitOpenTrueAndRaisesEventOnce` |
 | 16 | `CircuitClosed` forgets to reset the open flag | **Copilot's 6 original tests all still passed**; only my added test failed. This is the proof that the original `CircuitClosed` test was weak. |
+
+Both production files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
+
+---
+
+## Prompt 7 (Copilot, round 3): FileTokenStorageCopilotTests
+
+**Copilot raw output (as received, before review):** a new file `tests/ApexPost.UnitTests/Client/FileTokenStorageCopilotTests.cs` with 4 tests: no file gives null; a stored token is read back with the same values; `ClearTokenAsync` removes the file and a later read gives null; a file of 5 random bytes gives null. It used a unique temp path per test, `IDisposable` cleanup, the `[SupportedOSPlatform("windows")]` attribute and only fake token values, and never touched the real `courier_token.json`. It compiled and all 4 passed on the first run.
+
+**Kept:** the temp-file pattern with cleanup in `Dispose` (no shared state, no real token file touched: I checked that the real file was not modified); the `SupportedOSPlatform("windows")` attribute (the storage uses Windows data protection, so the tests are honest about it); fake tokens only; the null-on-corrupt-file test.
+
+**Changed (added in review)**
+
+| Gap in Copilot's draft | Why it matters | My change |
+|---|---|---|
+| **The prompt asked for "the file on disk does not contain the token in clear" and Copilot did not write it** | It is the main security property of this class. Mutation 17 below shows that Copilot's four tests all still pass when the token is stored in plain text | Added `FileOnDiskDoesNotContainTheTokenInClear` (checks the token text and the courier id are absent from the bytes) |
+| Only random bytes as a "corrupt" file | The prompt also said truncated | Added a test that stores a real token and cuts the file in half |
+| No expired-token test | The class deletes an expired token and returns null; untested | Added `WhenTokenHasExpired_ReturnsNullAndRemovesTheFile` (lifetime of minus one hour, so it does not depend on the clock) |
+| Round trip did not look at the expiry | The expiry is computed in `StoreTokenAsync` | Added a check that `ExpiresAt - IssuedAt` equals the lifetime (a difference, not a clock value) |
+| No test for clearing when nothing is stored | Must not throw | Added `ClearTokenAsync_WhenNothingIsStored_DoesNotThrow` |
+
+**Rejected / not covered:** running the tests on Linux or macOS (the storage uses Windows data protection, so they are Windows-only by design, which is also what the CI runner is); testing the real default path `courier_token.json`: a test must never use it, because it could overwrite a real token.
+
+**What the tests do not prove:** they prove the class behaviour on Windows; they do not prove that the Windows data protection API is secure, or that another Windows user cannot read the file (that is the operating system's guarantee).
+
+### Proof (deliberate breakage, then restore)
+
+Raw output: [mutation-17-18-copilot-token-storage.txt](docs/evidence/mutation-17-18-copilot-token-storage.txt).
+
+| # | Production change (deliberately wrong) | Result |
+|---|---|---|
+| 17 | Token stored and read without data protection (plain text on disk) | **Copilot's 4 original tests all still passed**; only my "not in clear" test failed. This proves the missing test mattered. |
+| 18 | `ClearTokenAsync` no longer deletes the file | Copilot's own clear test failed, and so did my expired-token test |
 
 Both production files were restored with `git checkout -- <file>` and `git status` was clean afterwards.
 

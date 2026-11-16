@@ -1,0 +1,11 @@
+## Mutation 17: token stored and read WITHOUT data protection (plain text on disk, symmetric) - Copilot-drafted FileTokenStorageCopilotTests
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+ApexPost.UnitTests.Client.FileTokenStorageCopilotTests.StoreTokenAsync_WhenTokenIsStored_FileOnDiskDoesNotContainTheTokenInClear [FAIL]
+Failed!  - Failed:     1, Passed:     8, Skipped:     0, Total:     9, Duration: 192 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
+
+## Mutation 18: ClearTokenAsync no longer deletes the file
+ApexPost.UnitTests.Client.FileTokenStorageCopilotTests.GetTokenAsync_WhenTokenHasExpired_ReturnsNullAndRemovesTheFile [FAIL]
+ApexPost.UnitTests.Client.FileTokenStorageCopilotTests.ClearTokenAsync_WhenCalled_RemovesFileAndLaterGetTokenAsyncReturnsNull [FAIL]
+Failed!  - Failed:     2, Passed:     7, Skipped:     0, Total:     9, Duration: 205 ms - ApexPost.UnitTests.dll (net10.0)
+restored: 0 modified files
