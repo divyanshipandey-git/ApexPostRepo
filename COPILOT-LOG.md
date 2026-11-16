@@ -2,7 +2,7 @@
 
 ## Honest note about the tool
 
-The lab asks for **GitHub Copilot**. The first drafts below were made with **another AI coding assistant** (an AI coding assistant) as a **declared substitute**. This is stated openly and the drafts are not presented as Copilot output: Copilot output cannot be produced or invented here. The lab process is followed in full with the substitute tool: saved prompt, AI draft, human review (keep / change / reject with reasons), and proof by deliberate breakage that the tests can fail. The prompts are tool-neutral, so they can be pasted into Copilot Chat later if the instructor requires Copilot specifically; the "Copilot raw output" placeholders below are for that case only. **Tell the instructor about the substitution before the viva.**
+The lab asks for **GitHub Copilot**. The first drafts below were made with **another AI coding assistant** (not GitHub Copilot) as a **declared substitute**. This is stated openly and the drafts are not presented as Copilot output: Copilot output cannot be produced or invented here. The lab process is followed in full with the substitute tool: saved prompt, AI draft, human review (keep / change / reject with reasons), and proof by deliberate breakage that the tests can fail. The prompts are tool-neutral, so they can be pasted into Copilot Chat later if the instructor requires Copilot specifically; the "Copilot raw output" placeholders below are for that case only. **Tell the instructor about the substitution before the viva.**
 
 Every AI-assisted file carries the comment `AI-ASSISTED: ...` on its first lines:
 `tests/ApexPost.UnitTests/Client/ApexApiClientTests.cs`, `.../Outbox/OutboxServiceMoqTests.cs`, `.../Api/ScanUploadServiceMoqTests.cs`, `tests/ApexPost.Specs/Features/ScanSync.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncSteps.cs`.
@@ -126,13 +126,13 @@ Prompt 4 (optional extra, for the viva): *"Write a Reqnroll feature `ShipmentLif
 
 ### Message to send to your instructor if you cannot use Copilot
 
-> I could not use GitHub Copilot (no access). I used another AI coding assistant (another AI coding assistant) for the AI-assisted drafting step and kept the same process: saved prompts, human review with keep/change/reject decisions, `AI-ASSISTED` markers, and five deliberate-breakage proofs (docs/evidence). It is stated openly in COPILOT-LOG.md. Is this accepted for the Copilot criterion, or should I repeat prompts 1 and 2 in Copilot?
+> I could not use GitHub Copilot (no access). I used another AI coding assistant (not GitHub Copilot) for the AI-assisted drafting step and kept the same process: saved prompts, human review with keep/change/reject decisions, `AI-ASSISTED` markers, and five deliberate-breakage proofs (docs/evidence). It is stated openly in COPILOT-LOG.md. Is this accepted for the Copilot criterion, or should I repeat prompts 1 and 2 in Copilot?
 
 ---
 
 # Real GitHub Copilot session (student ran the prompts)
 
-Status: **all three Copilot prompts are done and reviewed below** (prompt 1 service unit tests, prompt 2 Gherkin feature + steps, prompt 3 HTTP client tests). The earlier sections of this log are the another AI coding assistant drafts and stay as the declared substitute; this section is the Copilot one.
+Status: **all three Copilot prompts are done and reviewed below** (prompt 1 service unit tests, prompt 2 Gherkin feature + steps, prompt 3 HTTP client tests). The earlier sections of this log are the earlier AI-assistant drafts and stay as the declared substitute; this section is the Copilot one.
 
 Files from Copilot: `tests/ApexPost.Specs/Features/ScanSyncCopilot.feature`, `tests/ApexPost.Specs/StepDefinitions/ScanSyncCopilotSteps.cs` (both marked `COPILOT-ASSISTED`).
 
@@ -163,7 +163,7 @@ Files from Copilot: `tests/ApexPost.Specs/Features/ScanSyncCopilot.feature`, `te
 * a mixed batch of new and already known scans,
 * the offline outbox (Pending to Synced / Failed).
 
-These stay covered by my `ScanSync.feature` (another AI coding assistant draft); I did not ask Copilot for them.
+These stay covered by my `ScanSync.feature` (earlier AI-assistant draft); I did not ask Copilot for them.
 
 **What the feature does not prove:** it runs at service level on SQLite, so HTTP status codes, JWT roles and SQL Server behaviour are not part of it (the API features and the opt-in SQL Server tests cover those).
 
@@ -204,7 +204,7 @@ Both files were restored with `git checkout -- <file>` and `git status` was clea
 * A token without a `courierId` claim (null, empty, spaces): **added** a `[Theory]` with three cases that expects `ForbiddenException` and no save.
 * Not drafted and not added here: mapping of the scan type to the domain enum and the "clock moves" test; they exist in my `ScanUploadServiceMoqTests`.
 
-**Overlap to be honest about:** the cases in Copilot's file are nearly the same as in my another AI coding assistant draft `ScanUploadServiceMoqTests` (the prompt was derived from it). I kept both because the Copilot file is the lab deliverable; mine uses strict mocks and also covers the clock and enum mapping.
+**Overlap to be honest about:** the cases in Copilot's file are nearly the same as in my earlier AI-assistant draft `ScanUploadServiceMoqTests` (the prompt was derived from it). I kept both because the Copilot file is the lab deliverable; mine uses strict mocks and also covers the clock and enum mapping.
 
 **What the mock does not prove:** it proves the service skips a duplicate and never calls `SaveChangesAsync`; it does not prove that the real primary key on SQL Server or SQLite rejects a duplicate id. The SQLite repository tests, the API tests and the opt-in SQL Server test cover that.
 
@@ -240,7 +240,7 @@ Both files were restored with `git checkout -- <file>` and `git status` was clea
 
 **Rejected / not added**
 
-* Retry behaviour: it lives in the Polly handler pipeline, not in `ApexApiClient`; asserting it here would test the wrong class (same decision as in the another AI coding assistant draft).
+* Retry behaviour: it lives in the Polly handler pipeline, not in `ApexApiClient`; asserting it here would test the wrong class (same decision as in the earlier AI-assistant draft).
 * Unknown JSON fields and a pure network failure (`HttpRequestException`): not drafted by Copilot and not added; they stay covered by my `ApexApiClientTests`.
 
 **Overlap to be honest about:** Copilot saw my `ApexApiClientTests.cs` in the same folder, and its six tests are almost line-for-line the same cases and data. They are valid and I kept them because the file is the lab deliverable, but they add no coverage beyond my draft; the two review additions above are what is new.
@@ -266,7 +266,7 @@ Both files were restored with `git checkout -- <file>` and `git status` was clea
 | 2 Gherkin feature + steps | `ScanSyncCopilot.feature`, `ScanSyncCopilotSteps.cs` | 4 scenarios | feature was excluded from the build and is now running, magic words removed, proofs 6 and 7 |
 | 3 HTTP client tests | `ApexApiClientCopilotTests.cs` | 12 cases | 2 additions (request check, status theory), proofs 10 and 11 |
 
-All three files carry `COPILOT-ASSISTED`; the another AI coding assistant drafts earlier in this log remain, declared as such.
+All three files carry `COPILOT-ASSISTED`; the earlier drafts in this log remain, declared as such.
 
 ---
 
@@ -374,4 +374,4 @@ All production files were restored with `git checkout -- <file>` and `git status
 | 4 SyncService | `SyncServiceCopilotTests.cs` | **found a production bug** (fixed), 2 tests added, proofs 12 and 14 |
 | 5 ApiKeyAuthorizeAttribute | `ApiKeyAuthorizeAttributeCopilotTests.cs` | shared environment state fixed, proof 13 |
 
-Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my another AI coding assistant drafts.
+Prompts 4 and 5 target code with no earlier tests, so unlike prompts 1 and 3 they do not overlap my earlier AI-assistant drafts.

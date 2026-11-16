@@ -6,4 +6,4 @@
 * **Run everything:** `dotnet test ApexPost.sln` (912 passed, 27 skipped, 0 failed; with LocalDB enabled 939 passed, 0 skipped).
 * **Evidence:** `docs/evidence/` (raw run logs, `test-run-summary.svg`, coverage summary, eleven deliberate-breakage runs).
 * **AI tools used, stated openly:** GitHub Copilot drafted three files (service unit tests, the ScanSyncCopilot feature with its steps, the HTTP client tests); another AI coding assistant made the earlier drafts. Both are logged in COPILOT-LOG.md and every Copilot file carries `COPILOT-ASSISTED`.
-* **Strategy diagrams:** `docs/TESTING-DIAGRAMS.md`; viva notes: `VIVA-NOTES.md`.
+* **Strategy diagrams:** `docs/TESTING-DIAGRAMS.md`.

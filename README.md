@@ -79,8 +79,6 @@ dotnet test ApexPost.sln --collect:"XPlat Code Coverage" --results-directory cov
 * [docs/TESTING-DIAGRAMS.md](docs/TESTING-DIAGRAMS.md): diagrams of the strategy, TDD cycle, BDD flow and data-access choices (picture: [docs/testing-strategy-diagram.svg](docs/testing-strategy-diagram.svg)).
 * [TDD-LOG.md](TDD-LOG.md): the heavy parcel surcharge built test-first. `git log --grep="^RED\|^GREEN\|^REFACTOR"` shows the cycle.
 * [COPILOT-LOG.md](COPILOT-LOG.md): AI-assisted drafts, review decisions, and the three deliberate-breakage proofs (`docs/evidence/`).
-* [VIVA-NOTES.md](VIVA-NOTES.md): short, simple notes for the 5-minute viva.
-* [VIVA-PRACTICE.md](VIVA-PRACTICE.md): a timed 5-minute script and likely questions for the viva.
 
 Notes: the API DTO rule for `PATCH .../status` is stricter than the domain rule (a `reason` is required for `Delivered` as well as `Failed`); the integration tests use a fake, test-only JWT signing key that exists only inside the test process.
 
