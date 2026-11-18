@@ -89,7 +89,7 @@
   <!-- UNIT -->
   <rect x="30" y="240" width="300" height="110" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
   <rect x="30" y="240" width="300" height="28" rx="6" fill="#16a34a"/>
-  <text x="180" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">UNIT TESTS · 779 · 81 %</text>
+  <text x="180" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">UNIT TESTS · 797 · 81 %</text>
   <text x="44" y="286" font-size="12" font-weight="700" fill="#14532d">Is each rule right?</text>
   <text x="44" y="304" font-size="12" fill="#14532d">xUnit: Fact, Theory, InlineData</text>
   <text x="44" y="320" font-size="12" fill="#14532d">fast, one class, fakes for the rest</text>
@@ -142,7 +142,7 @@
   <rect x="30" y="572" width="940" height="56" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
   <rect x="30" y="572" width="940" height="26" rx="6" fill="#14532d"/>
   <text x="500" y="590" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">GITHUB ACTIONS (CI) · runs dotnet test on every push</text>
-  <text x="500" y="619" text-anchor="middle" font-size="13" fill="#14532d">965 passed · 0 failed · red = stop and fix · green = safe to merge  (27 SQL Server tests skipped unless LocalDB is on; then 992 pass)</text>
+  <text x="500" y="619" text-anchor="middle" font-size="13" fill="#14532d">983 passed · 0 failed · red = stop and fix · green = safe to merge  (27 SQL Server tests skipped unless LocalDB is on; then 1010 pass)</text>
 
   <text x="500" y="660" text-anchor="middle" font-size="13" fill="#374151">Read it as: Risks → Strategy → 3 levels → CI. TDD, Mocking and Copilot are helpers for the levels, not extra levels.</text>
   <text x="500" y="678" text-anchor="middle" font-size="11" fill="#6b7280">Proof the tests can fail: code was broken on purpose, tests went red, code restored, tests green (18 proofs in docs/evidence).</text>
@@ -179,11 +179,11 @@
   <rect x="30" y="940" width="940" height="24" fill="#dcfce7"/>
   <text x="44" y="957" font-size="12" fill="#14532d">ApexPost.Api.Tests</text>
   <text x="440" y="957" font-size="12" fill="#14532d">Unit</text>
-  <text x="590" y="957" font-size="12" font-weight="700" fill="#14532d">21</text>
+  <text x="590" y="957" font-size="12" font-weight="700" fill="#14532d">39</text>
   <text x="690" y="957" font-size="12" fill="#14532d">xUnit (API classes)</text>
   <rect x="30" y="964" width="940" height="26" fill="#86efac"/>
   <text x="44" y="982" font-size="12" font-weight="700" fill="#14532d">Unit subtotal</text>
-  <text x="590" y="982" font-size="13" font-weight="700" fill="#14532d">779</text>
+  <text x="590" y="982" font-size="13" font-weight="700" fill="#14532d">797</text>
   <text x="690" y="982" font-size="12" font-weight="700" fill="#14532d">about 81 %</text>
 
   <rect x="30" y="990" width="940" height="24" fill="#dbeafe"/>
@@ -209,6 +209,6 @@
 
   <rect x="30" y="1090" width="940" height="30" fill="#1f2937"/>
   <text x="44" y="1110" font-size="13" font-weight="700" fill="#ffffff">TOTAL (8 projects)</text>
-  <text x="590" y="1110" font-size="14" font-weight="700" fill="#ffffff">965</text>
+  <text x="590" y="1110" font-size="14" font-weight="700" fill="#ffffff">983</text>
   <text x="690" y="1110" font-size="12" font-weight="700" fill="#ffffff">passed · 0 failed · 27 skipped</text>
 </svg>

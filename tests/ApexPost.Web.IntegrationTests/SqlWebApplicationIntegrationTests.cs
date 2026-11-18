@@ -153,7 +153,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
     {
         using var manager = await CreateAuthenticatedClientAsync();
         var token = await GetAntiforgeryTokenAsync(manager, "/Transactions/Create");
-        var auditWindowStart = DateTime.UtcNow.AddMinutes(-1);
+        var auditWindowStart = (await _factory.GetServerUtcNowAsync()).AddMinutes(-1);
         var saleIds = new List<string>();
         for (var index = 0; index < 2; index++)
         {
@@ -185,7 +185,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             saleIds.Add(Assert.IsType<Uri>(sale.Headers.Location)
                 .OriginalString.Split('/', StringSplitOptions.RemoveEmptyEntries).Last());
         }
-        var auditWindowEnd = DateTime.UtcNow.AddMinutes(1);
+        var auditWindowEnd = (await _factory.GetServerUtcNowAsync()).AddMinutes(1);
 
         await using var db = _factory.CreateContext();
         var transactions = await db.CounterTransactions
@@ -230,7 +230,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
             Assert.NotEqual("ATTACKER-ID", order.Id);
             Assert.NotEqual("ATTACKER-TXN", order.TransactionId);
             Assert.Equal(SqlWebApplicationFactory.BranchCode, order.BranchCode!.Value);
-            Assert.InRange(order.CreatedAtUtc!.Value.UtcDateTime, auditWindowStart, auditWindowEnd);
+            Assert.Equal(SqlWebApplicationFactory.FixedNow, order.CreatedAtUtc);
             Assert.Null(db.Entry(order).Property<string?>("CreatedBy").CurrentValue);
             Assert.Null(db.Entry(order).Metadata.FindProperty("ModifiedBy"));
             Assert.Equal("XXXX1234", order.IdentityVerification!.MaskedDocumentNumber);
@@ -253,7 +253,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
         using var auditor = await CreateAuthenticatedClientAsync(
             SqlWebApplicationFactory.AuditorEmail,
             SqlWebApplicationFactory.AuditorPassword);
-        var date = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        var date = DateOnly.FromDateTime(SqlWebApplicationFactory.FixedNow.UtcDateTime).ToString("yyyy-MM-dd");
         using var firstPage = await auditor.GetAsync(
             $"/Reports/MoneyOrders?branchCode={SqlWebApplicationFactory.BranchCode}&fromDate={date}&toDate={date}&pageSize=1");
         Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
@@ -328,7 +328,7 @@ public sealed class SqlWebApplicationIntegrationTests : IAsyncLifetime
         Assert.True(await db.Products.AnyAsync(item => item.Sku == new Sku(SqlWebApplicationFactory.Sku)));
 
         using var filteredReports = await client.GetAsync(
-            $"/Reports?date={DateOnly.FromDateTime(DateTime.UtcNow):yyyy-MM-dd}&branchCode={SqlWebApplicationFactory.BranchCode}&threshold=0");
+            $"/Reports?date={DateOnly.FromDateTime(SqlWebApplicationFactory.FixedNow.UtcDateTime):yyyy-MM-dd}&branchCode={SqlWebApplicationFactory.BranchCode}&threshold=0");
         Assert.Equal(HttpStatusCode.OK, filteredReports.StatusCode);
         var reportHtml = await filteredReports.Content.ReadAsStringAsync();
         Assert.Contains("name=\"branchCode\"", reportHtml, StringComparison.Ordinal);
@@ -477,6 +477,9 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
     public static readonly string AuditorPassword =
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public const string Sku = "SQLHTTPSKU";
+
+    // The application clock is fixed for these tests, so report dates and order times never depend on the machine clock.
+    public static readonly DateTimeOffset FixedNow = new(2025, 3, 10, 12, 0, 0, TimeSpan.Zero);
     private readonly string _connectionString;
     private bool _initialized;
 
@@ -570,13 +573,29 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
         await dropDatabase.ExecuteNonQueryAsync();
     }
 
+    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder) =>
+        builder.ConfigureServices(services =>
+        {
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<TimeProvider>(services);
+            services.AddSingleton<TimeProvider>(new FixedWebClock(FixedNow));
+        });
+
+    /// <summary>The time of the SQL Server itself. Columns filled by SYSUTCDATETIME() are checked against this, not against the test machine.</summary>
+    public async Task<DateTime> GetServerUtcNowAsync()
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand("SELECT SYSUTCDATETIME()", connection);
+        return (DateTime)(await command.ExecuteScalarAsync())!;
+    }
+
     public ApexPostDbContext CreateContext() => new(new DbContextOptionsBuilder<ApexPostDbContext>().UseSqlServer(_connectionString).Options);
 
     public async Task<string> CreatePaidRetailTransactionAsync(int quantity)
     {
         var id = $"SQLHTTP-TX-{Guid.NewGuid():N}";
         var transaction = new CounterTransaction(id, new BranchCode(BranchCode), CounterId, StaffId,
-            [new TaxRate(TaxCategory.Standard, .18m)], DateTimeOffset.UtcNow);
+            [new TaxRate(TaxCategory.Standard, .18m)], FixedNow);
         transaction.AddLineItem(new TransactionLineItem("SQL HTTP Envelope", "Retail", quantity, new Money(10m), TaxCategory.Standard, Sku));
         transaction.CompletePayment(PaymentMethod.Cash);
         using var scope = Services.CreateScope();
@@ -588,4 +607,9 @@ internal sealed class SqlWebApplicationFactory : WebApplicationFactory<Program>
         await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
         return id;
     }
+}
+
+internal sealed class FixedWebClock(DateTimeOffset now) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => now;
 }

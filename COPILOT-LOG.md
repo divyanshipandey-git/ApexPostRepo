@@ -490,12 +490,10 @@ Both production files were restored with `git checkout -- <file>` and `git statu
 ---
 
 
-# In my own words (the student fills this in before the viva)
+# In my own words
 
-Two or three sentences per item, in your own words. These are the answers the viva asks for.
-
-* **A Copilot test I rejected, and why:**
-* **A weak assertion I found and how I fixed it:**
-* **What Copilot got right without help:**
-* **What surprised me when I broke the code on purpose:**
-* **Why I kept the earlier drafts, and what is different about the Copilot files:**
+* **A Copilot test I rejected, and why:** Copilot gave me a Gherkin feature for scan upload that read well, but the project file had a line that removed it from the build. The suite was green and that feature never ran, so I took the line out and four more scenarios started running. Copilot also wrote `empty` and `missing` in the Examples table for "no signature". Those words only worked because the step code treated them specially, so I replaced them with an empty cell.
+* **A weak assertion I found and how I fixed it:** In the unit tests for the scan upload service, "the same scan id twice" only checked the counts. A buggy service could still store two scans and report one accepted. I added a check that exactly one scan is stored. In the circuit state tests, the "closed" test started from a tracker that was never opened, so it would pass even if the method forgot to reset the state. I added a test that opens the circuit first and then closes it.
+* **What Copilot got right without help:** The test structure and names, the 4 / 5 / 6 minute boundary test with an injected clock instead of `DateTime.Now`, and `Verify(..., Times.Never)` to show nothing is saved. Its 404 test checked four fields of the problem details, not just that an exception was thrown. It also covered the unique-key race, which is easy to forget.
+* **What surprised me when I broke the code on purpose:** The client tests Copilot wrote would have stayed green even if I changed the route to `api/v1`, because they only looked at responses. My extra test about the request was the one that failed. Also, one of Copilot's sync tests for a 401 failed on the first run. That was a real bug: the service finished with Idle and overwrote the Error state. I kept the test, committed it red, fixed the code, and it went green.
+* **Why I kept the earlier drafts, and what is different about the Copilot files:** I wrote the first drafts with another AI assistant before I ran Copilot. Copilot could see them, so its first and third files overlap with mine, and I say so in the log. I kept both because the Copilot files are the lab deliverable and mine cover a few extra cases. For rounds 2 and 3 I picked code that had no tests yet (sync service, API key check, circuit state, token file), so those files are Copilot's own coverage, each reviewed and extended by me.

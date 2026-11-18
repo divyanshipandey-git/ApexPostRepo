@@ -91,7 +91,7 @@ public sealed class CreateShipmentRequest
 public static class TrackingNumberFormat
 {
     /// <summary>APX- followed by exactly eight digits.</summary>
-    public const string Pattern = @"^APX-\d{8}$";
+    public const string Pattern = @"^APX-\d{8}(?!\n)$";
 
     public const string ErrorMessage = "Tracking number must match format APX-NNNNNNNN (eight digits, for example APX-20241107)";
 }

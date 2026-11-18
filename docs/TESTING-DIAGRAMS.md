@@ -19,7 +19,7 @@ flowchart TB
         CB["Couchbase Lite temp folder<br/>real SQL++ and outbox"]
     end
 
-    subgraph UNIT["Unit: about 81 percent (779 tests), driven by TDD"]
+    subgraph UNIT["Unit: about 81 percent (797 tests), driven by TDD"]
         direction LR
         X["xUnit<br/>Fact, Theory, InlineData, MemberData"] --- M["Moq<br/>Setup, Returns, Verify, Times, It.Is"]
         M --- H["Fake HttpMessageHandler<br/>ApexApiClient: 200, 404, 500, timeout, cancel"]

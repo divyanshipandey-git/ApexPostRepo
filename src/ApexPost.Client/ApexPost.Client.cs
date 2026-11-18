@@ -1766,7 +1766,7 @@ namespace ApexPost.Client
         /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("trackingNumber")]
         [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
-        [System.ComponentModel.DataAnnotations.RegularExpression(@"^APX-\d{8}$")]
+        [System.ComponentModel.DataAnnotations.RegularExpression(@"^APX-\d{8}(?!\n)$")]
         public string TrackingNumber { get; set; } = default!;
 
         /// <summary>

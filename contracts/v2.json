@@ -1601,7 +1601,7 @@
         "type": "object",
         "properties": {
           "trackingNumber": {
-            "pattern": "^APX-\\d{8}$",
+            "pattern": "^APX-\\d{8}(?!\\n)$",
             "type": "string",
             "description": "Unique tracking number in format APX-NNNNNNNN."
           },

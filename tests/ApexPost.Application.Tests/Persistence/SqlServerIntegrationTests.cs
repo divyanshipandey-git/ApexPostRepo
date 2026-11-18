@@ -115,6 +115,9 @@ public sealed class SqlServerIntegrationTestFixture : IAsyncLifetime
 [Collection("SQL Server Integration")]
 public sealed class SqlServerIntegrationTests
 {
+    // Every date in these tests comes from this fixed instant (and from the TimeProvider registered below), never from the machine clock.
+    private static readonly DateTimeOffset FixedNow = new(2025, 3, 10, 12, 0, 0, TimeSpan.Zero);
+
     private readonly SqlServerIntegrationTestFixture _fixture;
     private static readonly Lazy<Task> PrimarySchema = new(ApplyPrimaryMigrationsAsync);
 
@@ -302,7 +305,7 @@ public sealed class SqlServerIntegrationTests
             Assert.Contains(await reports.GetShipmentsAsync(), row => row.BranchCode == seed.BranchCode);
             Assert.Contains(await reports.GetMoneyOrdersAsync(), row => row.BranchCode == seed.BranchCode);
             Assert.Contains(await reports.GetIdentityVerificationsAsync(), row => row.BranchCode == seed.BranchCode);
-            var reportDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            var reportDate = DateOnly.FromDateTime(FixedNow.UtcDateTime);
             var topProducts = await reports.GetTopProductsByRegionAsync(
                 reportDate, reportDate, seed.BranchCode);
             var topProduct = Assert.Single(topProducts);
@@ -333,7 +336,7 @@ public sealed class SqlServerIntegrationTests
         await using var provider = CreateProvider();
         var branchSeed = await SeedSaleAsync(provider, stockQuantity: 8);
         var otherBranchSeed = await SeedSaleAsync(provider, stockQuantity: 8);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(FixedNow.UtcDateTime);
         var todayNoon = new DateTimeOffset(today.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
         var yesterdayNoon = todayNoon.AddDays(-1);
 
@@ -516,7 +519,7 @@ public sealed class SqlServerIntegrationTests
 
         using var reportScope = provider.CreateScope();
         var reports = reportScope.ServiceProvider.GetRequiredService<IReportDataSource>();
-        var day = DateOnly.FromDateTime(DateTime.UtcNow);
+        var day = DateOnly.FromDateTime(FixedNow.UtcDateTime);
         var daily = Assert.Single(await reports.GetDailyBranchSalesAsync(day, seed.BranchCode));
         Assert.Equal(1, daily.TransactionCount);
         Assert.Equal(11.8m, daily.RetailSales);
@@ -640,7 +643,7 @@ public sealed class SqlServerIntegrationTests
         using (var scope = provider.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<IAuditStore>().WriteAsync(new AuditActionRecord(
-                DateTimeOffset.UtcNow, "staff-test", "BranchManager", "B001", "Transactions", "Void",
+                FixedNow, "staff-test", "BranchManager", "B001", "Transactions", "Void",
                 new Dictionary<string, string?> { ["transactionId"] = id }, 200, 8, id));
         }
 
@@ -716,7 +719,7 @@ public sealed class SqlServerIntegrationTests
         try
         {
             var entry = new AuditActionRecord(
-                DateTimeOffset.UtcNow,
+                FixedNow,
                 "sql-import-test",
                 "BranchManager",
                 existingBranch.Code.Value,
@@ -814,7 +817,7 @@ public sealed class SqlServerIntegrationTests
         DateTimeOffset? occurredAtUtc = null)
     {
         var transaction = new CounterTransaction($"T{Guid.NewGuid():N}", new BranchCode(seed.BranchCode), seed.CounterId,
-            seed.StaffId, [new TaxRate(TaxCategory.Standard, 0.18m)], occurredAtUtc ?? DateTimeOffset.UtcNow);
+            seed.StaffId, [new TaxRate(TaxCategory.Standard, 0.18m)], occurredAtUtc ?? FixedNow);
         transaction.AddLineItem(new TransactionLineItem("SQL test item", "Retail", 2, new Money(10m), TaxCategory.Standard, seed.Sku));
         transaction.CompletePayment(PaymentMethod.Cash);
         using var scope = provider.CreateScope();
@@ -844,6 +847,8 @@ public sealed class SqlServerIntegrationTests
             ["ConnectionStrings:ApexPost"] = GetConnectionString()
         }).Build();
         services.AddApplication();
+        services.RemoveAll<TimeProvider>();
+        services.AddSingleton<TimeProvider>(new FixedClock(FixedNow));
         services.AddSqlInfrastructure(config);
         services.AddSingleton(new TaxRate(TaxCategory.Standard, 0.18m));
         services.AddSingleton(new TaxRate(TaxCategory.Reduced, 0.05m));
@@ -978,4 +983,9 @@ public sealed class SqlServerIntegrationTests
                 Skip = "Set APEXPOST_SQL_TEST_CONNECTION to run the isolated SQL Server integration suite.";
         }
     }
+}
+
+internal sealed class FixedClock(DateTimeOffset now) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => now;
 }

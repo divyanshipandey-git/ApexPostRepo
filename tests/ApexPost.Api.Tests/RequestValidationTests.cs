@@ -46,6 +46,23 @@ public sealed class RequestValidationTests
         Assert.Empty(Validate(Valid(tracking: "APX-20240229")));
     }
 
+    [Theory]
+    [InlineData("APX-12345678\n")]
+    [InlineData("APX-12345678\r\n")]
+    [InlineData("APX-12345678 ")]
+    [InlineData(" APX-12345678")]
+    public void TrackingNumber_WithTrailingOrLeadingWhitespace_IsRejected(string tracking)
+    {
+        // Arrange
+        var request = Valid(tracking: tracking);
+
+        // Act
+        var errors = Validate(request);
+
+        // Assert: in .NET a plain "$" also matches before a final newline, so the pattern must not allow it.
+        Assert.Single(errors);
+    }
+
     [Fact]
     public async Task Weight_IsBetweenPoint1And70()
     {

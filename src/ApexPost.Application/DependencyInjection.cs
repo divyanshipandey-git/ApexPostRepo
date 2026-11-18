@@ -41,7 +41,8 @@ public static class DependencyInjection
         services.TryAddScoped<ShippingService>(provider => new ShippingService(
             provider.GetRequiredService<IShipmentRepository>(),
             provider.GetServices<ShippingPricingRule>(),
-            provider.GetRequiredService<IUnitOfWork>()));
+            provider.GetRequiredService<IUnitOfWork>(),
+            timeProvider: provider.GetRequiredService<TimeProvider>()));
         services.TryAddScoped<CounterSaleService>();
         services.TryAddScoped<TransactionVoidService>();
         services.TryAddScoped<TransactionRefundService>();

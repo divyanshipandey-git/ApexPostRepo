@@ -20,9 +20,9 @@ Likelihood x cost of failure, highest first. Every row names the test level that
 
 ## 2. Test pyramid
 
-| Level | What runs there | Planned share | Actual (965 passing tests) | Speed |
+| Level | What runs there | Planned share | Actual (983 passing tests) | Speed |
 |---|---|---|---|---|
-| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **81 %** (779) | milliseconds |
+| **Unit** | Domain rules, validation, services with mocked repositories, the typed HTTP client with a fake handler, the outbox with a mocked uploader | **~80 %** | **81 %** (797) | milliseconds |
 | **Integration** | Real EF Core repositories on SQLite in-memory; API endpoints through `WebApplicationFactory` with a test database and test authentication; Couchbase Lite on a temp folder; MVC pipeline | **~16 %** | **12 %** (115) | tens of ms to seconds |
 | **BDD / acceptance** | Reqnroll scenarios in business language, at **service level** (ScanSync, MoneyOrders, Inventory, StaffSignIn) and **API level** (ShipmentCreation, HeavyParcelSurcharge, ShipmentLifecycle) | **~4 %** | **7 %** (71) | seconds |
 
@@ -174,10 +174,12 @@ Reviewed before writing new tests. "Tests" is the number of `[Fact]`/`[Theory]` 
 **What would I change?**
 
 * The overlapping Domain test classes (Money, Sku, Weight) were merged in the completion round: 330 tests before and after, none lost (section 5).
-* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 992 passed, 0 skipped), so they are not only a local opt-in.
+* Run the SQL Server tests in CI against a container (they pass locally on LocalDB: 1010 passed, 0 skipped), so they are not only a local opt-in.
 * Coverage reporting was added in the completion round (section 12); the next step is a threshold-free trend in CI.
 * Move the SQLite customizer's knowledge (which SQL Server details are removed) into a short test that fails if a new SQL Server only mapping appears, instead of discovering it when schema creation breaks.
-* The DTO regex for the tracking number still uses `$`; the domain now rejects the trailing newline (HTTP 400), but the contract and generated client keep the old pattern. Changing it needs a contract re-export.
+* The tracking-number regex used `$` in the DTO, the route constraint, the contract and the generated client. A test for the route constraint showed that `APX-12345678` followed by a newline matched (the DataAnnotations attribute already required a full-string match, the route constraint did not). The shared pattern is now `^APX-\d{8}(?!\n)$`, which also works as an OpenAPI/JavaScript pattern (unlike `\z`), and `contracts/v1.json`, `contracts/v2.json` and the client carry the same pattern.
+* The opt-in SQL Server tests no longer read the machine clock: the application `TimeProvider` is replaced by a fixed one, report dates come from that fixed instant, and the columns that SQL Server fills itself (`SYSUTCDATETIME()`) are checked against the server's own time. Registering the clock also showed that `ShippingService` was built without it in the dependency injection setup, so shipments were stamped with the system time; it now receives the registered `TimeProvider`.
+* Branch name: the brief says `main`, this repository's default branch is `master`; the merge of `week5-testing` went into `master`.
 
 **Which test type gave the most confidence per minute?**
 
